@@ -1,0 +1,33 @@
+# List Network Requests
+
+| reqid | method | url | status |
+|---|---|---|---|
+| 271 | GET | http://localhost:5173/ | failed - 304 |
+| 272 | GET | http://localhost:5173/@vite/client | failed - 304 |
+| 273 | GET | https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap | success - 200 |
+| 274 | GET | https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css | success - 200 |
+| 275 | GET | https://unpkg.com/leaflet@1.9.4/dist/leaflet.css | success - 200 |
+| 276 | GET | https://unpkg.com/leaflet@1.9.4/dist/leaflet.js | success - 200 |
+| 277 | GET | http://localhost:5173/src/main.js?t=1773166689788 | failed - 304 |
+| 278 | GET | https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2 | success - 200 |
+| 279 | GET | https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-brands-400.woff2 | success - 200 |
+| 280 | GET | https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-regular-400.woff2 | success - 200 |
+| 281 | GET | https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.woff2 | success - 200 |
+| 282 | GET | http://localhost:5173/src/style.css?t=1773165886153 | failed - 304 |
+| 283 | GET | http://localhost:5173/src/router.js?t=1773166306096 | failed - 304 |
+| 284 | GET | http://localhost:5173/src/pages/home.js?t=1773166529773 | failed - 304 |
+| 285 | GET | http://localhost:5173/src/pages/register.js?t=1773166529773 | failed - 304 |
+| 286 | GET | http://localhost:5173/src/pages/login.js?t=1773166529773 | failed - 304 |
+| 287 | GET | http://localhost:5173/src/pages/forgot-password.js | failed - 304 |
+| 288 | GET | http://localhost:5173/src/pages/profile-setup.js?t=1773166529773 | failed - 304 |
+| 289 | GET | http://localhost:5173/src/pages/dashboard.js?t=1773166689788 | failed - 304 |
+| 290 | GET | http://localhost:5173/src/pages/post-listing.js?t=1773166529773 | failed - 304 |
+| 291 | GET | http://localhost:5173/src/pages/city.js?t=1773166529773 | failed - 304 |
+| 292 | GET | http://localhost:5173/src/pages/admin.js?t=1773166529773 | failed - 304 |
+| 293 | GET | http://localhost:5173/src/pages/search.js?t=1773166529773 | failed - 304 |
+| 294 | GET | http://localhost:5173/src/services/db.js?t=1773166529773 | failed - 304 |
+| 295 | GET | http://localhost:5173/node_modules/vite/dist/client/env.mjs | failed - 304 |
+| 296 | GET | http://localhost:5173/src/services/auth.js?t=1773166529773 | failed - 304 |
+| 298 | GET | http://localhost:5173/cities/austin.webp | failed - 304 |
+| 299 | GET | http://localhost:5173/cities/portland.webp | failed - 304 |
+| 300 | GET | https://ui-avatars.com/api/?name=Sarah%20K.&background=6366f1&color=fff | success - 200 |
