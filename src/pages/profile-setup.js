@@ -201,8 +201,19 @@ export function renderProfileSetupPage(app) {
             photoPreview.dataset.photo = imageUrl;
             showToast('Photo uploaded successfully', 'success');
         } catch (err) {
-            showToast('Upload failed: ' + err.message, 'error');
-            photoPreview.innerHTML = '<i class="fas fa-camera"></i><span>Upload Photo</span>';
+            console.warn('[PROFILE] Server upload failed, falling back to Base64:', err);
+            const reader = new FileReader();
+            reader.onload = (rev) => {
+                const base64Data = rev.target.result;
+                photoPreview.innerHTML = `<img src="${base64Data}" alt="Profile photo" />`;
+                photoPreview.dataset.photo = base64Data;
+                showToast('Server unavailable. Photo saved locally.', 'warning');
+            };
+            reader.onerror = () => {
+                showToast('Upload failed: ' + err.message, 'error');
+                photoPreview.innerHTML = '<i class="fas fa-camera"></i><span>Upload Photo</span>';
+            };
+            reader.readAsDataURL(file);
         }
     });
 

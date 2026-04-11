@@ -60,17 +60,40 @@ async function processImageUpload(file) {
                         resizeToBlob(img, 1600, 1200, 0.85),
                     ]);
 
-                    const [thumbUrl, medUrl, fullUrl] = await Promise.all([
-                        uploadImage(thumbBlob, 'thumb.webp'),
-                        uploadImage(medBlob, 'medium.webp'),
-                        uploadImage(fullBlob, 'full.webp'),
-                    ]);
+                    try {
+                        const [thumbUrl, medUrl, fullUrl] = await Promise.all([
+                            uploadImage(thumbBlob, 'thumb.webp'),
+                            uploadImage(medBlob, 'medium.webp'),
+                            uploadImage(fullBlob, 'full.webp'),
+                        ]);
 
-                    resolve({
-                        thumb: thumbUrl,
-                        medium: medUrl,
-                        full: fullUrl,
-                    });
+                        resolve({
+                            thumb: thumbUrl,
+                            medium: medUrl,
+                            full: fullUrl,
+                        });
+                    } catch (uploadErr) {
+                        console.warn('[LISTING] Server upload failed, falling back to Base64:', uploadErr);
+                        // Convert blobs to DataURLs for local storage
+                        const toBase64 = (blob) => new Promise(res => {
+                            const r = new FileReader();
+                            r.onload = (ev) => res(ev.target.result);
+                            r.readAsDataURL(blob);
+                        });
+
+                        const [tBase64, mBase64, fBase64] = await Promise.all([
+                            toBase64(thumbBlob),
+                            toBase64(medBlob),
+                            toBase64(fullBlob)
+                        ]);
+
+                        resolve({
+                            thumb: tBase64,
+                            medium: mBase64,
+                            full: fBase64,
+                            isLocal: true
+                        });
+                    }
                 } catch (err) {
                     reject(err);
                 }

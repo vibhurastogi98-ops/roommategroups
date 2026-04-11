@@ -1,7 +1,6 @@
 import { db, getLiveListingCount } from '../services/db.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
-import { displayOneTap } from '../services/googleAuth.js';
 import { navigate } from '../router.js';
 
 // ── Data ───────────────────────────────────────────
@@ -66,6 +65,9 @@ export function renderHomePage(app) {
   const popularCities = db.cities.findAll()
     .filter(c => c.is_active && (c.show_in_popular_section === true || (c.show_in_popular_section === undefined && c.show_in_popular === true)))
     .map(mapCity);
+  const fbGroups = db.fb_cities.findAll()
+    .filter(g => g.is_popular !== false)
+    .sort((a, b) => (a.priority || 0) - (b.priority || 0));
   const countries = db.countries.findAll().filter(c => c.is_active);
 
   app.innerHTML = `
@@ -113,19 +115,19 @@ export function renderHomePage(app) {
         </div>
       </div>
     </section>
-
-    <!-- Cities Grid -->
     <section class="section home-cities-section" id="cities">
       <div class="container">
+        <div class="section-header animate-on-scroll" style="text-align: center; margin-bottom: 48px;">
+          <h2>Popular Cities</h2>
+          <p>Find your next home in these top locations</p>
+        </div>
         ${homeCities.length === 0
       ? `<div class="home-cities-empty"><i class="fas fa-city"></i><p>No cities available yet. Check back soon!</p></div>`
       : `<div class="home-cities-grid">
               ${homeCities.map(c => `
                 <a href="/cities/${c.slug}" class="hc-card animate-on-scroll">
-                  <div class="hc-img-wrap">
-                    ${c.image
-          ? `<img src="${c.image}" alt="${c.name}" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.add('hc-no-img');this.remove();">`
-          : `<div class="hc-placeholder"><i class="fas fa-city"></i></div>`}
+                  <div class="hc-img-wrap" style="${c.image ? `background-image: url('${c.image}');` : ''}">
+                    ${!c.image ? `<div class="hc-placeholder"><i class="fas fa-city"></i></div>` : ''}
                     <div class="hc-overlay"></div>
                   </div>
                   <div class="hc-body">
@@ -145,50 +147,54 @@ export function renderHomePage(app) {
       </div>
     </section>
 
-    <!-- Popular Cities -->
-    <section class="section popular-cities-section" id="popular-cities">
+
+    <!-- Popular Facebook Groups -->
+    <section class="section popular-fb-groups-section" id="popular-groups">
       <div class="container">
-        <div class="popular-cities-header animate-on-scroll">
-          <h2>Popular Cities</h2>
-          <p>Top destinations renters are searching right now</p>
+        <div class="section-header-row animate-on-scroll">
+          <div class="section-header-text">
+            <h2>Popular FB Groups</h2>
+            <p>Helping tenants & landlords connect for hassle-free renting</p>
+          </div>
+          <a href="/fb-groups" class="section-explore-link">Explore all groups <i class="fas fa-arrow-right"></i></a>
         </div>
-        ${popularCities.length === 0
-      ? `<div class="home-cities-empty"><i class="fas fa-city"></i><p>No popular cities configured yet. Enable "Show in Popular Cities Section" in City Management.</p></div>`
+        ${fbGroups.length === 0
+      ? `<div class="home-cities-empty"><i class="fab fa-facebook"></i><p>No featured groups available. Check back soon!</p></div>`
       : `<div class="home-cities-grid">
-              ${popularCities.map(c => `
-                <a href="/cities/${c.slug}" class="hc-card animate-on-scroll">
-                  <div class="hc-img-wrap">
-                    ${c.image
-          ? `<img src="${c.image}" alt="${c.name}" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.add('hc-no-img');this.remove();">`
-          : `<div class="hc-placeholder"><i class="fas fa-city"></i></div>`}
+              ${fbGroups.map(g => `
+                <div class="hc-card animate-on-scroll">
+                  <a href="${g.fb_group_link}" target="_blank" rel="noopener" class="hc-img-wrap" style="display: block;">
+                    ${g.city_image
+          ? `<img src="${g.city_image}" alt="${g.fb_group_name}" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.add('hc-no-img');this.remove();">`
+          : `<div class="hc-placeholder"><i class="fab fa-facebook"></i></div>`}
                     <div class="hc-overlay"></div>
-                  </div>
+                  </a>
                   <div class="hc-body">
-                    <div class="hc-name">${c.name}</div>
+                    <a href="${g.fb_group_link}" target="_blank" rel="noopener" style="text-decoration: none; color: inherit;">
+                      <div class="hc-name">${g.fb_group_name}</div>
+                    </a>
                     <div class="hc-meta">
-                      <span class="hc-country">${c.state ? `${c.state}, ` : ''}${c.country}</span>
+                      <span class="hc-country"><i class="fas fa-location-dot"></i> ${g.city_name}</span>
                     </div>
                     <div class="hc-stats">
-                      <span><i class="fas fa-home"></i> ${c.count.toLocaleString()} listings</span>
-                      ${c.avg_rent ? `<span><i class="fas fa-tag"></i> ~$${c.avg_rent.toLocaleString()}/mo</span>` : ''}
+                      <span><i class="fas fa-users"></i> ${g.total_members ? g.total_members.toLocaleString() : '0'}+ Members</span>
                     </div>
+                    <a href="${g.fb_group_link}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="margin-top: 18px; width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700;">
+                      <i class="fab fa-facebook-f"></i> Join Group
+                    </a>
                   </div>
-                </a>
+                </div>
               `).join('')}
+            </div>
+            <div class="view-more-container animate-on-scroll" style="text-align: center; margin-top: 48px;">
+              <a href="/fb-groups" class="btn btn-primary btn-lg">View All FB Groups <i class="fas fa-arrow-right" style="margin-left: 8px;"></i></a>
             </div>`
     }
       </div>
     </section>
 
-    <!-- Trust Stats Section -->
     <section class="stats-section" id="stats">
       <div class="container">
-        <div class="stats-header animate-on-scroll">
-          <span class="stats-eyebrow">TRUSTED BY THOUSANDS</span>
-          <h2>Numbers that speak for themselves</h2>
-          <p>Helping tenants & landlords connect for hassle-free renting</p>
-        </div>
-
         <div class="stats-container">
           <div class="stat-card" data-target="31" data-suffix="+">
             <div class="stat-icon-box">
@@ -197,13 +203,8 @@ export function renderHomePage(app) {
             <div class="stat-number-wrapper">
               <span class="stat-number">0</span><span class="stat-suffix">+</span>
             </div>
-            <div class="stat-label">Cities</div>
-            <div class="stat-progress-bg">
-              <div class="stat-progress-bar" style="--width: 100%"></div>
-            </div>
+            <div class="stat-label">CITIES</div>
           </div>
-
-          <div class="stat-divider"></div>
 
           <div class="stat-card" data-target="5" data-prefix="1." data-suffix="M+">
             <div class="stat-icon-box">
@@ -212,13 +213,8 @@ export function renderHomePage(app) {
             <div class="stat-number-wrapper">
               <span class="stat-number">1.0</span><span class="stat-suffix">M+</span>
             </div>
-            <div class="stat-label">Community Members</div>
-            <div class="stat-progress-bg">
-              <div class="stat-progress-bar" style="--width: 85%"></div>
-            </div>
+            <div class="stat-label">COMMUNITY MEMBERS</div>
           </div>
-
-          <div class="stat-divider"></div>
 
           <div class="stat-card" data-target="10" data-suffix="k+">
             <div class="stat-icon-box">
@@ -227,30 +223,7 @@ export function renderHomePage(app) {
             <div class="stat-number-wrapper">
               <span class="stat-number">0</span><span class="stat-suffix">k+</span>
             </div>
-            <div class="stat-label">Verified Listings</div>
-            <div class="stat-progress-bg">
-              <div class="stat-progress-bar" style="--width: 92%"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Lower Trust Bar -->
-        <div class="trust-features-bar">
-          <div class="trust-feature">
-            <span class="blue-dot"></span>
-            All listings moderated
-          </div>
-          <div class="trust-feature">
-            <span class="blue-dot"></span>
-            Scam-free environment
-          </div>
-          <div class="trust-feature">
-            <span class="blue-dot"></span>
-            Secure Facebook Messenger
-          </div>
-          <div class="trust-feature">
-            <span class="blue-dot"></span>
-            No hidden fees
+            <div class="stat-label">VERIFIED MEMBERS</div>
           </div>
         </div>
       </div>
@@ -557,19 +530,19 @@ export function renderHomePage(app) {
     const step = (timestamp) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      
+
       // easeOutQuart
       const ease = 1 - Math.pow(1 - progress, 4);
-      
+
       const current = (ease * (end - start) + start);
-      
+
       if (prefix === '1.') {
         // Special case for 1.Xm+
         el.textContent = `1.${Math.floor(current)}`;
       } else {
         el.textContent = Math.floor(current);
       }
-      
+
       if (progress < 1) {
         window.requestAnimationFrame(step);
       }
@@ -587,9 +560,9 @@ export function renderHomePage(app) {
           const prefix = card.dataset.prefix || '';
           const suffix = card.dataset.suffix || '';
           const startVal = prefix === '1.' ? 0 : 0;
-          
+
           animateValue(numEl, startVal, target, 1800, prefix, suffix);
-          
+
           // Animate progress bar
           const bar = card.querySelector('.stat-progress-bar');
           if (bar) {
@@ -604,13 +577,4 @@ export function renderHomePage(app) {
   const statsSection = document.getElementById('stats');
   if (statsSection) statObserver.observe(statsSection);
 
-  // ── Google One Tap Auto-Prompt ──
-  displayOneTap(
-    ({ user, isNew }) => {
-      // Don't show toast on home page for auto-login to be subtle, or do?
-      // showToast(isNew ? 'Account created with Google!' : 'Welcome back!', 'success');
-      setTimeout(() => navigate(user?.profileComplete ? '/dashboard' : '/profile-setup'), 800);
-    },
-    (err) => console.log('One Tap skipped or error:', err)
-  );
 }

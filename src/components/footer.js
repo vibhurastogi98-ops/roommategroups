@@ -15,16 +15,20 @@ export function renderFooter() {
                     <p class="footer-desc">The easiest way to find your perfect room or roommate in cities worldwide. Verified listings, real people, no scams.</p>
                     <div class="footer-social">
                         <a href="https://www.facebook.com/Roommategroups" aria-label="Facebook" target="_blank" rel="noopener noreferrer"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#" aria-label="Twitter"><i class="fab fa-x-twitter"></i></a>
                         <a href="https://www.instagram.com/roommategroups" aria-label="Instagram" target="_blank" rel="noopener noreferrer"><i class="fab fa-instagram"></i></a>
-                        <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
                         <a href="https://www.youtube.com/@Roommategroups" aria-label="YouTube" target="_blank" rel="noopener noreferrer"><i class="fab fa-youtube"></i></a>
                     </div>
                 </div>
                 <div class="footer-cities-section">
-                    <h4>City Directory</h4>
+                    <h4>Popular Cities</h4>
                     <div class="footer-cities-grid">
-                        ${footerCities.map(city => `<a href="/cities/${city.slug}">${city.name}</a>`).join('')}
+                        ${db.cities.find(c => c.is_active && c.show_in_popular).map(city => `<a href="/cities/${city.slug}">${city.name}</a>`).join('')}
+                    </div>
+                </div>
+                <div class="footer-groups-section">
+                    <h4>Popular FB Groups</h4>
+                    <div class="footer-cities-grid">
+                        ${db.fb_cities.find(c => c.is_footer).sort((a,b) => (a.priority || 0) - (b.priority || 0)).map(g => `<a href="${g.fb_group_link}" target="_blank" rel="noopener noreferrer">${g.city_name} Group</a>`).join('')}
                     </div>
                 </div>
                 <div class="footer-links-section">

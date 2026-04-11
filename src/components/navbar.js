@@ -33,25 +33,12 @@ export function getNavAuthButtons() {
     `;
 }
 
-export function renderAdminBar() {
-    if (!isAdmin()) return '';
-    return `
-    <div class="admin-preview-bar" id="admin-preview-bar">
-        <span><i class="fa-solid fa-eye"></i> Previewing as Admin</span>
-        <div class="admin-preview-bar-actions">
-            <a href="/admin" class="admin-bar-btn"><i class="fa-solid fa-shield-halved"></i> Admin Panel</a>
-            <button class="admin-bar-close" id="admin-bar-close" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-    </div>
-    `;
-}
 
 export function renderNavbar() {
     const path = window.location.pathname;
     const isHome = path === '/' || path === '';
 
     return `
-    ${renderAdminBar()}
     <nav class="navbar" id="navbar">
       <div class="nav-container">
         <a href="/" class="nav-logo">
@@ -132,14 +119,6 @@ export function initNavbar() {
 
     initNavbarBadge();
 
-    // Admin preview bar close
-    const adminBar = document.getElementById('admin-preview-bar');
-    const adminBarClose = document.getElementById('admin-bar-close');
-    if (adminBar && adminBarClose) {
-        adminBarClose.addEventListener('click', () => {
-            adminBar.style.display = 'none';
-        });
-    }
 
     // Logo: always go home and scroll to top
     const logo = navbar.querySelector('.nav-logo');

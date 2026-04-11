@@ -1637,8 +1637,25 @@ function renderAdminCities(container) {
                 preview.style.display = 'block';
                 showToast('Image uploaded successfully.');
             } catch (err) {
-                showToast('Upload failed: ' + err.message, 'error');
-                filenameSpan.textContent = 'Upload failed';
+                console.warn('[ADMIN] Server upload failed, falling back to Base64:', err);
+                // Fallback to Base64 for local storage environment
+                const reader = new FileReader();
+                reader.onload = (rev) => {
+                    const base64Data = rev.target.result;
+                    container.querySelector('#f-hero-data').value = base64Data;
+                    container.querySelector('#f-hero-url').value = ''; 
+                    container.querySelector('#f-hero-filename').textContent = file.name + ' (Local)';
+                    container.querySelector('#f-hero-clear').style.display = 'inline';
+                    const preview = container.querySelector('#f-hero-preview');
+                    preview.src = base64Data;
+                    preview.style.display = 'block';
+                    showToast('Success! Image saved to your browser (Local Fallback).', 'success');
+                };
+                reader.onerror = () => {
+                    showToast('Upload failed and local fallback failed.', 'error');
+                    filenameSpan.textContent = 'Upload failed';
+                };
+                reader.readAsDataURL(file);
             }
         });
 
@@ -1812,6 +1829,18 @@ function renderAdminFBGroups(container) {
                 '<input id="fbg-city-group-link" class="adm-input" value="' + escHtml(c.fb_group_link || '') + '" placeholder="https://facebook.com/groups/..."></div>',
                 '<div class="adm-form-group"><label>Total Members</label>',
                 '<input id="fbg-city-members" type="number" class="adm-input" value="' + (c.total_members || '') + '" placeholder="e.g. 24800"></div>',
+                '<div class="adm-form-group"><label>Priority (Order)</label>',
+                '<input id="fbg-city-priority" type="number" class="adm-input" value="' + (c.priority || '') + '" placeholder="e.g. 1"></div>',
+                '<div class="adm-form-group adm-form-full" style="display:flex;align-items:center;gap:20px;margin-top:10px;flex-wrap:wrap;">',
+                '<div style="display:flex;align-items:center;gap:10px;">',
+                '<label class="adm-toggle-wrap"><input type="checkbox" id="fbg-city-popular"' + (c.is_popular !== false ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label>',
+                '<span><strong>Show on Homepage</strong></span>',
+                '</div>',
+                '<div style="display:flex;align-items:center;gap:10px;">',
+                '<label class="adm-toggle-wrap"><input type="checkbox" id="fbg-city-footer"' + (c.is_footer ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label>',
+                '<span><strong>Show in Footer</strong></span>',
+                '</div>',
+                '</div>',
                 '<div class="adm-form-group adm-form-full"><label>City Image</label>',
                 '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">',
                 '<input id="fbg-city-image-url" class="adm-input" style="flex:1;min-width:200px;" value="' + escHtml(c.city_image || '') + '" placeholder="Paste image URL or upload below">',
@@ -1845,7 +1874,7 @@ function renderAdminFBGroups(container) {
         }).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:2rem;">No countries added yet.</td></tr>';
 
         // ── Cities table ──
-        const cityRows = cities.length ? cities.map(c => {
+        const cityRows = cities.length ? cities.sort((a,b) => (a.priority || 0) - (b.priority || 0)).map(c => {
             const country = countries.find(x => x.fb_country_id === c.country_id);
             return [
                 '<tr>',
@@ -1857,13 +1886,20 @@ function renderAdminFBGroups(container) {
                 '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escHtml(c.fb_group_name) + '">' + escHtml(c.fb_group_name) + '</td>',
                 '<td><a href="' + escHtml(c.fb_group_link) + '" target="_blank" rel="noopener" style="color:var(--primary);">Link <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:.75rem;"></i></a></td>',
                 '<td>' + (Number(c.total_members) || 0).toLocaleString() + '</td>',
+                '<td>' + (c.priority || '—') + '</td>',
+                '<td>',
+                '  <div style="display:flex;flex-direction:column;gap:4px;">',
+                '    <span class="adm-status-pill ' + (c.is_popular !== false ? 'pill-active' : 'pill-inactive') + '" style="font-size:0.65rem;">Home: ' + (c.is_popular !== false ? 'Yes' : 'No') + '</span>',
+                '    <span class="adm-status-pill ' + (c.is_footer ? 'pill-active' : 'pill-inactive') + '" style="font-size:0.65rem;">Footer: ' + (c.is_footer ? 'Yes' : 'No') + '</span>',
+                '  </div>',
+                '</td>',
                 '<td style="display:flex;gap:8px;">',
                 '<button class="adm-btn adm-btn-sm" data-edit-city="' + c.fb_city_id + '"><i class="fa-solid fa-pen"></i> Edit</button>',
                 '<button class="adm-btn adm-btn-sm adm-btn-danger" data-del-city="' + c.fb_city_id + '"><i class="fa-solid fa-trash"></i> Delete</button>',
                 '</td>',
                 '</tr>'
             ].join('');
-        }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;">No cities added yet.</td></tr>';
+        }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No cities added yet.</td></tr>';
 
         container.innerHTML = [
             '<div class="adm-section-header"><h2>FB Group Management</h2></div>',
@@ -1897,7 +1933,7 @@ function renderAdminFBGroups(container) {
             cityForm,
             '<div class="adm-table-wrap">',
             '<table class="adm-table">',
-            '<thead><tr><th>City</th><th>Country</th><th>Group Name</th><th>Link</th><th>Members</th><th>Actions</th></tr></thead>',
+            '<thead><tr><th>City</th><th>Country</th><th>Group Name</th><th>Members</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>',
             '<tbody>' + cityRows + '</tbody>',
             '</table></div>',
             '</div>',
@@ -2015,13 +2051,26 @@ function renderAdminFBGroups(container) {
             const groupName = container.querySelector('#fbg-city-group-name').value.trim();
             const groupLink = container.querySelector('#fbg-city-group-link').value.trim();
             const members = parseInt(container.querySelector('#fbg-city-members').value) || 0;
+            const priority = parseInt(container.querySelector('#fbg-city-priority').value) || 0;
+            const isPopular = container.querySelector('#fbg-city-popular').checked;
+            const isFooter = container.querySelector('#fbg-city-footer').checked;
             const image = container.querySelector('#fbg-city-image-url').value.trim();
 
             if (!countryId || !cityName || !groupName || !groupLink) {
                 showToast('Country, city name, group name, and link are required.', 'error'); return;
             }
 
-            const data = { country_id: countryId, city_name: cityName, fb_group_name: groupName, fb_group_link: groupLink, total_members: members, city_image: image };
+            const data = { 
+                country_id: countryId, 
+                city_name: cityName, 
+                fb_group_name: groupName, 
+                fb_group_link: groupLink, 
+                total_members: members, 
+                priority,
+                is_popular: isPopular,
+                is_footer: isFooter,
+                city_image: image 
+            };
 
             if (editingCity) {
                 db.fb_cities.update(editingCity.fb_city_id, data);
