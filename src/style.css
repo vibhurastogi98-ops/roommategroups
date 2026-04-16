@@ -88,7 +88,7 @@ ol {
 }
 
 .section {
-  padding: 86px 0;
+  padding: 40px 0;
 }
 
 .section-light {
@@ -391,7 +391,7 @@ ol {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 90px 22px 54px;
+  padding: 80px 22px 20px;
   background: #fff;
   overflow: hidden;
 }
@@ -1285,7 +1285,7 @@ ol {
 /* 11b. Home Cities Grid */
 .home-cities-section {
   background: var(--bg-white);
-  padding: 69px 0;
+  padding: 25px 0;
 }
 
 .popular-fb-groups-section {
