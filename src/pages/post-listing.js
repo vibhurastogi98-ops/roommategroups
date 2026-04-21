@@ -188,12 +188,12 @@ function renderStep2() {
         nHOptions += nhs.map(n => `<option value="${n.neighborhood_id}" ${draft.neighborhood === n.neighborhood_id ? 'selected' : ''}>${n.name}</option>`).join('');
     }
     return `
-        <div class="post-listing-step" id="step-2">
+        <div class="pl-step-content animate__animated animate__fadeIn" id="step-2">
             <div class="pl-step-header">
-                <h2>Where is it located?</h2>
-                <p class="step-subtitle">An accurate location helps the right people find your listing.</p>
+                <h2 class="pl-step-title">Location Details</h2>
+                <p class="pl-step-subtitle">Where is your place located?</p>
             </div>
-            <div class="pl-form-card">
+            <div class="pl-form-grid">
                 <div class="form-group">
                     <label class="pl-label">City <span class="required-asterisk">*</span></label>
                     <select id="pl-city" class="form-control">
