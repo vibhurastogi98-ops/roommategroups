@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 
 type Bindings = {
   DB: D1Database
@@ -6,6 +7,8 @@ type Bindings = {
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
+
+app.use('*', cors())
 
 app.get('/', (c) => {
   return c.json({ message: 'API running 🚀' })

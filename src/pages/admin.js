@@ -732,7 +732,14 @@ function renderAdminUsers(container) {
         }).join('');
 
         container.innerHTML = [
-            '<div class="adm-section-header"><h2>User Management</h2><span class="adm-count-badge">' + users.length + ' users</span><button class="btn btn-primary btn-sm" id="adm-send-notif-btn" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;"><i class="fa-solid fa-bell"></i> Send Notification</button></div>',
+            '<div class="adm-section-header">',
+            '<h2>User Management</h2>',
+            '<span class="adm-count-badge">' + users.length + ' users</span>',
+            '<div style="margin-left:auto;display:flex;gap:8px;">',
+            '<button class="adm-btn adm-btn-sm" id="adm-sync-hono-btn" style="display:inline-flex;align-items:center;gap:6px;"><i class="fa-solid fa-arrows-rotate"></i> Sync with Hono</button>',
+            '<button class="btn btn-primary btn-sm" id="adm-send-notif-btn" style="display:inline-flex;align-items:center;gap:6px;"><i class="fa-solid fa-bell"></i> Send Notification</button>',
+            '</div>',
+            '</div>',
             filtersHtml,
             '<div class="adm-table-wrap">',
             '<table class="adm-table">',
@@ -766,6 +773,25 @@ function renderAdminUsers(container) {
         });
 
         container.querySelector('#adm-send-notif-btn')?.addEventListener('click', openNotifModal);
+        container.querySelector('#adm-sync-hono-btn')?.addEventListener('click', async () => {
+            const btn = container.querySelector('#adm-sync-hono-btn');
+            const icon = btn.querySelector('i');
+            icon.classList.add('fa-spin');
+            btn.disabled = true;
+            
+            showToast('Syncing users from Hono API...', 'info');
+            const success = await db.syncUsers();
+            
+            icon.classList.remove('fa-spin');
+            btn.disabled = false;
+            
+            if (success) {
+                showToast('Successfully synced users!');
+                renderContent();
+            } else {
+                showToast('Failed to sync users. Check if the Worker is running.', 'error');
+            }
+        });
     }
 
     // ── Send Notification Modal ──

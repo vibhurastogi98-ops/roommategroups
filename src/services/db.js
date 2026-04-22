@@ -1,4 +1,5 @@
 // ── Database Service (Local Storage) ───────────────────
+import { api } from './api.js';
 
 const DB_KEY = 'rg_database';
 
@@ -362,6 +363,33 @@ export const db = {
     notifications: new Collection('notifications', 'notification_id', 'notif'),
     images: new Collection('images', 'image_id', 'img'),
     getCollection: (name) => getDB()[name] || [],
+    
+    // Sync logic
+    async syncUsers() {
+        try {
+            console.log('[DB] Syncing users from Hono API...');
+            const remoteUsers = await api.getUsers();
+            if (Array.isArray(remoteUsers)) {
+                const raw = getDB();
+                // Merge remote users into local users
+                // In a real app, we would handle conflicts and IDs properly
+                const localUserIds = new Set(raw.users.map(u => u.user_id));
+                remoteUsers.forEach(ru => {
+                    // Map D1 'id' to 'user_id' if necessary
+                    const userId = ru.user_id || `user_d1_${ru.id}`;
+                    if (!localUserIds.has(userId)) {
+                        raw.users.push({ ...ru, user_id: userId });
+                    }
+                });
+                saveDB(raw);
+                console.log(`[DB] Synced ${remoteUsers.length} users from API.`);
+                return true;
+            }
+        } catch (err) {
+            console.error('[DB SYNC ERROR]', err);
+            return false;
+        }
+    }
 };
 
 /**
