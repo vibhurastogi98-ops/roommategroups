@@ -8,13 +8,13 @@ const API_URL = window.location.hostname === 'localhost'
     : window.location.origin;
 
 export const api = {
-    async get(path) {
+    async get(path, silent = false) {
         try {
             const response = await fetch(`${API_URL}${path}`);
             if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
             return await response.json();
         } catch (err) {
-            console.error(`[API GET ERROR] ${path}:`, err);
+            if (!silent) console.error(`[API GET ERROR] ${path}:`, err);
             throw err;
         }
     },

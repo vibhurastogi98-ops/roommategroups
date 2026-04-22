@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:worker": "wrangler dev",
+    "dev:all": "npx wrangler dev",
     "server": "node server.js",
     "dev:full": "npm run server & npm run dev",
     "build": "vite build",
