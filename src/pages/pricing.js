@@ -383,7 +383,7 @@ export function renderPricingPage(app) {
                     <div class="billing-indicator" id="billing-indicator"></div>
                     <div class="billing-toggle-option active" data-val="monthly">Monthly</div>
                     <div class="billing-toggle-option" data-val="annual">
-                        Annually <span class="save-badge">Save 20%</span>
+                        Annually <span class="save-badge">Save up to 80%</span>
                     </div>
                 </div>
             </div>
