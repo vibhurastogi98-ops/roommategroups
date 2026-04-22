@@ -2921,22 +2921,34 @@ async function renderAdminContent(container) {
                 const pt = container.querySelector('#cms-img-text');
                 if (pt) pt.innerHTML = '<i class="fas fa-spinner fa-spin"></i><br>Uploading...';
 
-                try {
-                    const imageUrl = await uploadImage(file, 'blog-post.jpg');
-                    formState.image = imageUrl;
+                const updatePreview = (url) => {
+                    formState.image = url;
                     const hi = container.querySelector('#cms-img');
                     const pc = container.querySelector('#cms-img-preview-container');
                     const pi = container.querySelector('#cms-img-preview');
-                    if (hi) hi.value = imageUrl;
+                    if (hi) hi.value = url;
                     if (pc && pi && pt) { 
-                        pi.src = imageUrl; 
+                        pi.src = url; 
                         pc.style.display = 'block'; 
                         pt.style.display = 'none'; 
                     }
+                };
+
+                try {
+                    const imageUrl = await uploadImage(file, 'blog-post.jpg');
+                    updatePreview(imageUrl);
                     showToast('Blog image uploaded.');
                 } catch (err) {
-                    showToast('Upload failed: ' + err.message, 'error');
-                    if (pt) pt.innerHTML = 'Drag image here<br><small style="font-weight:400;color:#94a3b8;">or click to browse</small>';
+                    console.warn('[ADMIN] Server upload failed, falling back to Base64:', err);
+                    
+                    // Fallback to Base64
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const base64Url = ev.target.result;
+                        updatePreview(base64Url);
+                        showToast('Note: Uploaded as local image (Server unavailable)', 'info');
+                    };
+                    reader.readAsDataURL(file);
                 }
             });
 

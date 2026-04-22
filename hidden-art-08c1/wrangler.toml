@@ -17,4 +17,4 @@ database_id = "48c563a0-0557-49f7-8e76-5dc4f1efd7a8"
 
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "roommategroups-assets"
+bucket_name = "roommate-bucket"
