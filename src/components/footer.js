@@ -35,6 +35,7 @@ export function renderFooter() {
                     <h4>Resources</h4>
                     <ul>
                         <li><a href="/about">About Us</a></li>
+                        <li><a href="/pricing">Pricing</a></li>
                         <li><a href="/blog">Blog</a></li>
                         <li><a href="/faq">FAQ</a></li>
                         <li><a href="/safety">Safety Tips</a></li>

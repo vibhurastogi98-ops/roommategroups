@@ -51,6 +51,7 @@ export function renderNavbar() {
           <a href="#cities">Cities</a>
           <a href="#how-it-works">How It Works</a>
           <a href="#listings">Listings</a>
+          <a href="/pricing">Pricing</a>
           <a href="/blog">Blog</a>
           <a href="/fb-groups" style="display:inline-flex;align-items:center;gap:5px;"><i class="fab fa-facebook" style="color:#1877f2;"></i> FB Groups</a>
         </div>` : '<div class="nav-links" id="nav-links"></div>'}

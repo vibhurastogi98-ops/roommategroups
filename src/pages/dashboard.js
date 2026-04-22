@@ -1459,8 +1459,8 @@ function renderSubscription(container, user) {
         <div class="dashboard-header-bar">
             <h1>Subscription</h1>
             ${isPaid
-            ? `<button class="btn btn-outline" onclick="navigate('/contact')"><i class="fas fa-arrow-up-right-from-square"></i> Change Plan</button>`
-            : `<button class="btn btn-primary" onclick="navigate('/contact')"><i class="fas fa-star"></i> Upgrade Plan</button>`
+            ? `<button class="btn btn-outline" onclick="navigate('/pricing')"><i class="fas fa-arrow-up-right-from-square"></i> Change Plan</button>`
+            : `<button class="btn btn-primary" onclick="navigate('/pricing')"><i class="fas fa-star"></i> Upgrade Plan</button>`
         }
         </div>
 
@@ -1515,7 +1515,7 @@ function renderSubscription(container, user) {
                 : 'Upgrade to the next tier to unlock more featured credits, analytics, and priority support.'}
                 </p>
             </div>
-            <button class="btn btn-primary sub-upgrade-btn" onclick="navigate('/contact')">
+            <button class="btn btn-primary sub-upgrade-btn" onclick="navigate('/pricing')">
                 Contact Us to Upgrade <i class="fas fa-arrow-right"></i>
             </button>
         </div>` : ''}
