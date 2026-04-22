@@ -36,7 +36,7 @@ export function renderPricingPage(app) {
                 priceMonthly: 4.99,
                 priceAnnual: 0.99,
                 ctaOutline: false,
-                ctaText: 'Start Free Trial',
+                ctaText: 'Get Premium',
                 features: [
                     { name: 'Active Listings', value: '3 Listings' },
                     { name: 'Profile Setup', value: 'Enhanced + Photo Verification' },
