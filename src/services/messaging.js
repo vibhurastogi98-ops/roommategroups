@@ -56,7 +56,8 @@ export function sendMessage(threadId, senderId, content, photoUrl = null) {
     // 1. Rate limit check
     const rateLimitResult = checkRateLimit(senderId);
     if (!rateLimitResult.allowed) {
-        return { success: false, error: `Rate limit exceeded. You can send ${RATE_LIMIT_MAX} messages per hour. Try again in ${rateLimitResult.resetIn} minutes.` };
+        const msg = rateLimitResult.errorOverride || `Rate limit exceeded. Try again in ${rateLimitResult.resetIn} ${rateLimitResult.resetUnit || 'minutes'}.`;
+        return { success: false, error: msg };
     }
 
     // 2. Safety check
@@ -197,29 +198,49 @@ export function checkPaymentLinks(content) {
 // ── Rate Limiting ─────────────────────────────────────────────
 
 function checkRateLimit(userId) {
+    const user = db.users.findById(userId);
+    const isFree = !user || user.subscription_tier === 'free';
+    
+    // Check 1 month validity for Free tier
+    if (isFree && user && user.created_at) {
+        const createdDate = new Date(user.created_at);
+        const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 3600 * 24);
+        if (daysSinceCreation > 30) {
+            return { allowed: false, errorOverride: 'Your 1-month Free trial has expired. Please upgrade to continue messaging.' };
+        }
+    }
+
+    const maxLimit = isFree ? 5 : 5000;
+    const windowMs = 24 * 3600 * 1000; // 1 day window for all
+
     const key = `rg_ratelimit_${userId}`;
     const now = Date.now();
     let data = JSON.parse(localStorage.getItem(key) || '{"count":0,"windowStart":0}');
 
     // Reset if outside window
-    if (now - data.windowStart > RATE_LIMIT_WINDOW) {
+    if (now - data.windowStart > windowMs) {
         data = { count: 0, windowStart: now };
     }
 
-    if (data.count >= RATE_LIMIT_MAX) {
-        const resetIn = Math.ceil((data.windowStart + RATE_LIMIT_WINDOW - now) / 60000);
-        return { allowed: false, resetIn };
+    if (data.count >= maxLimit) {
+        const resetIn = Math.ceil((data.windowStart + windowMs - now) / 60000); // minutes
+        const resetHours = Math.ceil(resetIn / 60);
+        return { allowed: false, resetIn: resetHours, resetUnit: 'hours', errorOverride: isFree ? \`Free plan allows 5 messages/day. Try again in \${resetHours} hours or upgrade.\` : 'Daily rate limit exceeded.' };
     }
 
     return { allowed: true };
 }
 
 function incrementRateLimit(userId) {
+    const user = db.users.findById(userId);
+    const isFree = !user || user.subscription_tier === 'free';
+    const windowMs = 24 * 3600 * 1000;
+
     const key = `rg_ratelimit_${userId}`;
     const now = Date.now();
     let data = JSON.parse(localStorage.getItem(key) || '{"count":0,"windowStart":0}');
 
-    if (now - data.windowStart > RATE_LIMIT_WINDOW) {
+    if (now - data.windowStart > windowMs) {
         data = { count: 1, windowStart: now };
     } else {
         data.count++;

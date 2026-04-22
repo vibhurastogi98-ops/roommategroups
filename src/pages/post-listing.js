@@ -822,6 +822,25 @@ async function handlePublish() {
     const user = getCurrentUser();
     if (!user) { alert("You must be signed in to publish a listing."); navigate('/auth/login'); return; }
 
+    const isFree = user.subscription_tier === 'free';
+    if (isFree) {
+        if (user.created_at) {
+            const daysSinceCreation = (Date.now() - new Date(user.created_at).getTime()) / (1000 * 3600 * 24);
+            if (daysSinceCreation > 30) {
+                alert('Your 1-month Free trial has expired. Please upgrade to post a listing.');
+                navigate('/pricing');
+                return;
+            }
+        }
+        
+        const userListings = db.listings.find(l => l.user_id === user.id && l.status === 'active');
+        if (userListings.length >= 1) {
+            alert('Free plan allows a maximum of 1 active listing. Please upgrade to post more.');
+            navigate('/pricing');
+            return;
+        }
+    }
+
     const publishBtn = document.querySelector('#btn-publish');
     if (publishBtn) { publishBtn.disabled = true; publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing…'; }
 
