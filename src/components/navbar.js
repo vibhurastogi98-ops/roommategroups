@@ -46,15 +46,14 @@ export function renderNavbar() {
             <span class="logo-badge-left">Roommate</span><span class="logo-badge-right">Groups</span>
           </span>
         </a>
-        ${isHome ? `
         <div class="nav-links" id="nav-links">
-          <a href="#cities">Cities</a>
-          <a href="#how-it-works">How It Works</a>
-          <a href="#listings">Listings</a>
+          <a href="/#cities" class="nav-anchor">Cities</a>
+          <a href="/#how-it-works" class="nav-anchor">How It Works</a>
+          <a href="/#listings" class="nav-anchor">Listings</a>
           <a href="/pricing">Pricing</a>
           <a href="/blog">Blog</a>
           <a href="/fb-groups" style="display:inline-flex;align-items:center;gap:5px;"><i class="fab fa-facebook" style="color:#1877f2;"></i> FB Groups</a>
-        </div>` : '<div class="nav-links" id="nav-links"></div>'}
+        </div>
         <div class="nav-cta" id="nav-cta">
           ${getNavAuthButtons()}
         </div>
@@ -172,26 +171,39 @@ export function initNavbar() {
     }
 
     // Smooth scroll for in-page anchors
-    document.querySelectorAll('.nav-links a[href^="#"]').forEach(anchor => {
-        const href = anchor.getAttribute('href');
-        if (href.startsWith('#/')) return;
-        if (href === '#') return;
-
+    document.querySelectorAll('.nav-anchor').forEach(anchor => {
         anchor.addEventListener('click', (e) => {
-            const target = document.querySelector(href);
-            if (target) {
+            const href = anchor.getAttribute('href');
+            const targetId = href.substring(href.indexOf('#'));
+            const isHome = window.location.pathname === '/' || window.location.pathname === '';
+
+            if (isHome) {
                 e.preventDefault();
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                // Close mobile menu
-                if (navLinks) {
-                    navLinks.classList.remove('active');
-                    if (navCta) navCta.classList.remove('active');
-                    const spans = hamburger.querySelectorAll('span');
-                    if (spans.length === 3) {
-                        spans[0].style.transform = 'none';
-                        spans[1].style.opacity = '1';
-                        spans[2].style.transform = 'none';
+                const target = document.querySelector(targetId);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            } else {
+                e.preventDefault();
+                navigate('/');
+                // Wait for the home page to render, then scroll
+                setTimeout(() => {
+                    const target = document.querySelector(targetId);
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
+                }, 100);
+            }
+
+            // Close mobile menu
+            if (navLinks) {
+                navLinks.classList.remove('active');
+                if (navCta) navCta.classList.remove('active');
+                const spans = hamburger?.querySelectorAll('span');
+                if (spans && spans.length === 3) {
+                    spans[0].style.transform = 'none';
+                    spans[1].style.opacity = '1';
+                    spans[2].style.transform = 'none';
                 }
             }
         });

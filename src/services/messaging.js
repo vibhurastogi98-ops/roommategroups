@@ -225,7 +225,7 @@ function checkRateLimit(userId) {
     if (data.count >= maxLimit) {
         const resetIn = Math.ceil((data.windowStart + windowMs - now) / 60000); // minutes
         const resetHours = Math.ceil(resetIn / 60);
-        return { allowed: false, resetIn: resetHours, resetUnit: 'hours', errorOverride: isFree ? \`Free plan allows 5 messages/day. Try again in \${resetHours} hours or upgrade.\` : 'Daily rate limit exceeded.' };
+        return { allowed: false, resetIn: resetHours, resetUnit: 'hours', errorOverride: isFree ? `Free plan allows 5 messages/day. Try again in ${resetHours} hours or upgrade.` : 'Daily rate limit exceeded.' };
     }
 
     return { allowed: true };
