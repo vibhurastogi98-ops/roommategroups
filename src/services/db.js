@@ -86,6 +86,7 @@ const SEED_DATA = {
     reports: [],
     admin_logs: [],
     user_queries: [],
+    images: [],
     amenities: [
         { amenity_id: 'amen_wifi', name: 'High-Speed WiFi', icon: 'fa-wifi' },
         { amenity_id: 'amen_laundry', name: 'In-unit Laundry', icon: 'fa-washing-machine' },
@@ -359,6 +360,7 @@ export const db = {
     fb_cities: new Collection('fb_cities', 'fb_city_id', 'fbcity'),
     user_queries: new Collection('user_queries', 'query_id', 'qry'),
     notifications: new Collection('notifications', 'notification_id', 'notif'),
+    images: new Collection('images', 'image_id', 'img'),
     getCollection: (name) => getDB()[name] || [],
 };
 

@@ -12814,3 +12814,102 @@ body:has(.search-layout) {
   }
 }
 
+
+/* Admin Image Gallery */
+.adm-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+  padding: 20px 0;
+}
+
+.adm-image-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.adm-image-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+}
+
+.adm-img-preview-wrap {
+  position: relative;
+  aspect-ratio: 4/3;
+  background: var(--bg-lighter);
+  overflow: hidden;
+}
+
+.adm-img-preview-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: var(--transition);
+}
+
+.adm-img-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  opacity: 0;
+  transition: var(--transition);
+  backdrop-filter: blur(2px);
+}
+
+.adm-image-card:hover .adm-img-overlay {
+  opacity: 1;
+}
+
+.adm-img-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: white;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.adm-img-btn:hover {
+  transform: scale(1.1);
+  background: var(--primary);
+  color: white;
+}
+
+.adm-img-btn-danger:hover {
+  background: #ef4444;
+}
+
+.adm-img-info {
+  padding: 12px;
+}
+
+.adm-img-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.adm-img-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

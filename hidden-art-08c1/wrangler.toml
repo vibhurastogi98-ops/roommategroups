@@ -1,0 +1,20 @@
+name = "hidden-art-08c1"
+main = "src/index.ts"
+compatibility_date = "2026-04-22"
+
+compatibility_flags = [ "nodejs_compat", "global_fetch_strictly_public" ]
+
+[assets]
+directory = "./public"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "roommatedb"
+database_id = "48c563a0-0557-49f7-8e76-5dc4f1efd7a8"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "roommategroups-assets"

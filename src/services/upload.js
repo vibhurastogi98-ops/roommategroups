@@ -1,3 +1,6 @@
+import { db } from './db.js';
+import { getCurrentUser } from './auth.js';
+
 /**
  * Upload service to handle file uploads to the server.
  */
@@ -19,6 +22,21 @@ export async function uploadImage(fileOrBlob, filename = 'image.webp') {
         const data = await res.json();
         
         if (data.success) {
+            // Record the upload in our local database
+            try {
+                const user = getCurrentUser();
+                db.images.create({
+                    url: data.url,
+                    filename: data.filename || filename,
+                    size: fileOrBlob.size,
+                    type: fileOrBlob.type,
+                    uploader_id: user?.user_id || 'anonymous',
+                    source: 'server'
+                });
+            } catch (dbErr) {
+                console.warn('[UPLOAD SERVICE] Failed to record in DB:', dbErr);
+            }
+            
             return data.url;
         } else {
             throw new Error(data.error || 'Upload failed');

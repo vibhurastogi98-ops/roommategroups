@@ -26,6 +26,7 @@ export function renderAdminPage(app) {
     if (path === '/admin/settings') view = 'admin_settings';
     if (path === '/admin/fb-groups') view = 'fb_groups';
     if (path === '/admin/queries') view = 'queries';
+    if (path === '/admin/images') view = 'images';
 
     console.log('[ADMIN PAGE] Current view:', view, 'path:', path);
 
@@ -43,6 +44,7 @@ export function renderAdminPage(app) {
         { id: 'cities', icon: 'fa-map-location-dot', label: 'City Management', href: '/admin/cities', section: 'Management' },
         { id: 'fb_groups', icon: 'fa-thumbs-up', label: 'FB Groups', href: '/admin/fb-groups', section: 'Management' },
         { id: 'queries', icon: 'fa-envelope-open-text', label: 'User Queries', href: '/admin/queries', badge: newQueriesCount, section: 'Management' },
+        { id: 'images', icon: 'fa-images', label: 'Image Assets', href: '/admin/images', section: 'Management' },
         { id: 'analytics', icon: 'fa-chart-line', label: 'Analytics', href: '/admin/analytics', section: 'Insights' },
         { id: 'content', icon: 'fa-newspaper', label: 'Content / Blog', href: '/admin/content', section: 'Insights' },
         { id: 'admin_settings', icon: 'fa-sliders', label: 'Settings', href: '/admin/settings', section: 'System' },
@@ -129,6 +131,7 @@ export function renderAdminPage(app) {
         case 'fb_groups': renderAdminFBGroups(content); break;
         case 'admin_settings': renderAdminSettings(content); break;
         case 'queries': renderAdminQueries(content); break;
+        case 'images': renderAdminImages(content); break;
         default: renderAdminPlaceholder(content, navLinks.find(n => n.id === view)?.label || 'Section'); break;
     }
 
@@ -3444,4 +3447,112 @@ function renderAdminQueries(container) {
         showToast('Reply sent and query marked as Replied.');
         logAdminAction('user_admin_1', 'Replied to query', 'Query from ' + (q?.first_name || '') + ' ' + (q?.last_name || '') + ' — ' + (q?.email || ''));
     });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Image Gallery Management
+// ─────────────────────────────────────────────────────────────
+
+function renderAdminImages(container) {
+    const admin = getCurrentUser();
+    let filterType = '';
+
+    function getImages() {
+        return db.images.findAll().filter(img => {
+            return !filterType || (img.type && img.type.startsWith(filterType));
+        }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+
+    function renderContent() {
+        const images = getImages();
+        const types = [...new Set(db.images.findAll().map(img => img.type ? img.type.split('/')[0] : null).filter(Boolean))];
+
+        container.innerHTML = [
+            '<div class="adm-section-header">',
+            '<h2>Image Assets</h2>',
+            '<span class="adm-count-badge">' + images.length + ' images</span>',
+            '<label class="adm-btn adm-btn-primary" style="margin-left:auto;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">',
+            '<i class="fa-solid fa-cloud-arrow-up"></i> Upload New Image',
+            '<input type="file" id="adm-image-upload" style="display:none;" accept="image/*">',
+            '</label>',
+            '</div>',
+            
+            '<div class="adm-filters">',
+            '<div class="adm-search-wrap"><i class="fa-solid fa-filter"></i>',
+            '<select id="adm-img-type-filter" class="adm-select" style="border:none;background:transparent;width:100%;outline:none;">',
+            '<option value="">All File Types</option>',
+            types.map(t => '<option value="' + t + '"' + (filterType === t ? ' selected' : '') + '>' + t.toUpperCase() + '</option>').join(''),
+            '</select>',
+            '</div>',
+            '<button class="adm-btn" id="adm-refresh-imgs"><i class="fa-solid fa-rotate"></i> Refresh</button>',
+            '</div>',
+
+            '<div class="adm-image-grid" id="adm-image-grid">',
+            images.length === 0 ? [
+                '<div class="adm-empty" style="grid-column: 1/-1; padding: 4rem;">',
+                '<i class="fa-solid fa-images"></i>',
+                '<p>No images uploaded yet. Use the button above to upload your first asset.</p>',
+                '</div>'
+            ].join('') : images.map(img => [
+                '<div class="adm-image-card">',
+                '<div class="adm-img-preview-wrap">',
+                '<img src="' + img.url + '" alt="' + escHtml(img.filename) + '" loading="lazy">',
+                '<div class="adm-img-overlay">',
+                '<button class="adm-img-btn" data-action="copy" data-url="' + img.url + '" title="Copy URL"><i class="fa-solid fa-link"></i></button>',
+                '<button class="adm-img-btn adm-img-btn-danger" data-action="delete" data-id="' + img.image_id + '" title="Delete Image"><i class="fa-solid fa-trash"></i></button>',
+                '</div>',
+                '</div>',
+                '<div class="adm-img-info">',
+                '<div class="adm-img-name" title="' + escHtml(img.filename) + '">' + escHtml(img.filename) + '</div>',
+                '<div class="adm-img-meta">',
+                '<span>' + (img.size ? (img.size / 1024).toFixed(1) : '—') + ' KB</span>',
+                '<span>' + relTime(img.created_at) + '</span>',
+                '</div>',
+                '</div>',
+                '</div>'
+            ].join('')).join(''),
+            '</div>'
+        ].join('');
+
+        // Event Listeners
+        container.querySelector('#adm-image-upload')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            showToast('Uploading image...', 'info');
+            try {
+                await uploadImage(file, file.name);
+                showToast('Image uploaded and recorded!');
+                renderContent();
+            } catch (err) {
+                showToast('Upload failed: ' + err.message, 'error');
+            }
+        });
+
+        container.querySelector('#adm-img-type-filter')?.addEventListener('change', (e) => {
+            filterType = e.target.value;
+            renderContent();
+        });
+
+        container.querySelector('#adm-refresh-imgs')?.addEventListener('click', renderContent);
+
+        container.querySelectorAll('[data-action="copy"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const fullUrl = window.location.origin + btn.dataset.url;
+                navigator.clipboard.writeText(fullUrl);
+                showToast('URL copied to clipboard!');
+            });
+        });
+
+        container.querySelectorAll('[data-action="delete"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!confirm('Remove this image reference? (The file stays on the server, but the record is removed from this gallery).')) return;
+                db.images.delete(btn.dataset.id);
+                showToast('Image record removed.');
+                renderContent();
+            });
+        });
+    }
+
+    renderContent();
 }

@@ -1,0 +1,17 @@
+name = "roommategroups"
+compatibility_date = "2026-04-22"
+
+[observability]
+enabled = true
+
+[assets]
+directory = "dist"
+not_found_handling = "single-page-application"
+
+compatibility_flags = [ "nodejs_compat" ]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "roommatedb"
+database_id = "48c563a0-0557-49f7-8e76-5dc4f1efd7a8"
+remote = true
