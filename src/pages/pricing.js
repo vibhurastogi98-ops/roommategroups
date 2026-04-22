@@ -427,7 +427,7 @@ export function renderPricingPage(app) {
                     </div>
                     <div class="faq-item">
                         <div class="faq-q">Is there a free trial for paid plans? <i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="faq-a">We occasionally offer promotional trials for our Premium plan. Even without a trial, you can start on the Free plan forever and only upgrade when you need more power.</div>
+                        <div class="faq-a">We occasionally offer promotional trials for our Premium plan. Even without a trial, you can start on the Free plan for 1 month and upgrade when you need more power or time.</div>
                     </div>
                     <div class="faq-item">
                         <div class="faq-q">What payment methods do you accept? <i class="fa-solid fa-chevron-down"></i></div>
@@ -471,7 +471,12 @@ export function renderPricingPage(app) {
         const cardsHtml = Object.keys(plans).map(key => {
             const p = plans[key];
             const price = isAnnual ? p.priceAnnual : p.priceMonthly;
-            const billedNote = isAnnual && price > 0 ? 'Billed annually' : (price > 0 ? 'Billed monthly' : 'Forever free');
+            let billedNote = '';
+            if (key === 'free') {
+                billedNote = 'Valid for 1 month';
+            } else {
+                billedNote = isAnnual ? 'Billed annually' : 'Billed monthly';
+            }
             const btnClass = p.ctaSuccess ? 'btn-success' : (p.ctaOutline ? 'btn-outline' : 'btn-primary');
             const badge = p.isPopular ? '<div class="plan-popular-badge">🔥 Most Popular</div>' : '';
             
