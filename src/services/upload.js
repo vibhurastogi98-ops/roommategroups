@@ -6,15 +6,15 @@ import { getCurrentUser } from './auth.js';
  */
 
 const API_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3002' 
-    : 'https://hidden-art-08c1.vibhurastogi98.workers.dev';
+    ? '/api' 
+    : 'https://roommategroups.vibhurastogi98.workers.dev';
 
 export async function uploadImage(fileOrBlob, filename = 'image.webp') {
     const formData = new FormData();
     formData.append('image', fileOrBlob, filename);
     
     try {
-        const endpoint = window.location.hostname === 'localhost' ? '/api/upload' : `${API_URL}/upload`;
+        const endpoint = `${API_URL}/upload`;
         const res = await fetch(endpoint, {
             method: 'POST',
             body: formData,

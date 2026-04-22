@@ -8,8 +8,15 @@ export default defineConfig({
         strictPort: true,
         open: true,
         proxy: {
-            '/api': 'http://localhost:3002',
-            '/uploads': 'http://localhost:3002'
+            '/api': {
+                target: 'http://127.0.0.1:8787',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api/, '')
+            },
+            '/r2': {
+                target: 'http://127.0.0.1:8787',
+                changeOrigin: true
+            }
         }
     }
 });

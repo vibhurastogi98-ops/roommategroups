@@ -62,7 +62,7 @@ app.post('/upload', async (c) => {
     return c.json({
       success: true,
       key,
-      url: `/${key}`,         // relative — served via /assets route below
+      url: `/r2/${key}`,         // relative — served via /r2 route
       filename: file.name,
       size: file.size,
       contentType: file.type,
