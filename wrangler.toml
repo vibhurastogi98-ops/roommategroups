@@ -1,5 +1,6 @@
 name = "roommategroups"
 compatibility_date = "2026-04-22"
+main = "worker.ts"
 
 [observability]
 enabled = true
@@ -14,7 +15,6 @@ compatibility_flags = [ "nodejs_compat" ]
 binding = "DB"
 database_name = "roommatedb"
 database_id = "48c563a0-0557-49f7-8e76-5dc4f1efd7a8"
-remote = true
 
 [[r2_buckets]]
 binding = "BUCKET"
