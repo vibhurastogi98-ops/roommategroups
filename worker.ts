@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 
 type Bindings = {
   DB: D1Database
@@ -6,6 +7,18 @@ type Bindings = {
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
+
+// Allow requests from any localhost port during dev, and production origin
+app.use('*', cors({
+  origin: (origin) => {
+    if (!origin) return '*'
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin
+    if (origin.includes('workers.dev') || origin.includes('roommategroups')) return origin
+    return null
+  },
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+}))
 
 app.get('/r2-check', async (c) => {
   try {

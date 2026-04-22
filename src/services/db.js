@@ -258,8 +258,8 @@ export async function initDB() {
     // Check Hono API connection in background (silent to avoid console noise if not running)
     api.get('/r2-check', true).then(res => {
         console.log('[API] Hono connection established:', res.message);
-    }).catch(err => {
-        console.warn('[API] Could not connect to Hono backend. Some features may be limited.', err.message);
+    }).catch(() => {
+        console.debug('[API] Hono backend not available locally — using localStorage fallback.');
     });
 
     // If we already have local data, migrate any new collections
