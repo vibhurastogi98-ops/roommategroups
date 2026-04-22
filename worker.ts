@@ -26,6 +26,49 @@ app.get('/r2-check', async (c) => {
   }
 })
 
+// User API Routes
+app.get('/users', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM users LIMIT 100').all()
+    return c.json(results)
+  } catch (err) {
+    return c.json({ error: 'Database error' }, 500)
+  }
+})
+
+app.post('/users', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { name, email } = body
+    await c.env.DB.prepare('INSERT INTO users (name, email) VALUES (?, ?)')
+      .bind(name, email)
+      .run()
+    return c.json({ success: true }, 201)
+  } catch (err) {
+    return c.json({ error: 'Failed to create user' }, 500)
+  }
+})
+
+// Listing API Routes
+app.get('/listings', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM listings LIMIT 100').all()
+    return c.json(results)
+  } catch (err) {
+    return c.json({ error: 'Database error' }, 500)
+  }
+})
+
+// City API Routes
+app.get('/cities', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM cities').all()
+    return c.json(results)
+  } catch (err) {
+    return c.json({ error: 'Database error' }, 500)
+  }
+})
+
 // Proxy assets to R2 if needed
 app.get('/assets/img/:file', async (c) => {
   const file = c.req.param('file')

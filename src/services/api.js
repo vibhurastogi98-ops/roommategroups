@@ -5,7 +5,7 @@
 
 const API_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8787' 
-    : 'https://hidden-art-08c1.vibhurastogi98.workers.dev';
+    : window.location.origin;
 
 export const api = {
     async get(path) {
@@ -41,5 +41,13 @@ export const api = {
 
     async createUser(userData) {
         return this.post('/users', userData);
+    },
+    
+    async getListings() {
+        return this.get('/listings');
+    },
+    
+    async getCities() {
+        return this.get('/cities');
     }
 };

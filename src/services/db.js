@@ -252,8 +252,15 @@ class Collection {
     }
 }
 
-export function initDB() {
+export async function initDB() {
     const hasLocalData = !!localStorage.getItem(DB_KEY);
+    
+    // Check Hono API connection in background
+    api.get('/r2-check').then(res => {
+        console.log('[API] Hono connection established:', res.message);
+    }).catch(err => {
+        console.warn('[API] Could not connect to Hono backend. Some features may be limited.', err.message);
+    });
 
     // If we already have local data, migrate any new collections
     if (hasLocalData) {
