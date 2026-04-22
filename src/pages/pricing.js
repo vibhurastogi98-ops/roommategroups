@@ -34,7 +34,7 @@ export function renderPricingPage(app) {
                 name: 'Premium',
                 icon: '⚡',
                 priceMonthly: 4.99,
-                priceAnnual: 3.99,
+                priceAnnual: 0.99,
                 ctaOutline: false,
                 ctaText: 'Start Free Trial',
                 features: [
@@ -55,8 +55,8 @@ export function renderPricingPage(app) {
             pro: {
                 name: 'Pro',
                 icon: '🔥',
-                priceMonthly: 12.99,
-                priceAnnual: 10.99,
+                priceMonthly: 8.99,
+                priceAnnual: 1.99,
                 isPopular: true,
                 ctaOutline: false,
                 ctaSuccess: true,
