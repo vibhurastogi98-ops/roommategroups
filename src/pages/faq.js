@@ -29,7 +29,7 @@ const FAQ_DATA = [
             { q: 'How do I make my listing stand out?', a: 'Upload high-quality photos, write a detailed description, set accurate amenities, complete your ID verification (it shows a badge on your listing), and consider upgrading to a Featured Listing for 3x more views.' },
             { q: 'Can I edit or deactivate my listing?', a: 'Yes, you can edit, pause, or delete your listing anytime from your Dashboard → My Listings section.' },
             { q: 'What are featured listings?', a: 'Featured listings appear at the top of search results for your city. They receive on average 3x more views and generate significantly more inquiries. Available on our Pro and Premium plans.' },
-            { q: 'How does pricing work?', a: 'Free accounts can post 1 listing at a time. Pro accounts ($9.99/mo) get 5 listings and featured placement. Premium accounts ($24.99/mo) get unlimited listings and all advanced features.' },
+            { q: 'How does pricing work?', a: 'Free accounts can post 1 listing at a time. Premium accounts ($4.99/mo) get up to 3 listings and boosted search visibility. Pro accounts ($8.99/mo) get up to 5 listings and top ranking placement.' },
         ]
     },
     {

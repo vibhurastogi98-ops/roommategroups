@@ -146,6 +146,10 @@ const CAT_CONFIG = {
     apartment: { icon: 'fa-building', label: 'Apartment for Rent', desc: 'I am renting out an entire property.', bg: '#f5f5f5', color: '#1a1a1a' },
     sublet: { icon: 'fa-calendar-alt', label: 'Sublet', desc: 'I need someone to take over my lease.', bg: '#f5f5f5', color: '#1a1a1a' },
     roommate_wanted: { icon: 'fa-users', label: 'Roommate Wanted', desc: 'Looking for a roommate to find a place with.', bg: '#f5f5f5', color: '#1a1a1a' },
+    coliving: { icon: 'fa-house-chimney-user', label: 'Co-living Space', desc: 'I offer a furnished room with shared amenities and flexible lease.', bg: '#f5f5f5', color: '#1a1a1a' },
+    house: { icon: 'fa-house', label: 'House for Rent', desc: 'I am renting out an entire house.', bg: '#f5f5f5', color: '#1a1a1a' },
+    student_housing: { icon: 'fa-graduation-cap', label: 'Student Housing', desc: 'This listing is near a college or university for students.', bg: '#f5f5f5', color: '#1a1a1a' },
+    room_wanted: { icon: 'fa-magnifying-glass', label: 'Room Wanted', desc: 'I am looking for a room to rent in someone\'s property.', bg: '#f5f5f5', color: '#1a1a1a' }
 };
 
 function renderStep1() {
@@ -188,27 +192,29 @@ function renderStep2() {
         nHOptions += nhs.map(n => `<option value="${n.neighborhood_id}" ${draft.neighborhood === n.neighborhood_id ? 'selected' : ''}>${n.name}</option>`).join('');
     }
     return `
-        <div class="pl-step-content animate__animated animate__fadeIn" id="step-2">
+        <div class="post-listing-step" id="step-2">
             <div class="pl-step-header">
-                <h2 class="pl-step-title">Location Details</h2>
-                <p class="pl-step-subtitle">Where is your place located?</p>
+                <h2>Location Details</h2>
+                <p class="step-subtitle">Where is your place located?</p>
             </div>
-            <div class="pl-form-grid">
-                <div class="form-group">
-                    <label class="pl-label">City <span class="required-asterisk">*</span></label>
-                    <select id="pl-city" class="form-control">
-                        <option value="">Select a city</option>
-                        ${cities.map(c => `<option value="${c.city_id}" ${draft.city === c.city_id ? 'selected' : ''}>${c.name}</option>`).join('')}
-                    </select>
+            <div class="pl-form-card">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="pl-label">City <span class="required-asterisk">*</span></label>
+                        <select id="pl-city" class="form-control">
+                            <option value="">Select a city</option>
+                            ${cities.map(c => `<option value="${c.city_id}" ${draft.city === c.city_id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="pl-label">Neighborhood <span class="pl-optional">(Optional)</span></label>
+                        <select id="pl-neighborhood" class="form-control" ${!draft.city ? 'disabled' : ''}>
+                            ${nHOptions}
+                        </select>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="pl-label">Neighborhood <span class="pl-optional">Optional</span></label>
-                    <select id="pl-neighborhood" class="form-control" ${!draft.city ? 'disabled' : ''}>
-                        ${nHOptions}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="pl-label">Street Address <span class="pl-optional">Optional</span></label>
+                <div class="form-group" style="margin-top: 4px;">
+                    <label class="pl-label">Street Address <span class="pl-optional">(Optional)</span></label>
                     <div class="pl-input-group">
                         <input type="text" id="pl-address" class="form-control" placeholder="e.g. 123 Main St" value="${draft.address || ''}">
                         <button class="btn btn-outline pl-location-btn" id="btn-use-location">
@@ -238,7 +244,7 @@ function renderStep2() {
 
 // ── Step 3: Details ──
 function renderStep3() {
-    const isRoommate = draft.category === 'roommate_wanted';
+    const isRoommate = draft.category === 'roommate_wanted' || draft.category === 'room_wanted';
     let html = `
         <div class="post-listing-step" id="step-3">
             <div class="pl-step-header">
@@ -247,8 +253,8 @@ function renderStep3() {
             </div>
             <div class="pl-form-card">
                 <div class="form-group">
-                    <label class="pl-label">Listing Title <span class="required-asterisk">*</span></label>
-                    <input type="text" id="pl-title" class="form-control" placeholder="e.g. Sunny Room Near Downtown" value="${draft.title || ''}">
+                    <input type="text" id="pl-title" class="form-control" placeholder="e.g. Sunny Room Near Downtown" value="${draft.title || ''}" minlength="3">
+                    <small class="form-help">Minimum 3 characters required.</small>
                 </div>
     `;
 
@@ -332,7 +338,7 @@ function renderStep3() {
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="pl-label">Preferred Areas/Neighborhoods</label>
+                    <label class="pl-label">Preferred Areas / Neighborhoods</label>
                     <input type="text" id="pl-pref-area" class="form-control" placeholder="e.g. Downtown or Southside" value="${draft.preferredArea || ''}">
                 </div>
                 <div class="form-group">
@@ -351,7 +357,7 @@ function renderStep3() {
             </div>
             <div class="step-actions">
                 <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.title && draft.title.length >= 5 ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.title && draft.title.length >= 3 ? '' : 'disabled'}>
                     Next Step <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
@@ -518,7 +524,7 @@ function renderStep7() {
                     <div class="preview-header">
                         <h3>${draft.title || 'Untitled Listing'}</h3>
                         <div class="preview-price">
-                            ${draft.category === 'roommate_wanted'
+                            ${(draft.category === 'roommate_wanted' || draft.category === 'room_wanted')
                                 ? (draft.budgetMin || draft.budgetMax
                                     ? `$${draft.budgetMin || '0'} – $${draft.budgetMax || '∞'}<span>/mo budget</span>`
                                     : '<span style="font-size:0.9rem;font-weight:500;">Budget TBD</span>')
@@ -546,13 +552,22 @@ function renderStep7() {
                     <div class="po-price">Free</div>
                 </label>
                 <label class="publish-option-card">
-                    <input type="radio" name="publish_type" value="featured">
-                    <div class="po-icon po-featured"><i class="fa-solid fa-bolt"></i></div>
+                    <input type="radio" name="publish_type" value="premium">
+                    <div class="po-icon po-featured" style="background:#eef2ff;color:#6366f1;"><i class="fa-solid fa-star"></i></div>
                     <div class="po-content">
-                        <h4>Featured Listing</h4>
+                        <h4>Premium Listing</h4>
+                        <p>2x Boosted visibility in search results</p>
+                    </div>
+                    <div class="po-price">$4.99/mo</div>
+                </label>
+                <label class="publish-option-card">
+                    <input type="radio" name="publish_type" value="featured">
+                    <div class="po-icon po-featured" style="background:#1a1a1a;color:#fff;"><i class="fa-solid fa-bolt"></i></div>
+                    <div class="po-content">
+                        <h4>Pro Listing</h4>
                         <p>Top placement in search + highlighted badge</p>
                     </div>
-                    <div class="po-price">$10/wk</div>
+                    <div class="po-price">$8.99/mo</div>
                     <div class="po-badge">Popular</div>
                 </label>
             </div>
@@ -624,7 +639,7 @@ function attachEventListeners(container) {
         const title = container.querySelector('#pl-title');
         title.addEventListener('input', (e) => {
             draft.title = e.target.value;
-            if (btnNext) btnNext.disabled = draft.title.length < 5;
+            if (btnNext) btnNext.disabled = draft.title.length < 3;
         });
     }
 
@@ -786,7 +801,7 @@ function saveStepState() {
     }
 
     if (draft.step === 3) {
-        if (draft.category !== 'roommate_wanted') {
+        if (draft.category !== 'roommate_wanted' && draft.category !== 'room_wanted') {
             const price = container.querySelector('#pl-price');
             if (price) draft.price = parseInt(price.value) || 0;
             const currency = container.querySelector('#pl-currency');
@@ -845,19 +860,21 @@ async function handlePublish() {
     if (publishBtn) { publishBtn.disabled = true; publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing…'; }
 
     const container = document.querySelector('#post-listing-root');
-    const isFeatured = container
-        ? container.querySelector('input[name="publish_type"]:checked')?.value === 'featured'
-        : false;
+    const selType = container?.querySelector('input[name="publish_type"]:checked')?.value;
+    const isFeatured = (selType === 'featured' || selType === 'premium');
 
     const listingData = {
         user_id: user.id, category: draft.category, title: draft.title, description: draft.description,
-        price: draft.price, currency: draft.currency, city: draft.city, neighborhood: draft.neighborhood,
+        price: (draft.category === 'roommate_wanted' || draft.category === 'room_wanted') ? (draft.budgetMax || 0) : (draft.price || 0), 
+        currency: draft.currency, city: draft.city, neighborhood: draft.neighborhood,
         address: draft.address, room_type: draft.roomType, available_from: draft.availableFrom,
         lease_duration: draft.leaseDuration, furnished: draft.furnished, amenities: draft.amenities,
         photos: draft.photos, roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
         status: 'active', moderation_status: 'pending', is_featured: isFeatured, views_count: 0,
         bedrooms: parseInt(draft.bedrooms) || null, bathrooms: parseInt(draft.bathrooms) || null,
         size_sqft: parseInt(draft.sizeSqft) || null,
+        budgetMin: draft.budgetMin || null, budgetMax: draft.budgetMax || null,
+        preferredArea: draft.preferredArea || null, moveInTimeline: draft.moveInTimeline || null
     };
 
     try {

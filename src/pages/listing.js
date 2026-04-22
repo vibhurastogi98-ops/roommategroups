@@ -69,7 +69,7 @@ export function renderListingDetailPage(app, params) {
         db.listings.update(listingId, { views_count: (listing.views_count || 0) + 1 });
     }
 
-    const isRoommate = listing.category === 'roommate_wanted';
+    const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
     const photos = listing.photos && listing.photos.length > 0 
         ? listing.photos 
         : ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=800&fit=crop'];

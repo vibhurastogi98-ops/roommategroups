@@ -22,7 +22,7 @@ const testimonials = [
 function renderListingCard(listing, index) {
   const gradient = ['linear-gradient(135deg, #1a1a1a 0%, #444444 100%)', 'linear-gradient(135deg, #1a1a1a 0%, #444444 100%)', 'linear-gradient(135deg, #1a1a1a 0%, #444444 100%)', 'linear-gradient(135deg, #1a1a1a 0%, #444444 100%)'][index % 4];
   const photo = listing.photos?.[0] || '';
-  const isRoommate = listing.category === 'roommate_wanted';
+  const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
 
   return `
     <div class="listing-card">
@@ -102,10 +102,14 @@ export function renderHomePage(app) {
           <div class="search-field">
             <select id="search-type" aria-label="Search types">
               <option value="">🏠 Rooms & More</option>
-              <option value="room">Private Room</option>
-              <option value="apartment">Full Apartment</option>
-              <option value="sublet">Short Sublet</option>
-              <option value="roommate">Roommate Wanted</option>
+              <option value="room">Room for Rent</option>
+              <option value="apartment">Apartment for Rent</option>
+              <option value="sublet">Sublet</option>
+              <option value="roommate_wanted">Roommate Wanted</option>
+              <option value="coliving">Co-living Space</option>
+              <option value="house">House for Rent</option>
+              <option value="student_housing">Student Housing</option>
+              <option value="room_wanted">Room Wanted</option>
             </select>
           </div>
           <button class="search-btn" id="search-btn">

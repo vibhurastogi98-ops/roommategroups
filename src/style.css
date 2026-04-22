@@ -354,6 +354,14 @@ ol {
   border-radius: var(--radius);
 }
 
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  gap: 5px;
+}
+
 .btn-white {
   background: var(--primary);
   color: #fff;
@@ -2174,7 +2182,7 @@ ol {
   align-items: center;
 }
 
-.form-group label:not(.checkbox-label):not(.tag-pill) {
+.form-group label:not(.checkbox-label):not(.tag-pill):not(.lifestyle-tag) {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -3009,17 +3017,15 @@ ol {
 .post-listing-page {
   min-height: 100vh;
   background: var(--bg-light);
-  padding: 112px 16px 80px;
-  /* 72px navbar + 40px breathing room */
+  padding: 100px 16px 40px; /* Reduced top/bottom padding */
 }
 
 .post-listing-container {
-  max-width: 780px;
+  max-width: 820px; /* Increased from 780px */
   margin: 0 auto;
   background: #fff;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
-  overflow: hidden;
 }
 
 /* ══════════════════════════════════ */
@@ -3149,7 +3155,7 @@ ol {
 /* STEP CONTENT                       */
 /* ══════════════════════════════════ */
 .post-listing-step {
-  padding: 40px 40px 32px;
+  padding: 30px 32px 24px; /* Reduced padding */
 }
 
 @media (max-width: 640px) {
@@ -3159,7 +3165,7 @@ ol {
 }
 
 .pl-step-header {
-  margin-bottom: 32px;
+  margin-bottom: 24px; /* Reduced margin */
 }
 
 .pl-step-header h2 {
@@ -3186,8 +3192,8 @@ ol {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 36px;
-  padding-top: 20px;
+  margin-top: 24px; /* Reduced margin */
+  padding-top: 16px;
   border-top: 1px solid var(--border-light);
   gap: 12px;
 }
@@ -3231,15 +3237,17 @@ ol {
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
 }
 
-.pl-label {
+.post-listing-page .pl-label {
   display: block;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 8px;
+  color: #475569;
+  margin-bottom: 6px;
+  text-transform: none;
+  letter-spacing: -0.01em;
 }
 
 .pl-optional {
@@ -3280,6 +3288,11 @@ ol {
 .pl-location-btn {
   white-space: nowrap;
   border-radius: var(--radius) !important;
+  background: var(--bg-lighter) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
 }
 
 /* ══════════════════════════════════ */
@@ -3763,40 +3776,60 @@ ol {
   flex-shrink: 0;
 }
 
-.lifestyle-tags {
+/* ══════════════════════════════════ */
+/* LIFESTYLE TAGS (STEP 6 — scoped)   */
+/* ══════════════════════════════════ */
+.post-listing-page .lifestyle-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
-.lifestyle-tag {
+.post-listing-page .lifestyle-tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
+  gap: 7px;
+  padding: 8px 16px;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-full);
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-secondary);
+  background: #fff;
   transition: var(--transition);
   user-select: none;
 }
 
-.lifestyle-tag input {
+.post-listing-page .lifestyle-tag input {
   display: none;
 }
 
-.lifestyle-tag:hover {
-  border-color: var(--primary-light);
-  color: var(--primary);
+.post-listing-page .lifestyle-tag i {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  transition: color 0.2s;
 }
 
-.lifestyle-tag.active {
-  background: var(--primary);
+.post-listing-page .lifestyle-tag:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: #f0f0ff;
+}
+
+.post-listing-page .lifestyle-tag:hover i {
+  color: #6366f1;
+}
+
+.post-listing-page .lifestyle-tag.active {
+  background: #1a1a1a;
   color: #fff;
-  border-color: var(--primary);
+  border-color: #1a1a1a;
+  font-weight: 600;
+}
+
+.post-listing-page .lifestyle-tag.active i {
+  color: #fff;
 }
 
 /* ══════════════════════════════════ */

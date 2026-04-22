@@ -30,7 +30,7 @@ function relTime(iso) {
 }
 
 function renderSearchCard(listing) {
-    const isRoommate = listing.category === 'roommate_wanted';
+    const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
     const rawPhoto = listing.photos && listing.photos[0];
     const photo = (rawPhoto ? getPhotoSrc(rawPhoto, 'thumb') : null) || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
 
@@ -144,7 +144,11 @@ export function renderSearchPage(app) {
                             <button class="sf-chip ${state.type === 'room' ? 'active' : ''}" data-type="room">Room</button>
                             <button class="sf-chip ${state.type === 'apartment' ? 'active' : ''}" data-type="apartment">Apartment</button>
                             <button class="sf-chip ${state.type === 'sublet' ? 'active' : ''}" data-type="sublet">Sublet</button>
-                            <button class="sf-chip ${state.type === 'roommate_wanted' ? 'active' : ''}" data-type="roommate_wanted">Roommate</button>
+                            <button class="sf-chip ${state.type === 'roommate_wanted' ? 'active' : ''}" data-type="roommate_wanted">Roommate Wanted</button>
+                            <button class="sf-chip ${state.type === 'coliving' ? 'active' : ''}" data-type="coliving">Co-living</button>
+                            <button class="sf-chip ${state.type === 'house' ? 'active' : ''}" data-type="house">House</button>
+                            <button class="sf-chip ${state.type === 'student_housing' ? 'active' : ''}" data-type="student_housing">Student</button>
+                            <button class="sf-chip ${state.type === 'room_wanted' ? 'active' : ''}" data-type="room_wanted">Room Wanted</button>
                         </div>
                     </div>
                 </div>

@@ -507,7 +507,7 @@ function renderAdminListings(container) {
             '</select>',
             '<select class="adm-select" id="adm-cat-filter">',
             '<option value="">All Categories</option>',
-            ['room', 'apartment', 'sublet', 'roommate_wanted'].map(c => '<option value="' + c + '"' + (categoryFilter === c ? ' selected' : '') + '>' + c + '</option>').join(''),
+            ['room', 'apartment', 'sublet', 'roommate_wanted', 'coliving', 'house', 'student_housing', 'room_wanted'].map(c => '<option value="' + c + '"' + (categoryFilter === c ? ' selected' : '') + '>' + c + '</option>').join(''),
             '</select>',
             selectedIds.size > 0 ? [
                 '<button class="btn btn-sm btn-success" id="adm-bulk-approve"><i class="fa-solid fa-check"></i> Approve (' + selectedIds.size + ')</button>',

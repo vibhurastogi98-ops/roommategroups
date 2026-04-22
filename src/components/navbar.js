@@ -28,7 +28,7 @@ export function getNavAuthButtons() {
         `;
     }
     return `
-        <a href="/auth/register" class="btn btn-outline">List Your Room</a>
+        <a href="/post-listing" class="btn btn-outline">List Your Room</a>
         <a href="/auth/login" class="btn btn-primary">Sign In</a>
     `;
 }

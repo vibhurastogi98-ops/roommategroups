@@ -1442,10 +1442,9 @@ function renderSubscription(container, user) {
     const tier = user.subscription_tier || 'free';
 
     const PLANS = {
-        free: { name: 'Free', price: '$0', period: 'forever', color: '#64748b', icon: 'fa-seedling', features: ['1 active listing', '5 messages per month', 'Basic search & filters', '1 saved search', 'Basic listing analytics (views only)'] },
-        basic: { name: 'Basic', price: '$4.99', period: '/month', color: '#1a1a1a', icon: 'fa-bolt', features: ['3 active listings', 'Unlimited messages', 'Advanced search & filters', '3 saved searches with alerts', 'See who viewed your listing', 'Views + clicks analytics'] },
-        premium: { name: 'Premium', price: '$9.99', period: '/month', color: '#1a1a1a', icon: 'fa-star', features: ['10 active listings', 'Unlimited messages', '2 featured listing credits/month', 'Urgent badge on listings', '10 saved searches with alerts', 'Full analytics dashboard', 'Priority support'] },
-        pro: { name: 'Pro', price: '$19.99', period: '/month', color: '#555555', icon: 'fa-building', features: ['Unlimited listings', 'Unlimited messages', '5 featured listing credits/month', 'Urgent badge + promoted profile', 'Unlimited saved searches', 'Full analytics + data export', '24-hour early access to new listings', 'Priority support'] },
+        free: { name: 'Free', price: '$0', period: 'forever', color: '#64748b', icon: 'fa-seedling', features: ['1 active listing', '5 messages per day', 'Basic search & filters', 'Standard listing visibility', 'Standard support (48hr)'] },
+        premium: { name: 'Premium', price: '$4.99', period: '/month', color: '#6366f1', icon: 'fa-star', features: ['3 active listings', 'Unlimited messages', '2x boosted visibility', 'Verified badge', 'Basic compatibility score', 'Priority support (24hr)'] },
+        pro: { name: 'Pro', price: '$8.99', period: '/month', color: '#1a1a1a', icon: 'fa-bolt', features: ['5 active listings', 'Unlimited messages', '5x top ranking placement', 'Gold verified badge', 'Full analytics dashboard', '24-hour early access', 'VIP support (4hr)'] },
     };
 
     const plan = PLANS[tier] || PLANS.free;

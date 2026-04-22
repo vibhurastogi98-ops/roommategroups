@@ -25,7 +25,7 @@ export function renderCityPage(app, params) {
     const heroImage = city.hero_image || FALLBACK_HERO;
     const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active');
     const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
-    const roommateProfiles = db.listings.findMany({ city: city.city_id, category: 'roommate_wanted' });
+    const roommateProfiles = db.listings.find(l => l.city === city.city_id && (l.category === 'roommate_wanted' || l.category === 'room_wanted'));
     const cityMemberCount = db.users.find(u => u.city === city.city_id && u.role !== 'admin').length;
     const avgRent = cityListings.length > 0
         ? Math.round(cityListings.reduce((sum, l) => sum + (l.price || 0), 0) / cityListings.length)
@@ -80,9 +80,15 @@ export function renderCityPage(app, params) {
                             <div class="search-field">
                                 <i class="fa-solid fa-filter"></i>
                                 <select id="listing-type">
-                                    <option value="room">Room</option>
-                                    <option value="apartment">Apartment</option>
-                                    <option value="roommate">Roommate</option>
+                                    <option value="">All Types</option>
+                                    <option value="room">Room for Rent</option>
+                                    <option value="apartment">Apartment for Rent</option>
+                                    <option value="sublet">Sublet</option>
+                                    <option value="roommate_wanted">Roommate Wanted</option>
+                                    <option value="coliving">Co-living Space</option>
+                                    <option value="house">House for Rent</option>
+                                    <option value="student_housing">Student Housing</option>
+                                    <option value="room_wanted">Room Wanted</option>
                                 </select>
                             </div>
                             <button class="btn btn-primary search-bar-btn">
@@ -310,8 +316,9 @@ export function renderCityPage(app, params) {
         if (searchBtn) {
             searchBtn.addEventListener('click', () => {
                 const typeVal = app.querySelector('#listing-type').value;
-                const typeParam = typeVal === 'roommate' ? 'roommate_wanted' : typeVal;
-                navigate(`/search/rooms?city=${city.slug}&type=${typeParam}`);
+                let url = `/search/rooms?city=${city.slug}`;
+                if (typeVal) url += `&type=${typeVal}`;
+                navigate(url);
             });
         }
         initNavbar();
