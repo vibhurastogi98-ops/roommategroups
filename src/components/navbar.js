@@ -47,9 +47,9 @@ export function renderNavbar() {
           </span>
         </a>
         <div class="nav-links" id="nav-links">
-          <a href="/#cities" class="nav-anchor">Cities</a>
-          <a href="/#how-it-works" class="nav-anchor">How It Works</a>
-          <a href="/#listings" class="nav-anchor">Listings</a>
+          <a href="/#cities" class="nav-anchor" data-external="true">Cities</a>
+          <a href="/#how-it-works" class="nav-anchor" data-external="true">How It Works</a>
+          <a href="/#listings" class="nav-anchor" data-external="true">Listings</a>
           <a href="/pricing">Pricing</a>
           <a href="/blog">Blog</a>
           <a href="/fb-groups" style="display:inline-flex;align-items:center;gap:5px;"><i class="fab fa-facebook" style="color:#1877f2;"></i> FB Groups</a>
@@ -173,6 +173,7 @@ export function initNavbar() {
     // Smooth scroll for in-page anchors
     document.querySelectorAll('.nav-anchor').forEach(anchor => {
         anchor.addEventListener('click', (e) => {
+            e.stopPropagation();
             const href = anchor.getAttribute('href');
             const targetId = href.substring(href.indexOf('#'));
             const isHome = window.location.pathname === '/' || window.location.pathname === '';
