@@ -79,7 +79,7 @@ export function renderHomePage(app) {
       <div class="hero-content">
         <div class="hero-badge">
           <i class="fas fa-star"></i>
-          Trusted by 1.5M+ community members
+          Trusted by 1,500,000+ community members
         </div>
         <h1 class="hero-title animate-reveal floating-text">
           Easily Find Compatible <span class="gradient-text">Roommates</span><br>
@@ -200,30 +200,36 @@ export function renderHomePage(app) {
             <div class="stat-icon-box">
               <i class="fas fa-globe"></i>
             </div>
-            <div class="stat-number-wrapper">
-              <span class="stat-number">0</span><span class="stat-suffix">+</span>
+            <div class="stat-text">
+              <div class="stat-number-wrapper">
+                <span class="stat-number">0</span><span class="stat-suffix">+</span>
+              </div>
+              <div class="stat-label">CITIES</div>
             </div>
-            <div class="stat-label">CITIES</div>
           </div>
 
-          <div class="stat-card" data-target="5" data-prefix="1." data-suffix="M+">
+          <div class="stat-card" data-target="1500000" data-suffix="+">
             <div class="stat-icon-box">
               <i class="fas fa-users"></i>
             </div>
-            <div class="stat-number-wrapper">
-              <span class="stat-number">1.0</span><span class="stat-suffix">M+</span>
+            <div class="stat-text">
+              <div class="stat-number-wrapper">
+                <span class="stat-number">0</span><span class="stat-suffix">+</span>
+              </div>
+              <div class="stat-label">COMMUNITY MEMBERS</div>
             </div>
-            <div class="stat-label">COMMUNITY MEMBERS</div>
           </div>
 
-          <div class="stat-card" data-target="10" data-suffix="k+">
+          <div class="stat-card" data-target="10000" data-suffix="+">
             <div class="stat-icon-box">
               <i class="fas fa-shield-halved"></i>
             </div>
-            <div class="stat-number-wrapper">
-              <span class="stat-number">0</span><span class="stat-suffix">k+</span>
+            <div class="stat-text">
+              <div class="stat-number-wrapper">
+                <span class="stat-number">0</span><span class="stat-suffix">+</span>
+              </div>
+              <div class="stat-label">VERIFIED MEMBERS</div>
             </div>
-            <div class="stat-label">VERIFIED MEMBERS</div>
           </div>
         </div>
       </div>
@@ -253,7 +259,7 @@ export function renderHomePage(app) {
             </div>
             <div class="feature-image animate-on-scroll">
               <div class="image-wrapper">
-                <img src="/src/assets/img/community.png" alt="Happy roommates in a shared living space">
+                <img src="/assets/img/community.png" alt="Happy roommates in a shared living space">
                 <div class="image-accent-glow"></div>
               </div>
             </div>
@@ -269,7 +275,7 @@ export function renderHomePage(app) {
               <span class="feature-tagline">
                 <i class="fas fa-list-check"></i> LISTINGS & CONNECTIONS
               </span>
-              <h2 class="feature-heading">Connect with 1.5M+ community members looking for the same thing.</h2>
+              <h2 class="feature-heading">Connect with 1,500,000+ community members looking for the same thing.</h2>
               <p class="feature-subtext">Whether you're a student, a working professional, or a landlord — our platform connects you with genuine, relevant matches fast. No endless scrolling, no wasted time.</p>
               
               <ul class="feature-checklist grid-2-col">
@@ -285,7 +291,7 @@ export function renderHomePage(app) {
             </div>
             <div class="feature-image animate-on-scroll">
               <div class="image-wrapper">
-                <img src="/src/assets/img/mockup.png" alt="RoommateGroups Dashboard and Map Mockup">
+                <img src="/assets/img/mockup.png" alt="RoommateGroups Dashboard and Map Mockup">
                 <div class="image-accent-glow-secondary"></div>
               </div>
             </div>
@@ -536,12 +542,7 @@ export function renderHomePage(app) {
 
       const current = (ease * (end - start) + start);
 
-      if (prefix === '1.') {
-        // Special case for 1.Xm+
-        el.textContent = `1.${Math.floor(current)}`;
-      } else {
-        el.textContent = Math.floor(current);
-      }
+      el.textContent = Math.floor(current).toLocaleString();
 
       if (progress < 1) {
         window.requestAnimationFrame(step);

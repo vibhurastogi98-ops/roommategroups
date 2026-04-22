@@ -111,60 +111,81 @@ export function renderBlogPostPage(app, params) {
 
             <!-- ③ Main Content Grid -->
             <section class="post-main-container container">
+                <div class="post-layout-grid">
+                    <article class="post-content-area prose" id="post-article">
+                        <!-- ③ Rich Text Content -->
+                        ${post.content || ''}
 
-                <article class="post-content-area prose" id="post-article">
-                    <!-- ③ Rich Text Content -->
-                    ${post.content || ''}
+                        <!-- Tags -->
+                        ${post._tags.length > 0 ? `
+                        <div class="post-tags">
+                            <i class="fas fa-tags"></i>
+                            ${post._tags.map(t => `<span class="tag-pill">${t}</span>`).join('')}
+                        </div>` : ''}
 
-                    <!-- Tags -->
-                    ${post._tags.length > 0 ? `
-                    <div class="post-tags">
-                        <i class="fas fa-tags"></i>
-                        ${post._tags.map(t => `<span class="tag-pill">${t}</span>`).join('')}
-                    </div>` : ''}
-
-                    <!-- ⑥ Social Share Buttons -->
-                    <div class="social-share">
-                        <h4>Share this article</h4>
-                        <div class="share-buttons">
-                            <button class="share-btn twitter" id="share-twitter">
-                                <i class="fab fa-twitter"></i> Twitter
-                            </button>
-                            <button class="share-btn facebook" id="share-facebook">
-                                <i class="fab fa-facebook-f"></i> Facebook
-                            </button>
-                            <button class="share-btn linkedin" id="share-linkedin">
-                                <i class="fab fa-linkedin-in"></i> LinkedIn
-                            </button>
-                            <button class="share-btn copy-link" id="share-copy">
-                                <i class="fas fa-link"></i> Copy Link
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- ⑦ CTA Banner -->
-                    <div class="cta-inline-banner">
-                        <div class="cta-inline-content">
-                            <div class="cta-inline-text">
-                                <h3>${post.ctaHeading || 'Ready to Find Your Next Room?'}</h3>
-                                <p>Browse thousands of verified rooms and roommate listings across the US.</p>
+                        <!-- ⑥ Social Share Buttons -->
+                        <div class="social-share">
+                            <h4>Share this article</h4>
+                            <div class="share-buttons">
+                                <button class="share-btn twitter" id="share-twitter">
+                                    <i class="fab fa-twitter"></i> Twitter
+                                </button>
+                                <button class="share-btn facebook" id="share-facebook">
+                                    <i class="fab fa-facebook-f"></i> Facebook
+                                </button>
+                                <button class="share-btn linkedin" id="share-linkedin">
+                                    <i class="fab fa-linkedin-in"></i> LinkedIn
+                                </button>
+                                <button class="share-btn copy-link" id="share-copy">
+                                    <i class="fas fa-link"></i> Copy Link
+                                </button>
                             </div>
-                            <button class="btn btn-primary cta-inline-btn" onclick="navigate('${post.ctaBtnLink || '/search/rooms'}')">
-                                ${post.ctaBtnText || 'Find a Room'} <i class="fas fa-arrow-right"></i>
-                            </button>
                         </div>
-                    </div>
 
-                    <!-- ⑤ Author Bio Card -->
-                    <div class="author-bio-card">
-                        <img src="${post._authorAvatar}" alt="${post._authorName}" class="bio-avatar" />
-                        <div class="bio-content">
-                            <h4>About ${post._authorName}</h4>
-                            <p>${post._authorBio || 'Contributing writer at RoommateGroups.'}</p>
+                        <!-- ⑦ CTA Banner -->
+                        <div class="cta-inline-banner">
+                            <div class="cta-inline-content">
+                                <div class="cta-inline-text">
+                                    <h3>${post.ctaHeading || 'Ready to Find Your Next Room?'}</h3>
+                                    <p>${post.ctaText || 'Browse thousands of verified rooms and roommate listings across the US.'}</p>
+                                </div>
+                                <button class="btn btn-primary cta-inline-btn" onclick="navigate('${post.ctaBtnLink || '/search/rooms'}')">
+                                    ${post.ctaBtnText || 'Find a Room'} <i class="fas fa-arrow-right"></i>
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </article>
 
+                        <!-- ⑤ Author Bio Card -->
+                        <div class="author-bio-card">
+                            <div class="bio-avatar-wrap">
+                                <img src="${post._authorAvatar}" alt="${post._authorName}" class="bio-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(post._authorName)}&background=6366f1&color=fff&size=200'" />
+                            </div>
+                            <div class="bio-content">
+                                <h4>About ${post._authorName}</h4>
+                                <p>${post._authorBio || 'Contributing writer at RoommateGroups.'}</p>
+                            </div>
+                        </div>
+                    </article>
+
+                    <aside class="post-sidebar">
+                        <div class="sticky-sidebar">
+                            <!-- Table of Contents -->
+                            <div class="sidebar-widget">
+                                <h3><i class="fas fa-list-ul"></i> Table of Contents</h3>
+                                <nav class="toc-nav" id="toc-container">
+                                    <div class="toc-placeholder">Generating summary...</div>
+                                </nav>
+                            </div>
+
+                            <!-- CTA Widget -->
+                            <div class="sidebar-widget cta-widget">
+                                <h3>Looking for a Roommate?</h3>
+                                <p>Join thousands of people finding their perfect match in our verified community.</p>
+                                <button class="btn btn-primary btn-sm" style="width:100%" onclick="navigate('/search/roommates')">Browse Roommates</button>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
             </section>
 
             <!-- ⑧ Related Posts -->
@@ -300,10 +321,21 @@ export function renderBlogPostPage(app, params) {
 
             /* ── Main Grid ── */
             .post-main-container {
-                display: block;
-                max-width: 900px;
+                max-width: 1200px;
                 margin: 0 auto;
                 padding: 40px 20px;
+            }
+            .post-layout-grid {
+                display: grid;
+                grid-template-columns: 1fr 320px;
+                gap: 40px;
+                align-items: start;
+            }
+            @media (max-width: 1024px) {
+                .post-layout-grid {
+                    grid-template-columns: 1fr;
+                }
+                .post-sidebar { display: none; }
             }
 
     /* ═══════════════════════════════════════
@@ -615,25 +647,36 @@ export function renderBlogPostPage(app, params) {
             /* ── Author Bio ── */
             .author-bio-card {
                 display: flex;
-                gap: 22px;
-                background: var(--bg-light);
-                padding: 30px;
+                gap: 24px;
+                background: white;
+                padding: 32px;
                 border-radius: var(--radius-lg);
                 border: 1px solid var(--border);
-                margin-top: 16px;
+                margin-top: 40px;
+                box-shadow: var(--shadow-sm);
+            }
+            .bio-avatar-wrap {
+                width: 100px;
+                height: 100px;
+                border-radius: 50%;
+                overflow: hidden;
+                flex-shrink: 0;
+                border: 4px solid var(--bg-light);
+                background: var(--bg-light);
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
             .bio-avatar {
-                width: 84px;
-                height: 84px;
-                border-radius: 50%;
+                width: 100%;
+                height: 100%;
                 object-fit: cover;
-                flex-shrink: 0;
-                border: 3px solid var(--border);
+                display: block;
             }
-            .bio-content h4 { font-size: 1.15rem; margin-bottom: 8px; color: var(--text-primary); }
-            .bio-content p { font-size: 0.95rem; line-height: 1.6; color: var(--text-secondary); margin: 0; }
+            .bio-content h4 { font-size: 1.25rem; margin-bottom: 8px; color: var(--text-primary); font-weight: 700; }
+            .bio-content p { font-size: 1rem; line-height: 1.6; color: var(--text-secondary); margin: 0; }
             @media (max-width: 600px) {
-                .author-bio-card { flex-direction: column; align-items: center; text-align: center; }
+                .author-bio-card { flex-direction: column; align-items: center; text-align: center; padding: 24px; }
             }
 
             /* ── Sidebar ── */
@@ -806,12 +849,18 @@ export function renderBlogPostPage(app, params) {
 // ── Table of Contents: H2 + H3 with scroll-spy ──────────────
 function buildTOC() {
     const article  = document.getElementById('post-article');
-    const tocList  = document.getElementById('toc-list');
-    const tocWidget = document.getElementById('toc-widget');
-    if (!article || !tocList) return;
+    const container = document.getElementById('toc-container');
+    if (!article || !container) return;
 
     const headings = article.querySelectorAll('h2, h3');
-    if (headings.length === 0) { tocWidget && (tocWidget.style.display = 'none'); return; }
+    if (headings.length === 0) {
+        const widget = container.closest('.sidebar-widget');
+        if (widget) widget.style.display = 'none';
+        return;
+    }
+
+    container.innerHTML = '<ul id="toc-list" class="toc-list"></ul>';
+    const tocList = container.querySelector('#toc-list');
 
     headings.forEach((heading, i) => {
         const id = `h-${i}`;

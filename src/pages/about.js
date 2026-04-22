@@ -62,7 +62,7 @@ export function renderAboutPage(app) {
             </div>
 
             <div class="stats-row">
-                <div class="stat-card"><div class="num">1.5M+</div><div class="label">Community Members</div></div>
+                <div class="stat-card"><div class="num">1,500,000+</div><div class="label">Community Members</div></div>
                 <div class="stat-card"><div class="num">30+</div><div class="label">Cities Worldwide</div></div>
                 <div class="stat-card"><div class="num">98%</div><div class="label">Scam-Free Listings</div></div>
                 <div class="stat-card"><div class="num">4.9★</div><div class="label">Average App Rating</div></div>

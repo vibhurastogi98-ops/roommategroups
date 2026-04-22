@@ -10,7 +10,7 @@ export function renderRegisterPage(app) {
             <span class="logo-badge"><span class="logo-badge-left">Roommate</span><span class="logo-badge-right">Groups</span></span>
           </a>
           <h1>Create your account</h1>
-          <p>Join 1.5M+ members finding their perfect room</p>
+          <p>Join 1,500,000+ members finding their perfect room</p>
         </div>
 
         <div class="auth-divider"><span>register with email</span></div>
