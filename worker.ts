@@ -17,10 +17,11 @@ app.get('/r2-check', async (c) => {
       objects_found: list.objects.length > 0 ? 'Yes' : 'None yet'
     })
   } catch (err) {
+    const error = err as Error
     return c.json({
       success: false,
       message: 'R2 Connection failed',
-      error: err.message
+      error: error.message
     }, 500)
   }
 })
