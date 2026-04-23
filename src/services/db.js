@@ -179,7 +179,7 @@ class Collection {
             })
         );
     }
-    create(data) {
+    async create(data) {
         const raw = getDB();
         if (!raw[this.name]) raw[this.name] = [];
         const item = { [this.idField]: generateId(this.prefix), created_at: new Date().toISOString(), ...data };
@@ -187,10 +187,19 @@ class Collection {
         saveDB(raw);
         // 🔄 Sync to D1 so all devices see this immediately
         const sync = D1_SYNC_MAP[this.name];
-        if (sync) sync.save(item).catch(e => console.warn('[D1 sync create]', e));
+        if (sync) {
+            try {
+                await sync.save(item);
+            } catch (e) {
+                console.error('[D1 sync create failed]', e);
+                // Optionally: Rollback local change if sync is critical
+                // For now, we just log it, but since it's awaited, the caller can catch it.
+                throw e;
+            }
+        }
         return item;
     }
-    update(id, data) {
+    async update(id, data) {
         const raw = getDB();
         const items = raw[this.name] || [];
         const idx = items.findIndex(i => (i[this.idField] === id) || (i.id === id));
@@ -200,10 +209,17 @@ class Collection {
         saveDB(raw);
         // 🔄 Sync to D1
         const sync = D1_SYNC_MAP[this.name];
-        if (sync) sync.update(id, data).catch(e => console.warn('[D1 sync update]', e));
+        if (sync) {
+            try {
+                await sync.update(id, data);
+            } catch (e) {
+                console.error('[D1 sync update failed]', e);
+                throw e;
+            }
+        }
         return updated;
     }
-    delete(id) {
+    async delete(id) {
         const raw = getDB();
         const items = raw[this.name] || [];
         const idx = items.findIndex(i => (i[this.idField] === id) || (i.id === id));
@@ -212,7 +228,14 @@ class Collection {
         saveDB(raw);
         // 🔄 Sync to D1
         const sync = D1_SYNC_MAP[this.name];
-        if (sync) sync.del(id).catch(e => console.warn('[D1 sync delete]', e));
+        if (sync) {
+            try {
+                await sync.del(id);
+            } catch (e) {
+                console.error('[D1 sync delete failed]', e);
+                throw e;
+            }
+        }
         return true;
     }
 }

@@ -271,8 +271,10 @@ app.get('/cities', async (c) => {
       ...r,
       is_active: r.is_active === 1,
       show_in_popular: r.show_in_popular === 1,
+      show_in_popular_section: r.show_in_popular_section === 1,
       show_in_footer: r.show_in_footer === 1,
-      faq_items: r.faq_items ? JSON.parse(r.faq_items) : []
+      faq_items: r.faq_items ? JSON.parse(r.faq_items) : [],
+      reviews: r.reviews ? JSON.parse(r.reviews) : []
     }))
     return dbJson(c, mapped)
   } catch (err) {
@@ -287,18 +289,22 @@ app.post('/cities', async (c) => {
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO cities
        (city_id, name, slug, country, state_province, hero_image, description,
-        avg_rent, listing_count, member_count, is_active, show_in_popular, show_in_footer,
-        meta_title, meta_description, latitude, longitude, faq_items)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        avg_rent, listing_count, member_count, is_active, show_in_popular, 
+        show_in_popular_section, show_in_footer,
+        meta_title, meta_description, latitude, longitude, faq_items, reviews)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       id, body.name || '', body.slug || '', body.country || '',
       body.state_province || '', body.hero_image || '', body.description || '',
       body.avg_rent || 0, body.listing_count || 0, body.member_count || 0,
       body.is_active !== false ? 1 : 0,
-      body.show_in_popular ? 1 : 0, body.show_in_footer ? 1 : 0,
+      body.show_in_popular ? 1 : 0, 
+      body.show_in_popular_section ? 1 : 0,
+      body.show_in_footer ? 1 : 0,
       body.meta_title || '', body.meta_description || '',
       body.latitude || 0, body.longitude || 0,
-      JSON.stringify(body.faq_items || [])
+      JSON.stringify(body.faq_items || []),
+      JSON.stringify(body.reviews || [])
     ).run()
     return dbJson(c, { success: true, city_id: id }, 201)
   } catch (err) {
@@ -311,10 +317,10 @@ app.put('/cities/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const boolFields = ['is_active', 'show_in_popular', 'show_in_footer']
+    const boolFields = ['is_active', 'show_in_popular', 'show_in_popular_section', 'show_in_footer']
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
-      mapped[k] = boolFields.includes(k) ? (v ? 1 : 0) : (k === 'faq_items' ? JSON.stringify(v) : v)
+      mapped[k] = boolFields.includes(k) ? (v ? 1 : 0) : (['faq_items', 'reviews'].includes(k) ? JSON.stringify(v) : v)
     }
     const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
     const vals = [...Object.values(mapped), id]

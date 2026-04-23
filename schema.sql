@@ -70,10 +70,12 @@ CREATE TABLE IF NOT EXISTS cities (
   member_count     INTEGER DEFAULT 0,
   is_active        INTEGER DEFAULT 1,
   show_in_popular  INTEGER DEFAULT 0,
+  show_in_popular_section INTEGER DEFAULT 0,
   show_in_footer   INTEGER DEFAULT 0,
   meta_title       TEXT,
   meta_description TEXT,
   faq_items        TEXT,           -- JSON array
+  reviews          TEXT,           -- JSON array
   FOREIGN KEY (country) REFERENCES countries(country_id)
 );
 

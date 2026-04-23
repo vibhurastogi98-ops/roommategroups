@@ -1604,42 +1604,55 @@ function renderAdminCities(container) {
         });
 
         container.querySelectorAll('[data-del-country]').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const id = btn.dataset.delCountry;
                 const hasCities = db.cities.find(c => c.country === id).length > 0;
                 if (hasCities) { showToast('Remove all cities in this country first.', 'error'); return; }
                 if (!confirm('Delete this country?')) return;
-                db.countries.delete(id);
-                logAdminAction(admin.user_id, 'Deleted country', id);
-                showToast('Country deleted.');
-                renderContent();
+                try {
+                    await db.countries.delete(id);
+                    logAdminAction(admin.user_id, 'Deleted country', id);
+                    showToast('Country deleted.');
+                    renderContent();
+                } catch (e) {
+                    showToast('Failed to delete country: ' + e.message, 'error');
+                }
             });
         });
 
         container.querySelectorAll('.adm-country-active-toggle').forEach(cb => {
-            cb.addEventListener('change', () => {
-                db.countries.update(cb.dataset.id, { is_active: cb.checked });
-                showToast('Country status updated.');
+            cb.addEventListener('change', async () => {
+                try {
+                    await db.countries.update(cb.dataset.id, { is_active: cb.checked });
+                    showToast('Country status updated.');
+                } catch (e) {
+                    showToast('Update failed.', 'error');
+                    cb.checked = !cb.checked;
+                }
             });
         });
 
-        container.querySelector('#adm-country-save')?.addEventListener('click', () => {
+        container.querySelector('#adm-country-save')?.addEventListener('click', async () => {
             const name = container.querySelector('#f-country-name').value.trim();
             const code = container.querySelector('#f-country-code').value.trim().toUpperCase();
             if (!name || !code) { showToast('Country name and code are required.', 'error'); return; }
             const flag = container.querySelector('#f-country-flag').value.trim();
             const isActive = container.querySelector('#f-country-active').checked;
             const slug = name.toLowerCase().replace(/\s+/g, '-');
-            if (editingCountry) {
-                db.countries.update(editingCountry.country_id, { name, code, flag_emoji: flag, slug, is_active: isActive });
-                logAdminAction(admin.user_id, 'Updated country', name);
-                showToast('Country updated.');
-            } else {
-                db.countries.create({ name, code, flag_emoji: flag, slug, is_active: isActive });
-                logAdminAction(admin.user_id, 'Added country', name);
-                showToast('Country added!');
+            try {
+                if (editingCountry) {
+                    await db.countries.update(editingCountry.country_id, { name, code, flag_emoji: flag, slug, is_active: isActive });
+                    logAdminAction(admin.user_id, 'Updated country', name);
+                    showToast('Country updated.');
+                } else {
+                    await db.countries.create({ name, code, flag_emoji: flag, slug, is_active: isActive });
+                    logAdminAction(admin.user_id, 'Added country', name);
+                    showToast('Country added!');
+                }
+                editingCountry = null; showCountryForm = false; renderContent();
+            } catch (e) {
+                showToast('Failed to save country: ' + e.message, 'error');
             }
-            editingCountry = null; showCountryForm = false; renderContent();
         });
 
         // ── City actions ──
@@ -1661,12 +1674,17 @@ function renderAdminCities(container) {
         });
 
         container.querySelectorAll('[data-del-city]').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 if (!confirm('Delete this city? This cannot be undone.')) return;
-                db.cities.delete(btn.dataset.delCity);
-                logAdminAction(admin.user_id, 'Deleted city', btn.dataset.delCity);
-                showToast('City deleted.');
-                renderContent();
+                try {
+                    const id = btn.dataset.delCity;
+                    await db.cities.delete(id);
+                    logAdminAction(admin.user_id, 'Deleted city', id);
+                    showToast('City deleted.');
+                    renderContent();
+                } catch (e) {
+                    showToast('Failed to delete city: ' + e.message, 'error');
+                }
             });
         });
 
@@ -1757,7 +1775,12 @@ function renderAdminCities(container) {
             });
         }
 
-        container.querySelector('#adm-city-save')?.addEventListener('click', () => {
+        container.querySelector('#adm-city-save')?.addEventListener('click', async () => {
+            const btn = container.querySelector('#adm-city-save');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            btn.disabled = true;
+
             const name = container.querySelector('#f-name').value.trim();
             const rawSlug = container.querySelector('#f-slug').value.trim();
             // Normalize: lowercase, spaces→hyphens, strip non-slug chars
@@ -1767,11 +1790,19 @@ function renderAdminCities(container) {
                 .replace(/[^a-z0-9-]/g, '')
                 .replace(/-+/g, '-')
                 .replace(/^-|-$/g, '');
-            if (!name || !slug) { showToast('Name and slug are required.', 'error'); return; }
+            if (!name || !slug) { 
+                showToast('Name and slug are required.', 'error'); 
+                btn.innerHTML = originalText; btn.disabled = false;
+                return; 
+            }
 
             // Prevent duplicate slugs
             const existingWithSlug = db.cities.findOne(c => c.slug === slug && (!editingCity || c.city_id !== editingCity.city_id));
-            if (existingWithSlug) { showToast('A city with the slug "' + slug + '" already exists (' + existingWithSlug.name + '). Please use a different name or slug.', 'error'); return; }
+            if (existingWithSlug) { 
+                showToast('A city with the slug "' + slug + '" already exists (' + existingWithSlug.name + '). Please use a different name or slug.', 'error'); 
+                btn.innerHTML = originalText; btn.disabled = false;
+                return; 
+            }
 
             // URL takes priority; fall back to uploaded base64 data
             const heroUrl = (container.querySelector('#f-hero-url')?.value || '').trim();
@@ -1780,6 +1811,7 @@ function renderAdminCities(container) {
             // Warn if uploaded image is too large (base64 strings > 200KB are risky for localStorage)
             if (heroImage.startsWith('data:') && heroImage.length > 200000) {
                 showToast('Image is too large to store. Please use a smaller image or paste an image URL instead.', 'error');
+                btn.innerHTML = originalText; btn.disabled = false;
                 return;
             }
 
@@ -1788,6 +1820,7 @@ function renderAdminCities(container) {
                 faqs = JSON.parse(container.querySelector('#f-faqs').value || '[]');
             } catch(e) {
                 showToast('Invalid FAQ JSON format.', 'error');
+                btn.innerHTML = originalText; btn.disabled = false;
                 return;
             }
 
@@ -1815,17 +1848,18 @@ function renderAdminCities(container) {
 
             try {
                 if (editingCity) {
-                    db.cities.update(editingCity.city_id, data);
+                    await db.cities.update(editingCity.city_id, data);
                     logAdminAction(admin.user_id, 'Updated city', name);
                     showToast('City updated.');
                 } else {
-                    db.cities.create(data);
+                    await db.cities.create(data);
                     logAdminAction(admin.user_id, 'Added new city', name);
                     showToast('City added!');
                 }
                 editingCity = null; showCityForm = false; renderContent();
             } catch (err) {
                 showToast(err.message || 'Failed to save city. The image may be too large.', 'error');
+                btn.innerHTML = originalText; btn.disabled = false;
             }
         });
     }
