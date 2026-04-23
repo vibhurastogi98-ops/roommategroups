@@ -43,6 +43,7 @@ function renderSearchCard(listing) {
 
     // Badges overlay
     let badges = '';
+    if (listing.is_featured) badges += '<span class="s-card-tag" style="background:var(--primary);color:white;border:none;"><i class="fa-solid fa-star" style="font-size:0.7rem;margin-right:4px;"></i> Featured</span>';
     if (listing.room_type) badges += '<span class="s-card-tag">' + listing.room_type + '</span>';
     if (listing.furnished === 'yes') badges += '<span class="s-card-tag">Furnished</span>';
 
@@ -469,8 +470,14 @@ export function renderSearchPage(app) {
         } else if (sort === 'price_desc') {
             results.sort((a, b) => b.price - a.price);
         } else {
-            // Newest
-            results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            // Newest with Featured prioritization
+            results.sort((a, b) => {
+                // If one is featured and the other isn't, featured wins
+                if (a.is_featured && !b.is_featured) return -1;
+                if (!a.is_featured && b.is_featured) return 1;
+                // Otherwise, sort by date
+                return new Date(b.created_at) - new Date(a.created_at);
+            });
         }
 
         // Render
