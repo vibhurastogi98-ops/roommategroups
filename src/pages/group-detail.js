@@ -349,14 +349,41 @@ export function renderGroupDetailPage(app, params) {
             .gd-review-date { font-size: 0.75rem; color: #8a94a6; }
 
             /* ── FAQ Section ── */
-            .gd-faq-section { padding: 56px 0; }
-            .gd-faq-container { max-width: 800px; margin: 0 auto; }
-            .gd-faq-item { background: #fff; border-radius: 12px; border: 1px solid #e8edf4; margin-bottom: 12px; overflow: hidden; }
-            .gd-faq-question { width: 100%; text-align: left; padding: 18px 24px; background: none; border: none; font-size: 1rem; font-weight: 700; color: #1a2740; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-            .gd-faq-question:hover { background: #fcfdfe; }
-            .gd-faq-answer { padding: 0 24px 18px; color: #475569; font-size: 0.95rem; line-height: 1.6; display: none; }
-            .gd-faq-item.active .gd-faq-answer { display: block; }
-            .gd-faq-item.active .gd-faq-question i { transform: rotate(180deg); }
+            .gd-faq-section { padding: 80px 0; background: #fff; }
+            .gd-faq-container { max-width: 900px; margin: 0 auto; }
+            .gd-faq-list { display: flex; flex-direction: column; }
+            .gd-faq-item {
+                display: flex;
+                gap: 24px;
+                padding: 32px 0;
+                border-bottom: 1px solid #eef2f6;
+            }
+            .gd-faq-item:last-child { border-bottom: none; }
+            .gd-faq-icon {
+                flex-shrink: 0;
+                width: 48px;
+                height: 48px;
+                background: #f1f5f9;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #64748b;
+                font-size: 1.2rem;
+            }
+            .gd-faq-content { flex: 1; }
+            .gd-faq-q {
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #1a2740;
+                margin-bottom: 8px;
+                line-height: 1.4;
+            }
+            .gd-faq-a {
+                font-size: 1rem;
+                line-height: 1.6;
+                color: #64748b;
+            }
 
             /* ── Blog Section ── */
             .gd-blog-section { padding: 56px 0; background: #F4F6F9; }
@@ -493,10 +520,10 @@ export function renderGroupDetailPage(app, params) {
                 </div>
             </section>
 
-            <!-- Features Section 1 (Image Left) -->
+            <!-- Features Section 1 (Image Right) -->
             <section class="gd-feature-section">
                 <div class="container">
-                    <div class="gd-feature-row">
+                    <div class="gd-feature-row reverse">
                         <div class="gd-feature-img-wrapper">
                             <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop" alt="Community Interaction" class="gd-feature-img">
                         </div>
@@ -517,7 +544,7 @@ export function renderGroupDetailPage(app, params) {
                 </div>
             </section>
 
-            <!-- Features Section 2 (Image Right) -->
+            <!-- Features Section 2 (Image Left) -->
             <section class="gd-feature-section" style="background: #fff;">
                 <div class="container">
                     <div class="gd-feature-row reverse">
@@ -561,15 +588,15 @@ export function renderGroupDetailPage(app, params) {
                             <p style="color: #64748b; margin-top: 8px;">Everything you need to know about our city groups.</p>
                         </div>
                     </div>
-                    <div class="gd-faq-container">
+                    <div class="gd-faq-list">
                         ${faqs.map(faq => `
                             <div class="gd-faq-item">
-                                <button class="gd-faq-question">
-                                    ${faq.q}
-                                    <i class="fas fa-chevron-down"></i>
-                                </button>
-                                <div class="gd-faq-answer">
-                                    <p>${faq.a}</p>
+                                <div class="gd-faq-icon">
+                                    <i class="fas fa-question-circle"></i>
+                                </div>
+                                <div class="gd-faq-content">
+                                    <div class="gd-faq-q">${faq.q}</div>
+                                    <div class="gd-faq-a">${faq.a}</div>
                                 </div>
                             </div>
                         `).join('')}
@@ -616,16 +643,7 @@ export function renderGroupDetailPage(app, params) {
         </div>
     `;
 
-    // FAQ Toggle logic
-    const faqItems = app.querySelectorAll('.gd-faq-item');
-    faqItems.forEach(item => {
-        const question = item.querySelector('.gd-faq-question');
-        question.addEventListener('click', () => {
-            const isActive = item.classList.contains('active');
-            faqItems.forEach(i => i.classList.remove('active'));
-            if (!isActive) item.classList.add('active');
-        });
-    });
+    // No FAQ Toggle logic needed for the new design
 
     initNavbar();
 }

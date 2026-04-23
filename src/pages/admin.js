@@ -1463,6 +1463,8 @@ function renderAdminCities(container) {
                 // Preview
                 (c.hero_image ? '<img id="f-hero-preview" src="' + escHtml(c.hero_image) + '" style="margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;display:block;">' : '<img id="f-hero-preview" style="display:none;margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;">'),
                 '</div>',
+                '<div class="adm-form-group adm-form-full"><label>City Description (Living Guide)</label><textarea id="f-description" class="adm-textarea" style="height:150px;" placeholder="Describe the city, neighborhoods, and lifestyle...">' + escHtml(c.description || '') + '</textarea></div>',
+                '<div class="adm-form-group adm-form-full"><label>FAQ Items (JSON Format)</label><textarea id="f-faqs" class="adm-textarea" style="height:150px;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"question": "How is the rent?", "answer": "It varies..."}]\'>' + escHtml(JSON.stringify(c.faq_items || [], null, 2)) + '</textarea><p style="font-size:0.75rem;color:#64748b;margin-top:4px;">Format: Array of objects with "question" and "answer" keys.</p></div>',
                 '<div class="adm-form-group adm-form-full"><label>Meta Title</label><input id="f-meta-title" class="adm-input" value="' + escHtml(c.meta_title || '') + '"></div>',
                 '<div class="adm-form-group adm-form-full"><label>Meta Description</label><textarea id="f-meta-desc" class="adm-textarea">' + escHtml(c.meta_description || '') + '</textarea></div>',
                 '<div class="adm-form-group"><label>Active</label><label class="adm-toggle-wrap" style="display:inline-flex"><input type="checkbox" id="f-active"' + (c.is_active !== false ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label></div>',
@@ -1759,6 +1761,14 @@ function renderAdminCities(container) {
                 return;
             }
 
+            let faqs = [];
+            try {
+                faqs = JSON.parse(container.querySelector('#f-faqs').value || '[]');
+            } catch(e) {
+                showToast('Invalid FAQ JSON format.', 'error');
+                return;
+            }
+
             const data = {
                 name,
                 slug,
@@ -1776,8 +1786,8 @@ function renderAdminCities(container) {
                 country: container.querySelector('#f-country').value || '',
                 listing_count: editingCity ? (editingCity.listing_count ?? 0) : 0,
                 member_count: editingCity ? (editingCity.member_count ?? 0) : 0,
-                faq_items: editingCity ? (editingCity.faq_items ?? []) : [],
-                description: editingCity ? (editingCity.description ?? '') : '',
+                faq_items: faqs,
+                description: container.querySelector('#f-description').value.trim(),
             };
 
             try {

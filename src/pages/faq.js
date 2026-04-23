@@ -47,29 +47,29 @@ const FAQ_DATA = [
 export function renderFAQPage(app) {
     app.innerHTML = `
     <style>
-        .faq-hero { background: #f2f2f2; color: #1a1a1a; border-bottom: 1px solid #e2e8f0; padding: 100px 24px 80px; text-align: center; }
-        .faq-hero h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; margin-bottom: 16px; }
-        .faq-hero p { opacity: 0.8; max-width: 600px; margin: 0 auto 32px; font-size: 1.1rem; }
-        .faq-search-wrap { max-width: 480px; margin: 0 auto; position: relative; }
-        .faq-search { width: 100%; padding: 14px 20px 14px 48px; border-radius: 12px; border: none; font-size: 1rem; outline: none; }
-        .faq-search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #64748b; }
-        .faq-container { max-width: 860px; margin: 0 auto; padding: 60px 24px; }
-        .faq-category { margin-bottom: 48px; }
-        .faq-cat-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+        .faq-hero { background: #fff; color: #1a2740; border-bottom: 1px solid #eef2f6; padding: 100px 24px 80px; text-align: center; }
+        .faq-hero h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 800; margin-bottom: 16px; letter-spacing: -0.02em; }
+        .faq-hero p { color: #64748b; max-width: 600px; margin: 0 auto 32px; font-size: 1.1rem; }
+        .faq-search-wrap { max-width: 540px; margin: 0 auto; position: relative; }
+        .faq-search { width: 100%; padding: 16px 24px 16px 52px; border-radius: 14px; border: 1.5px solid #eef2f6; font-size: 1rem; outline: none; transition: all 0.2s; background: #f8fafc; }
+        .faq-search:focus { border-color: #7c3aed; background: #fff; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1); }
+        .faq-search-icon { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.1rem; }
+        .faq-container { max-width: 900px; margin: 0 auto; padding: 60px 24px; }
+        .faq-category { margin-bottom: 64px; }
+        .faq-cat-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #f1f5f9; width: fit-content; }
         .faq-cat-header span { font-size: 1.5rem; }
-        .faq-cat-header h2 { font-size: 1.3rem; font-weight: 800; color: #1a1a1a; }
-        .faq-item { border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 10px; overflow: hidden; transition: box-shadow 0.2s; }
-        .faq-item:hover { box-shadow: 0 4px 12px rgba(99,102,241,0.08); }
-        .faq-q { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; cursor: pointer; gap: 16px; font-weight: 600; color: #1e293b; user-select: none; }
-        .faq-q .chevron { color: #64748b; transition: transform 0.3s; flex-shrink: 0; }
-        .faq-item.open .faq-q .chevron { transform: rotate(180deg); }
-        .faq-item.open .faq-q { color: #1a1a1a; }
-        .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.2s; background: #f8fafc; }
-        .faq-item.open .faq-a { max-height: 200px; padding: 16px 20px; }
-        .faq-a p { color: #475569; line-height: 1.8; font-size: 0.95rem; }
-        .contact-cta { background: #f2f2f2; border: 1px solid #e2e8f0; border-radius: 20px; padding: 48px; text-align: center; color: #1a1a1a; margin-top: 48px; }
-        .contact-cta h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 12px; }
-        .contact-cta p { opacity: 0.85; margin-bottom: 24px; }
+        .faq-cat-header h2 { font-size: 1.4rem; font-weight: 800; color: #1a2740; letter-spacing: -0.01em; }
+        .faq-list { display: flex; flex-direction: column; }
+        .faq-item { display: flex; gap: 24px; padding: 32px 0; border-bottom: 1px solid #f1f5f9; transition: transform 0.2s ease; }
+        .faq-item:last-child { border-bottom: none; }
+        .faq-icon-box { flex-shrink: 0; width: 52px; height: 52px; background: #f1f5f9; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 1.25rem; transition: all 0.2s; border: 1px solid transparent; }
+        .faq-item:hover .faq-icon-box { background: #fff; border-color: #7c3aed; color: #7c3aed; box-shadow: 0 4px 12px rgba(124,58,237,0.12); }
+        .faq-content { flex: 1; }
+        .faq-q { font-size: 1.15rem; font-weight: 700; color: #1a2740; margin-bottom: 10px; line-height: 1.4; }
+        .faq-a { font-size: 1.05rem; line-height: 1.7; color: #64748b; }
+        .contact-cta { background: #f8fafc; border: 1px solid #eef2f6; border-radius: 24px; padding: 56px; text-align: center; color: #1a2740; margin-top: 64px; }
+        .contact-cta h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.02em; }
+        .contact-cta p { color: #64748b; margin-bottom: 32px; font-size: 1.1rem; }
     </style>
 
     ${renderNavbar()}
@@ -90,15 +90,19 @@ export function renderFAQPage(app) {
                     <span>${cat.icon}</span>
                     <h2>${cat.category}</h2>
                 </div>
-                ${cat.faqs.map((item, fi) => `
-                    <div class="faq-item" data-idx="${ci}-${fi}">
-                        <div class="faq-q">
-                            <span>${item.q}</span>
-                            <i class="fas fa-chevron-down chevron"></i>
+                <div class="faq-list">
+                    ${cat.faqs.map((item, fi) => `
+                        <div class="faq-item" data-idx="${ci}-${fi}">
+                            <div class="faq-icon-box">
+                                <i class="fas fa-question"></i>
+                            </div>
+                            <div class="faq-content">
+                                <div class="faq-q">${item.q}</div>
+                                <div class="faq-a">${item.a}</div>
+                            </div>
                         </div>
-                        <div class="faq-a"><p>${item.a}</p></div>
-                    </div>
-                `).join('')}
+                    `).join('')}
+                </div>
             </div>
         `).join('')}
 
@@ -112,12 +116,7 @@ export function renderFAQPage(app) {
     ${renderFooter()}
     `;
 
-    // FAQ accordion
-    app.querySelectorAll('.faq-item').forEach(item => {
-        item.querySelector('.faq-q').addEventListener('click', () => {
-            item.classList.toggle('open');
-        });
-    });
+    // No FAQ accordion logic needed for the new design
 
     // Search filter
     const searchEl = app.querySelector('#faq-search');

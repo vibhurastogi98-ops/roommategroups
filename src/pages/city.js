@@ -31,8 +31,53 @@ export function renderCityPage(app, params) {
         ? Math.round(cityListings.reduce((sum, l) => sum + (l.price || 0), 0) / cityListings.length)
         : 0;
 
+    const latestPosts = db.posts.findAll().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
+
     app.innerHTML = `
         ${renderNavbar()}
+        <style>
+            .city-page { background: #fff; }
+            
+            /* ── Feature Sections (Ported from Group Detail) ── */
+            .gd-feature-section { padding: 80px 0; background: #fff; border-bottom: 1px solid #e8edf4; }
+            .gd-feature-row { display: flex; align-items: center; gap: 64px; }
+            .gd-feature-row.reverse { flex-direction: row-reverse; }
+            .gd-feature-img-wrapper { flex: 1; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.08); }
+            .gd-feature-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s ease; }
+            .gd-feature-img-wrapper:hover .gd-feature-img { transform: scale(1.05); }
+            .gd-feature-content { flex: 1; }
+            .gd-feature-badge { display: inline-block; padding: 6px 14px; background: #ede9fe; color: #7c3aed; font-size: 0.75rem; font-weight: 800; border-radius: 100px; text-transform: uppercase; margin-bottom: 16px; }
+            .gd-feature-title { font-size: 2.2rem; font-weight: 800; color: #1a2740; margin-bottom: 20px; line-height: 1.2; letter-spacing: -0.02em; }
+            .gd-feature-desc { font-size: 1.1rem; line-height: 1.7; color: #475569; margin-bottom: 24px; }
+            .gd-feature-list { list-style: none; padding: 0; margin: 0 0 32px; display: flex; flex-direction: column; gap: 12px; }
+            .gd-feature-list li { display: flex; align-items: center; gap: 12px; font-weight: 600; color: #1a2740; font-size: 1rem; }
+            .gd-feature-list li i { color: #10b981; font-size: 1.2rem; }
+
+            /* ── Blog Section ── */
+            .gd-blog-section { padding: 80px 0; background: #F8FAFC; }
+            .gd-blog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+            .gd-blog-card { background: #fff; border-radius: 20px; overflow: hidden; border: 1px solid #e8edf4; text-decoration: none; color: inherit; display: flex; flex-direction: column; transition: all 0.3s ease; }
+            .gd-blog-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.05); }
+            .gd-blog-img { position: relative; height: 180px; overflow: hidden; }
+            .gd-blog-img img { width: 100%; height: 100%; object-fit: cover; }
+            .gd-blog-cat { position: absolute; top: 12px; left: 12px; background: #7c3aed; color: #fff; font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 100px; text-transform: uppercase; }
+            .gd-blog-body { padding: 24px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+            .gd-blog-title { font-size: 1.15rem; font-weight: 800; color: #1a2740; line-height: 1.4; }
+            .gd-blog-excerpt { font-size: 0.9rem; color: #64748b; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+            .gd-blog-footer { margin-top: auto; padding-top: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #8a94a6; font-weight: 600; border-top: 1px solid #f1f5f9; }
+            .gd-blog-more { color: #7c3aed; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+
+            @media (max-width: 1024px) {
+                .gd-blog-grid { grid-template-columns: 1fr 1fr; }
+            }
+            @media (max-width: 768px) {
+                .gd-feature-row { flex-direction: column; gap: 32px; text-align: center; }
+                .gd-feature-row.reverse { flex-direction: column; }
+                .gd-feature-list li { justify-content: center; }
+                .gd-blog-grid { grid-template-columns: 1fr; }
+                .gd-feature-title { font-size: 1.8rem; }
+            }
+        </style>
         <div class="city-page">
 
             <!-- ── HERO ── -->
@@ -167,51 +212,72 @@ export function renderCityPage(app, params) {
                 </div>
             </section>
 
-            <!-- ── LIVING GUIDE ── -->
-            <section class="city-section">
+            <!-- ── FEATURE 1: VERIFIED COMMUNITY ── -->
+            <section class="gd-feature-section">
                 <div class="container">
-                    <div class="living-guide-layout">
-                        <div class="living-guide-main">
-                            <h2>Living in ${city.name}: A Complete Guide</h2>
-                            <div class="rich-text mt-lg">
-                                ${city.description || `<p>Welcome to ${city.name}. We're building a comprehensive living guide for this city — check back soon for neighborhoods, transport, utilities, and tenant tips!</p>`}
-                            </div>
+                    <div class="gd-feature-row reverse">
+                        <div class="gd-feature-content">
+                            <div class="gd-feature-badge">Verified Community</div>
+                            <h2 class="gd-feature-title">Real People, Real Connections in ${city.name}</h2>
+                            <p class="gd-feature-desc">Every member of the <strong>${city.name}</strong> community is verified. We use a combination of social proof and manual moderation to ensure you're connecting with genuine roommates.</p>
+                            <ul class="gd-feature-list">
+                                <li><i class="fas fa-check-circle"></i> ID Verified Profiles</li>
+                                <li><i class="fas fa-check-circle"></i> Scam-Free Guarantee</li>
+                                <li><i class="fas fa-check-circle"></i> Secure Messaging</li>
+                            </ul>
                         </div>
-                        <div class="living-guide-sidebar">
-                            <div class="guide-card guide-card-safety">
-                                <div class="guide-card-icon"><i class="fa-solid fa-shield-halved"></i></div>
-                                <div>
-                                    <h4>Safety First</h4>
-                                    <p>Always view a room in person or via video call before sending any deposit. Use our secure messaging for all communication.</p>
+                        <div class="gd-feature-img-wrapper">
+                            <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=600&fit=crop" class="gd-feature-img" alt="Verified Community">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── FEATURE 2: LOCAL EXPERTISE ── -->
+            <section class="gd-feature-section" style="background: #f8fafc;">
+                <div class="container">
+                    <div class="gd-feature-row">
+                        <div class="gd-feature-img-wrapper">
+                            <img src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&h=600&fit=crop" class="gd-feature-img" alt="Local Expertise">
+                        </div>
+                        <div class="gd-feature-content">
+                            <div class="gd-feature-badge">Local Expertise</div>
+                            <h2 class="gd-feature-title">Expert Advice for ${city.name}</h2>
+                            <p class="gd-feature-desc">Our local ambassadors provide up-to-date advice on neighborhoods, rent trends, and moving tips specific to the <strong>${city.name}</strong> area.</p>
+                            <ul class="gd-feature-list">
+                                <li><i class="fas fa-check-circle"></i> Neighborhood Guides</li>
+                                <li><i class="fas fa-check-circle"></i> Rent Trend Data</li>
+                                <li><i class="fas fa-check-circle"></i> Legal Assistance</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── BLOG SECTION ── -->
+            <section class="gd-blog-section">
+                <div class="container">
+                    <div class="city-section-header centered">
+                        <h2>Latest from the Blog</h2>
+                        <p>Moving tips, neighborhood guides, and roommate advice.</p>
+                    </div>
+                    <div class="gd-blog-grid">
+                        ${latestPosts.map(post => `
+                            <a href="/blog/${post.slug}" class="gd-blog-card">
+                                <div class="gd-blog-img">
+                                    <img src="${post.featured_image || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=250&fit=crop'}" alt="${post.title}">
+                                    <span class="gd-blog-cat">${post.category || 'Lifestyle'}</span>
                                 </div>
-                            </div>
-                            <div class="guide-resources-card">
-                                <h4>Local Resources</h4>
-                                <ul class="guide-resource-list">
-                                    <li>
-                                        <a href="#">
-                                            <span class="resource-icon transit"><i class="fa-solid fa-bus"></i></span>
-                                            <span class="resource-label">Public Transit Guide</span>
-                                            <i class="fa-solid fa-chevron-right resource-arrow"></i>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a href="#">
-                                            <span class="resource-icon utilities"><i class="fa-solid fa-bolt"></i></span>
-                                            <span class="resource-label">Utility Setup Tips</span>
-                                            <i class="fa-solid fa-chevron-right resource-arrow"></i>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a href="#">
-                                            <span class="resource-icon legal"><i class="fa-solid fa-file-contract"></i></span>
-                                            <span class="resource-label">Tenant Rights Info</span>
-                                            <i class="fa-solid fa-chevron-right resource-arrow"></i>
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
+                                <div class="gd-blog-body">
+                                    <h3 class="gd-blog-title">${post.title}</h3>
+                                    <p class="gd-blog-excerpt">${post.excerpt || post.content.substring(0, 100).replace(/<[^>]*>/g, '')}...</p>
+                                    <div class="gd-blog-footer">
+                                        <span>${new Date(post.created_at).toLocaleDateString()}</span>
+                                        <span class="gd-blog-more">Read More <i class="fas fa-arrow-right"></i></span>
+                                    </div>
+                                </div>
+                            </a>
+                        `).join('')}
                     </div>
                 </div>
             </section>
@@ -224,20 +290,15 @@ export function renderCityPage(app, params) {
                         <h2>Frequently Asked Questions</h2>
                         <p>Common questions about renting and finding roommates in ${city.name}.</p>
                     </div>
-                    <div class="faq-accordion">
+                    <div class="faq-list">
                         ${city.faq_items.map((faq, i) => `
-                            <div class="faq-item${i === 0 ? ' active' : ''}">
-                                <button class="faq-trigger" aria-expanded="${i === 0}" onclick="
-                                    var item = this.closest('.faq-item');
-                                    var wasActive = item.classList.contains('active');
-                                    item.closest('.faq-accordion').querySelectorAll('.faq-item').forEach(function(el){ el.classList.remove('active'); el.querySelector('.faq-trigger').setAttribute('aria-expanded','false'); });
-                                    if(!wasActive){ item.classList.add('active'); this.setAttribute('aria-expanded','true'); }
-                                ">
-                                    <span>${faq.question}</span>
-                                    <span class="faq-icon"><i class="fa-solid fa-plus"></i><i class="fa-solid fa-minus"></i></span>
-                                </button>
-                                <div class="faq-body">
-                                    <p>${faq.answer}</p>
+                            <div class="faq-item">
+                                <div class="faq-icon-box">
+                                    <i class="fa-solid fa-question"></i>
+                                </div>
+                                <div class="faq-content">
+                                    <div class="faq-q">${faq.question}</div>
+                                    <div class="faq-a">${faq.answer}</div>
                                 </div>
                             </div>
                         `).join('')}
