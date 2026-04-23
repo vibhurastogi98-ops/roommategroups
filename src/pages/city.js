@@ -8,32 +8,32 @@ const FALLBACK_CITY_IMG = 'https://images.unsplash.com/photo-1477959858617-67f85
 
 export function renderCityPage(app, params) {
     try {
-    const citySlug = (params.slug || '').toLowerCase();
-    const city = db.cities.findOne(c => (c.slug || '').toLowerCase() === citySlug);
+        const citySlug = (params.slug || '').toLowerCase();
+        const city = db.cities.findOne(c => (c.slug || '').toLowerCase() === citySlug);
 
-    if (!city) {
-        app.innerHTML = `
+        if (!city) {
+            app.innerHTML = `
             <div class="container py-xl text-center">
                 <h2>City not found</h2>
                 <p>Sorry, we couldn't find the city you're looking for.</p>
                 <a href="/" class="btn btn-primary mt-lg">Back to Home</a>
             </div>
         `;
-        return;
-    }
+            return;
+        }
 
-    const heroImage = city.hero_image || FALLBACK_HERO;
-    const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active');
-    const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
-    const roommateProfiles = db.listings.find(l => l.city === city.city_id && (l.category === 'roommate_wanted' || l.category === 'room_wanted'));
-    const cityMemberCount = db.users.find(u => u.city === city.city_id && u.role !== 'admin').length;
-    const avgRent = cityListings.length > 0
-        ? Math.round(cityListings.reduce((sum, l) => sum + (l.price || 0), 0) / cityListings.length)
-        : 0;
+        const heroImage = city.hero_image || FALLBACK_HERO;
+        const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active');
+        const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
+        const roommateProfiles = db.listings.find(l => l.city === city.city_id && (l.category === 'roommate_wanted' || l.category === 'room_wanted'));
+        const cityMemberCount = db.users.find(u => u.city === city.city_id && u.role !== 'admin').length;
+        const avgRent = cityListings.length > 0
+            ? Math.round(cityListings.reduce((sum, l) => sum + (l.price || 0), 0) / cityListings.length)
+            : 0;
 
-    const latestPosts = db.posts.findAll().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
+        const latestPosts = db.posts.findAll().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
 
-    app.innerHTML = `
+        app.innerHTML = `
         ${renderNavbar()}
         <style>
             .city-page { background: #fff; }
@@ -157,14 +157,14 @@ export function renderCityPage(app, params) {
                         </a>
                     </div>
                     ${cityListings.length > 0
-                        ? `<div class="listings-grid">${cityListings.slice(0, 6).map(l => renderListingCard(l)).join('')}</div>`
-                        : `<div class="city-empty-state">
+                ? `<div class="listings-grid">${cityListings.slice(0, 6).map(l => renderListingCard(l)).join('')}</div>`
+                : `<div class="city-empty-state">
                             <div class="empty-icon"><i class="fa-solid fa-house"></i></div>
                             <h4>No rooms available yet</h4>
                             <p>Be the first to list a room in ${city.name}!</p>
                             <a href="/post-listing" class="btn btn-primary mt-md">Post a Listing</a>
                            </div>`
-                    }
+            }
                 </div>
             </section>
 
@@ -178,13 +178,13 @@ export function renderCityPage(app, params) {
                         </div>
                     </div>
                     ${cityNeighborhoods.length > 0
-                        ? `<div class="neighborhoods-grid">${cityNeighborhoods.map((n, i) => renderNeighborhoodCard(n, i)).join('')}</div>`
-                        : `<div class="city-empty-state">
+                ? `<div class="neighborhoods-grid">${cityNeighborhoods.map((n, i) => renderNeighborhoodCard(n, i)).join('')}</div>`
+                : `<div class="city-empty-state">
                             <div class="empty-icon"><i class="fa-solid fa-map-location-dot"></i></div>
                             <h4>Neighborhood guides coming soon</h4>
                             <p>We're building detailed guides for ${city.name}.</p>
                            </div>`
-                    }
+            }
                 </div>
             </section>
 
@@ -201,14 +201,14 @@ export function renderCityPage(app, params) {
                         </a>
                     </div>
                     ${roommateProfiles.length > 0
-                        ? `<div class="roommates-grid">${roommateProfiles.slice(0, 6).map(r => renderRoommateCard(r)).join('')}</div>`
-                        : `<div class="city-empty-state">
+                ? `<div class="roommates-grid">${roommateProfiles.slice(0, 6).map(r => renderRoommateCard(r)).join('')}</div>`
+                : `<div class="city-empty-state">
                             <div class="empty-icon"><i class="fa-solid fa-user-group"></i></div>
                             <h4>No roommate profiles yet</h4>
                             <p>Create a profile to find your perfect match in ${city.name}.</p>
                             <a href="/post-listing" class="btn btn-primary mt-md">Create Profile</a>
                            </div>`
-                    }
+            }
                 </div>
             </section>
 
@@ -341,51 +341,51 @@ export function renderCityPage(app, params) {
         </div><!-- /.city-page -->
     `;
 
-    updateBreadcrumbs(city);
-    updateMetaTags(city);
+        updateBreadcrumbs(city);
+        updateMetaTags(city);
 
-    setTimeout(() => {
-        const pageContainer = app.querySelector('.city-page');
-        if (pageContainer) {
-            pageContainer.addEventListener('click', (e) => {
-                const saveBtn = e.target.closest('.save-btn');
-                if (saveBtn) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const listingId = saveBtn.dataset.id;
-                    const user = getCurrentUser();
-                    if (!user) { navigate('/auth/login'); return; }
-                    const dbUser = db.users.findById(user.id);
-                    if (!dbUser) return;
-                    if (!dbUser.saved_listings) dbUser.saved_listings = [];
-                    const idx = dbUser.saved_listings.indexOf(listingId);
-                    if (idx > -1) {
-                        dbUser.saved_listings.splice(idx, 1);
-                        saveBtn.innerHTML = '<i class="fa-regular fa-heart"></i>';
-                        saveBtn.classList.remove('active');
-                    } else {
-                        dbUser.saved_listings.push(listingId);
-                        saveBtn.innerHTML = '<i class="fa-solid fa-heart"></i>';
-                        saveBtn.classList.add('active');
+        setTimeout(() => {
+            const pageContainer = app.querySelector('.city-page');
+            if (pageContainer) {
+                pageContainer.addEventListener('click', (e) => {
+                    const saveBtn = e.target.closest('.save-btn');
+                    if (saveBtn) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const listingId = saveBtn.dataset.id;
+                        const user = getCurrentUser();
+                        if (!user) { navigate('/auth/login'); return; }
+                        const dbUser = db.users.findById(user.id);
+                        if (!dbUser) return;
+                        if (!dbUser.saved_listings) dbUser.saved_listings = [];
+                        const idx = dbUser.saved_listings.indexOf(listingId);
+                        if (idx > -1) {
+                            dbUser.saved_listings.splice(idx, 1);
+                            saveBtn.innerHTML = '<i class="fa-regular fa-heart"></i>';
+                            saveBtn.classList.remove('active');
+                        } else {
+                            dbUser.saved_listings.push(listingId);
+                            saveBtn.innerHTML = '<i class="fa-solid fa-heart"></i>';
+                            saveBtn.classList.add('active');
+                        }
+                        db.users.update(user.id, { saved_listings: dbUser.saved_listings });
                     }
-                    db.users.update(user.id, { saved_listings: dbUser.saved_listings });
-                }
-            });
-        }
-        // Search bar
-        const searchBtn = app.querySelector('.search-bar-btn');
-        if (searchBtn) {
-            searchBtn.addEventListener('click', () => {
-                const typeVal = app.querySelector('#listing-type').value;
-                let url = `/search/rooms?city=${city.slug}`;
-                if (typeVal) url += `&type=${typeVal}`;
-                navigate(url);
-            });
-        }
-        initNavbar();
-    }, 0);
+                });
+            }
+            // Search bar
+            const searchBtn = app.querySelector('.search-bar-btn');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', () => {
+                    const typeVal = app.querySelector('#listing-type').value;
+                    let url = `/search/rooms?city=${city.slug}`;
+                    if (typeVal) url += `&type=${typeVal}`;
+                    navigate(url);
+                });
+            }
+            initNavbar();
+        }, 0);
 
-    } catch(e) {
+    } catch (e) {
         console.error('[City] Rendering failed:', e);
         app.innerHTML = `
             <div class="container py-xl text-center">
@@ -407,7 +407,7 @@ function renderListingCard(l) {
         if (dbUser && dbUser.saved_listings && dbUser.saved_listings.includes(l.listing_id)) isSaved = true;
     }
     const photo = l.photos && l.photos[0] ? l.photos[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
-    const roomType = (l.room_type || l.category || 'room').replace(/_/g,' ').toUpperCase();
+    const roomType = (l.room_type || l.category || 'room').replace(/_/g, ' ').toUpperCase();
 
     return `
         <div class="listing-card">
@@ -473,7 +473,7 @@ function renderRoommateCard(r) {
                 <h3 class="roommate-name">${user.display_name} ${getVerificationBadge(user)}</h3>
                 <p class="roommate-title">${r.title}</p>
                 <div class="roommate-tags">
-                    ${(r.lifestyle_tags || []).slice(0, 3).map(t => `<span class="roommate-tag">${t.replace('tag_','')}</span>`).join('')}
+                    ${(r.lifestyle_tags || []).slice(0, 3).map(t => `<span class="roommate-tag">${t.replace('tag_', '')}</span>`).join('')}
                 </div>
                 <div class="roommate-move-in">
                     <i class="fa-regular fa-calendar"></i> Moving: ${r.move_in_date}
