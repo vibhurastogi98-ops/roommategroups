@@ -16,9 +16,9 @@ export function renderAboutPage(app) {
         .about-mission h2 { font-size: 2rem; font-weight: 800; margin-bottom: 16px; color: #1a1a1a; }
         .about-mission p { color: #475569; line-height: 1.8; font-size: 1.05rem; }
         .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 60px; }
-        .stat-card { text-align: center; padding: 32px 20px; background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(99,102,241,0.08); }
-        .stat-card .num { font-size: 2.4rem; font-weight: 900; color: #1a1a1a; }
-        .stat-card .label { font-size: 0.9rem; color: #64748b; margin-top: 4px; }
+        .stat-card { text-align: center; padding: 32px 20px; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 140px; }
+        .stat-card .num { font-size: 2rem; font-weight: 800; color: #1a1a1a; line-height: 1; margin-bottom: 8px; }
+        .stat-card .label { font-size: 0.85rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.4; max-width: 120px; }
         .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 28px; margin-top: 48px; }
         .team-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); transition: transform 0.2s; }
         .team-card:hover { transform: translateY(-4px); }
@@ -34,9 +34,12 @@ export function renderAboutPage(app) {
         .section-label { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #1a1a1a; margin-bottom: 12px; }
         .section-title { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; color: #1a1a1a; margin-bottom: 16px; }
         .section-sub { color: #64748b; font-size: 1.05rem; max-width: 600px; }
-        @media (max-width: 768px) {
-            .about-mission { grid-template-columns: 1fr; }
+        @media (max-width: 992px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .about-mission { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 576px) {
+            .stats-row { grid-template-columns: 1fr; }
         }
     </style>
 
@@ -58,7 +61,9 @@ export function renderAboutPage(app) {
                     <p style="margin-bottom:16px;">We believe everyone deserves a safe, affordable, and fulfilling place to live. Whether you're a student moving to a new city, a young professional looking for your first apartment, or a host with a spare room — RoommateGroups connects real people with real homes.</p>
                     <p>Every feature we build is designed to reduce the stress, scams, and uncertainty in the rental process. Verified IDs, real reviews, and transparent pricing — because you deserve nothing less.</p>
                 </div>
-                <div style="background:linear-gradient(135deg,#1a1a1a,#444444);border-radius:20px;height:350px;display:flex;align-items:center;justify-content:center;font-size:5rem;color:white;">🏠</div>
+                <div style="border-radius:20px;height:350px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.15);">
+                    <img src="/assets/mission.png" style="width:100%;height:100%;object-fit:cover;" alt="Modern living room with roommates">
+                </div>
             </div>
 
             <div class="stats-row">
@@ -111,32 +116,6 @@ export function renderAboutPage(app) {
         </div>
     </section>
 
-    <!-- Team -->
-    <section class="about-section">
-        <div class="about-container">
-            <div class="section-label">The People Behind It</div>
-            <div class="section-title">Meet Our Team</div>
-            <p class="section-sub">A passionate team of renters, builders, and dreamers committed to making housing better for everyone.</p>
-            <div class="team-grid">
-                ${[
-                    { name: 'Alex Rivera', role: 'CEO & Co-Founder', emoji: '👨‍💼', bg: 'linear-gradient(135deg,#1a1a1a,#444444)' },
-                    { name: 'Priya Sharma', role: 'CTO & Co-Founder', emoji: '👩‍💻', bg: 'linear-gradient(135deg,#1a1a1a,#444444)' },
-                    { name: 'James Chen', role: 'Head of Trust & Safety', emoji: '🛡️', bg: 'linear-gradient(135deg,#1a1a1a,#444444)' },
-                    { name: 'Sofia Martinez', role: 'Head of Growth', emoji: '📈', bg: 'linear-gradient(135deg,#1a1a1a,#444444)' },
-                    { name: 'Marcus Williams', role: 'Head of Design', emoji: '🎨', bg: 'linear-gradient(135deg,#1a1a1a,#444444)' },
-                    { name: 'Emma Johnson', role: 'Head of Community', emoji: '🤝', bg: 'linear-gradient(135deg,#1a1a1a,#444444)' },
-                ].map(m => `
-                    <div class="team-card">
-                        <div class="team-card-avatar" style="background:${m.bg};">${m.emoji}</div>
-                        <div class="team-card-body">
-                            <h3>${m.name}</h3>
-                            <p>${m.role}</p>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    </section>
 
     <!-- CTA -->
     <section style="background:#f2f2f2;padding:80px 0;text-align:center;color:#1a1a1a;border-top:1px solid #e2e8f0;">

@@ -52,7 +52,7 @@ export function renderContactPage(app) {
                 <div class="contact-channel-text">
                     <strong>Email Support</strong>
                     <span>Typically responds within 2 hours</span>
-                    <a href="mailto:support@roommategroups.com" style="display:block;margin-top:4px;">support@roommategroups.com</a>
+                    <a href="mailto:hello@roommategroups.com" style="display:block;margin-top:4px;">hello@roommategroups.com</a>
                 </div>
             </div>
             <div class="contact-channel">
@@ -68,7 +68,7 @@ export function renderContactPage(app) {
                 <div class="contact-channel-text">
                     <strong>Trust & Safety</strong>
                     <span>Report scams, abuse, or urgent issues</span>
-                    <a href="mailto:safety@roommategroups.com" style="display:block;margin-top:4px;">safety@roommategroups.com</a>
+                    <a href="mailto:hello@roommategroups.com" style="display:block;margin-top:4px;">hello@roommategroups.com</a>
                 </div>
             </div>
             <div class="contact-channel">

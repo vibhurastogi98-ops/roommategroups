@@ -2130,7 +2130,7 @@ function renderAdminSettings(container) {
         allowGuestSearch: true,
         maxListingsPerUser: 5,
         siteName: 'RoommateGroups',
-        contactEmail: 'support@roommategroups.com'
+        contactEmail: 'hello@roommategroups.com'
     };
     
     let currentSettings = { ...defaultSettings };
