@@ -61,6 +61,9 @@ function renderSearchCard(listing) {
         <div class="s-card" data-id="${listing.listing_id}" data-lat="${listing.latitude}" data-lng="${listing.longitude}">
             <a href="/listing/${listing.listing_id}" class="s-card-img-wrap" style="display:block;">
                 <img src="${isRoommate ? avatar : photo}" alt="${escHtml(listing.title)}" class="s-card-img" loading="lazy">
+                <button class="s-card-share" onclick="window.openShareModal('${listing.listing_id}', event)" style="position:absolute; top:12px; right:56px; width:32px; height:32px; border-radius:50%; background:white; border:none; display:flex; align-items:center; justify-content:center; color:#64748b; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:10;" onmouseover="this.style.transform='scale(1.1)';this.style.color='#1a1a1a'" onmouseout="this.style.transform='scale(1)';this.style.color='#64748b'">
+                    <i class="fa-solid fa-share-nodes"></i>
+                </button>
                 <button class="s-card-fav ${isSaved ? 'active' : ''}">
                     <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-heart" ${isSaved ? 'style="color:#1a1a1a;"' : ''}></i>
                 </button>

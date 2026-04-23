@@ -217,7 +217,7 @@ export function renderListingDetailPage(app, params) {
                     <div class="ld-location">
                         <i class="fa-solid fa-location-dot"></i>
                         ${escHtml(listing.neighborhood ? listing.neighborhood.replace('nh_', '').replace(/_/g, ' ') + ', ' : '')}
-                        ${escHtml(db.cities.findById(listing.city)?.name || (listing.city ? listing.city.replace('city_', '').replace(/_/g, ' ') : 'Unknown City'))}
+                        ${escHtml(db.cities.findById(listing.city)?.name || (listing.city ? listing.city.replace('city_', '').replace(/_/g, ' ') : 'Unknown City'))}${(() => { const cId = listing.country || db.cities.findById(listing.city)?.country; return cId ? ', ' + escHtml(db.countries.findById(cId)?.name || cId) : ''; })()}
                     </div>
                     <div class="ld-badges">
                         <div class="ld-badge"><i class="fa-solid fa-bed"></i> ${isRoommate ? 'Looking for Room' : (listing.room_type || 'Private Room')}</div>
@@ -300,6 +300,10 @@ export function renderListingDetailPage(app, params) {
                         <span class="save-text">${isSaved ? 'Saved to Favorites' : 'Save to Favorites'}</span>
                     </button>
                     `}
+                    <button class="ld-btn-outline" onclick="window.openShareModal('${listing.listing_id}', event)" style="margin-top:12px; color:#1e293b;">
+                        <i class="fa-solid fa-share-nodes"></i>
+                        <span>Share Listing</span>
+                    </button>
                 </div>
 
                 <div class="ld-host-card" id="view-profile-card" data-uid="${user ? user.user_id : ''}">

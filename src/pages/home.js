@@ -35,7 +35,7 @@ function renderListingCard(listing, index) {
         <div class="listing-title">${listing.title}</div>
         <div class="listing-location">
           <i class="fas fa-location-dot"></i>
-          ${db.cities.findById(listing.city)?.name || (listing.city ? listing.city.replace('city_', '').replace(/_/g, ' ') : 'Unknown City')}
+          ${db.cities.findById(listing.city)?.name || (listing.city ? listing.city.replace('city_', '').replace(/_/g, ' ') : 'Unknown City')}${(() => { const cId = listing.country || db.cities.findById(listing.city)?.country; return cId ? ', ' + (db.countries.findById(cId)?.name || cId) : ''; })()}
         </div>
         <a href="/listing/${listing.listing_id}" class="btn btn-outline">View Listing</a>
       </div>

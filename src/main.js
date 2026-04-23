@@ -79,3 +79,59 @@ const app = document.querySelector('#app');
 initDB();
 
 initRouter(app);
+
+// Global Share Modal
+const shareModalHtml = `
+<div id="rg-share-modal" class="share-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div class="share-modal-content" style="background:#fff; border-radius:16px; padding:24px; width:90%; max-width:400px; box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="margin:0; font-size:1.2rem; font-weight:800; color:#1a1a1a;">Share this listing</h3>
+            <button onclick="closeShareModal()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:#64748b;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+            <a id="share-btn-fb" href="#" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:12px; background:#e0f2fe; color:#0284c7; text-decoration:none; font-weight:700;"><i class="fa-brands fa-facebook"></i> Facebook</a>
+            <a id="share-btn-wa" href="#" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:12px; background:#dcfce7; color:#16a34a; text-decoration:none; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+            <a id="share-btn-tw" href="#" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:12px; background:#f1f5f9; color:#0f1419; text-decoration:none; font-weight:700;"><i class="fa-brands fa-x-twitter"></i> Twitter</a>
+            <button onclick="copyShareLink('Instagram')" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:12px; background:#fce7f3; color:#db2777; border:none; font-weight:700; cursor:pointer; font-size:1rem;"><i class="fa-brands fa-instagram"></i> Instagram</button>
+            <button onclick="copyShareLink()" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:12px; background:#f3e8ff; color:#7c3aed; border:none; font-weight:700; cursor:pointer; font-size:1rem; grid-column: span 2;"><i class="fa-solid fa-link"></i> Copy Link</button>
+        </div>
+    </div>
+</div>
+`;
+document.body.insertAdjacentHTML('beforeend', shareModalHtml);
+
+window.openShareModal = function(listingId, e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    const url = window.location.origin + '/listing/' + listingId;
+    const encodedUrl = encodeURIComponent(url);
+    const text = encodeURIComponent("Check out this listing on RoommateGroups!");
+    
+    document.getElementById('share-btn-fb').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodedUrl;
+    document.getElementById('share-btn-wa').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodedUrl;
+    document.getElementById('share-btn-tw').href = 'https://twitter.com/intent/tweet?url=' + encodedUrl + '&text=' + text;
+    
+    window._currentShareUrl = url;
+    const modal = document.getElementById('rg-share-modal');
+    modal.style.display = 'flex';
+};
+
+window.closeShareModal = function() {
+    document.getElementById('rg-share-modal').style.display = 'none';
+};
+
+window.copyShareLink = function(platform) {
+    if (window._currentShareUrl) {
+        navigator.clipboard.writeText(window._currentShareUrl).then(() => {
+            if (platform === 'Instagram') {
+                alert('Link copied! You can now paste it into Instagram.');
+            } else {
+                alert('Link copied to clipboard!');
+            }
+            window.closeShareModal();
+        });
+    }
+};
+
+document.getElementById('rg-share-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'rg-share-modal') window.closeShareModal();
+});

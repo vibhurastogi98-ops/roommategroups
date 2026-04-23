@@ -478,6 +478,9 @@ function renderListingCard(l) {
             <a href="/listing/${l.listing_id}" class="listing-card-link">
                 <div class="listing-img" style="background-image:url('${photo}')">
                     <span class="listing-type-badge">${roomType}</span>
+                    <button class="s-card-share" onclick="window.openShareModal('${l.listing_id}', event)" style="position:absolute; top:12px; right:56px; width:32px; height:32px; border-radius:50%; background:white; border:none; display:flex; align-items:center; justify-content:center; color:#64748b; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:10;" onmouseover="this.style.transform='scale(1.1)';this.style.color='#1a1a1a'" onmouseout="this.style.transform='scale(1)';this.style.color='#64748b'">
+                        <i class="fa-solid fa-share-nodes"></i>
+                    </button>
                     <button class="save-btn ${isSaved ? 'active' : ''}" data-id="${l.listing_id}" aria-label="Save listing">
                         <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                     </button>
