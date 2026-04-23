@@ -9,6 +9,7 @@ export function initRouter(app) {
     appElement = app;
     window.addEventListener('popstate', resolve);
     window.navigate = navigate; // Make it globally accessible for inline onclick handlers
+    window.resolveRouter = resolve;
     
     // Intercept link clicks to prevent full page reload
     document.addEventListener('click', (e) => {

@@ -258,6 +258,7 @@ export const db = {
     posts:         new Collection('posts', 'post_id', 'post'),
     fb_countries:  new Collection('fb_countries', 'fb_country_id', 'fbc'),
     fb_cities:     new Collection('fb_cities', 'fb_city_id', 'fbcity'),
+    notifications: new Collection('notifications', 'notification_id', 'notif'),
 };
 
 export async function initDB() {
@@ -302,11 +303,14 @@ export async function initDB() {
         if (liveUpdated) {
             saveDB(live);
             console.log('[DB] ✅ Loaded live data from D1 — all devices in sync.');
+            return true;
         }
     } catch (err) {
         console.debug('[DB] D1 not reachable — using cached localStorage data.', err);
     }
+    return false;
 }
+
 
 // Function to reset database (for testing purposes)
 export function resetDB() {

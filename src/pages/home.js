@@ -472,9 +472,10 @@ export function renderHomePage(app) {
   // Scroll-triggered animations (Intersection Observer)
   const observerOptions = {
     root: null,
-    rootMargin: '0px 0px -60px 0px',
-    threshold: 0.1,
+    rootMargin: '0px 0px 200px 0px', // Trigger animations 200px before elements enter viewport
+    threshold: 0.01,
   };
+
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {

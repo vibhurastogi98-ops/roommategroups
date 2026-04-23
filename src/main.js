@@ -75,10 +75,21 @@ addRoute('/admin/queries', renderAdminPage, [requireAdmin()]);
 // Start
 const app = document.querySelector('#app');
 
-// Initialize database (fetch live data from D1 before rendering)
-initDB().finally(() => {
-    initRouter(app);
+// Initialize database (fetch live data from D1 in the background)
+initDB().then((updated) => {
+    if (updated) {
+        console.log('[Main] DB updated, re-resolving current route...');
+        // If data was updated from D1, re-resolve the current route to show fresh data
+        // We use a small delay to ensure any other background tasks finish
+        setTimeout(() => {
+            if (typeof window.resolveRouter === 'function') window.resolveRouter();
+        }, 100);
+    }
 });
+
+// Start the router immediately with cached data
+initRouter(app);
+
 
 // Global Share Modal
 const shareModalHtml = `
