@@ -22,8 +22,11 @@ export function getNavAuthButtons() {
                 <i class="fa-solid fa-message"></i>
                 <span class="nav-msg-badge" id="nav-msg-badge" style="display:none;"></span>
             </a>
-            <a href="/dashboard" class="user-avatar-nav" style="background: linear-gradient(135deg, var(--primary), var(--primary-light));">
-                ${profilePhoto ? `<img src="${profilePhoto}" alt="${fullName}" />` : initials}
+            <a href="/dashboard" class="user-avatar-nav" style="background: linear-gradient(135deg, var(--primary), var(--primary-light)); display: flex; align-items: center; gap: 8px; padding-right: 12px; min-width: 68px;">
+                <div class="user-avatar-img-wrap" style="width:36px;height:36px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                    ${profilePhoto ? `<img src="${profilePhoto}" alt="${fullName}" style="width:100%;height:100%;object-fit:cover;" />` : initials}
+                </div>
+                <i class="fa-solid fa-chevron-down" style="font-size:0.75rem;opacity:0.8;color:white;"></i>
             </a>
         `;
     }
