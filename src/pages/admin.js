@@ -537,6 +537,8 @@ function renderAdminListings(container) {
         const listingsHtml = listings.length === 0 ? '<div class="adm-empty"><i class="fa-solid fa-inbox"></i><p>No listings in this category.</p></div>' :
             listings.map(l => {
                 const city = db.cities.findById(l.city);
+                const countryObj = l.country ? db.countries.findById(l.country) : (city && city.country ? db.countries.findById(city.country) : null);
+                const locationStr = city ? city.name + (countryObj ? ', ' + countryObj.name : '') : 'N/A';
                 const poster = db.users.findById(l.user_id);
                 const isSelected = selectedIds.has(l.listing_id);
                 const reportCount = db.reports.find(r => r.target_id === l.listing_id && r.status === 'pending').length;
@@ -549,7 +551,7 @@ function renderAdminListings(container) {
                     '<div class="adm-listing-title">' + escHtml(l.title) + '</div>',
                     '<div class="adm-listing-meta">',
                     '<span><i class="fa-solid fa-user"></i> ' + (poster ? escHtml(poster.display_name) : 'Unknown') + '</span>',
-                    '<span><i class="fa-solid fa-location-dot"></i> ' + (city ? city.name : 'N/A') + '</span>',
+                    '<span><i class="fa-solid fa-location-dot"></i> ' + locationStr + '</span>',
                     '<span><i class="fa-solid fa-tag"></i> $' + l.price + '/mo</span>',
                     '<span><i class="fa-solid fa-clock"></i> ' + relTime(l.created_at) + '</span>',
                     reportCount > 0 ? '<span class="adm-report-badge"><i class="fa-solid fa-flag"></i> ' + reportCount + ' report' + (reportCount > 1 ? 's' : '') + '</span>' : '',

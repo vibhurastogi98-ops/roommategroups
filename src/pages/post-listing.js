@@ -9,7 +9,7 @@ const DRAFT_KEY = 'rg_draft_listing';
 const defaultDraft = {
     step: 1,
     category: '',
-    city: '', neighborhood: '', address: '',
+    country: '', city: '', neighborhood: '', address: '',
     title: '', price: '', currency: 'USD', availableFrom: '', leaseDuration: '',
     roomType: '', furnished: '', bedrooms: '', bathrooms: '', sizeSqft: '',
     budgetMin: '', budgetMax: '', preferredArea: '', moveInTimeline: '',
@@ -185,7 +185,11 @@ function renderStep1() {
 
 // ── Step 2: Location ──
 function renderStep2() {
-    const cities = db.cities.findAll();
+    const allCountries = db.countries.findAll().filter(c => c.is_active);
+    const cities = draft.country 
+        ? db.cities.findAll().filter(c => c.country === draft.country && c.is_active)
+        : [];
+    
     let nHOptions = '<option value="">Select Neighborhood</option>';
     if (draft.city) {
         const nhs = db.neighborhoods.find(n => n.city === draft.city);
@@ -198,11 +202,18 @@ function renderStep2() {
                 <p class="step-subtitle">Where is your place located?</p>
             </div>
             <div class="pl-form-card">
+                <div class="form-group">
+                    <label class="pl-label">Country <span class="required-asterisk">*</span></label>
+                    <select id="pl-country" class="form-control">
+                        <option value="">Select a country</option>
+                        ${allCountries.map(c => `<option value="${c.country_id}" ${draft.country === c.country_id ? 'selected' : ''}>${c.flag_emoji} ${c.name}</option>`).join('')}
+                    </select>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label class="pl-label">City <span class="required-asterisk">*</span></label>
-                        <select id="pl-city" class="form-control">
-                            <option value="">Select a city</option>
+                        <select id="pl-city" class="form-control" ${!draft.country ? 'disabled' : ''}>
+                            <option value="">${draft.country ? 'Select a city' : 'Select country first'}</option>
                             ${cities.map(c => `<option value="${c.city_id}" ${draft.city === c.city_id ? 'selected' : ''}>${c.name}</option>`).join('')}
                         </select>
                     </div>
@@ -621,8 +632,18 @@ function attachEventListeners(container) {
 
     // Step 2
     if (draft.step === 2) {
+        const countrySelect = container.querySelector('#pl-country');
         const citySelect = container.querySelector('#pl-city');
         const address = container.querySelector('#pl-address');
+
+        countrySelect.addEventListener('change', (e) => {
+            draft.country = e.target.value;
+            draft.city = '';
+            draft.neighborhood = '';
+            saveDraft();
+            renderFullPage(container);
+        });
+
         citySelect.addEventListener('change', (e) => {
             draft.city = e.target.value; draft.neighborhood = '';
             saveDraft();
@@ -866,7 +887,7 @@ async function handlePublish() {
     const listingData = {
         user_id: user.id, category: draft.category, title: draft.title, description: draft.description,
         price: (draft.category === 'roommate_wanted' || draft.category === 'room_wanted') ? (draft.budgetMax || 0) : (draft.price || 0), 
-        currency: draft.currency, city: draft.city, neighborhood: draft.neighborhood,
+        currency: draft.currency, country: draft.country, city: draft.city, neighborhood: draft.neighborhood,
         address: draft.address, room_type: draft.roomType, available_from: draft.availableFrom,
         lease_duration: draft.leaseDuration, furnished: draft.furnished, amenities: draft.amenities,
         photos: draft.photos, roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
