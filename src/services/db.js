@@ -11,6 +11,11 @@ const SEED_FAKE_USER_IDS = new Set([
 // Determine if we are on a live production URL
 const IS_PROD = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
 
+export function getLiveListingCount(cityId) {
+    const listings = db.listings.findAll();
+    return listings.filter(l => (l.city === cityId || l.city_id === cityId) && l.is_active !== false).length;
+}
+
 const SEED_DATA = {
     users: [
         {
