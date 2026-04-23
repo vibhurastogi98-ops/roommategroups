@@ -317,6 +317,7 @@ function renderAdminOverview(container) {
         { label: 'Active Listings', value: activeListings.length, icon: 'fa-house', bg: '#d1fae5', fg: '#065f46', chart: buildLineChart(listingChart, '#059669') },
         { label: 'MRR', value: '$' + totalMRR.toLocaleString(), icon: 'fa-dollar-sign', bg: '#fef3c7', fg: '#92400e', chart: buildLineChart(revenueChart, '#d97706') },
         { label: 'Messages Today', value: todayMsgs, icon: 'fa-comment-dots', bg: '#dbeafe', fg: '#1e40af', chart: buildLineChart(flatZero.map((_, i) => i === 29 ? todayMsgs : 0), '#3b82f6') },
+        { label: 'Active Cities', value: db.cities.find(c => c.is_active !== false).length, icon: 'fa-map-location-dot', bg: '#fee2e2', fg: '#991b1b', chart: buildLineChart(flatZero.map((_, i) => i === 29 ? db.cities.findAll().length : 0), '#ef4444') },
     ];
 
     const kpiHtml = kpis.map(k => [
@@ -403,8 +404,28 @@ function renderAdminOverview(container) {
         '</div>',
         '</div>',
 
-        // Recent User Queries panel
-        '<div class="adm-panel" style="margin-bottom:24px;">',
+        '</div>',
+        
+        // Cities & Content Row
+        '<div class="adm-charts-row">',
+        '<div class="adm-panel">',
+        '<div class="adm-panel-header"><h3><i class="fa-solid fa-map-location-dot" style="color:#ef4444;margin-right:6px"></i>Popular Cities</h3></div>',
+        '<div style="padding:10px;">',
+        db.cities.findAll().sort((a, b) => (b.listing_count || 0) - (a.listing_count || 0)).slice(0, 5).map(c => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid #f1f5f9;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <img src="${c.hero_image}" style="width:40px;height:30px;object-fit:cover;border-radius:4px;">
+                    <div>
+                        <div style="font-weight:600;font-size:0.9rem;">${c.name}</div>
+                        <div style="font-size:0.75rem;color:#64748b;">${c.listing_count || 0} listings</div>
+                    </div>
+                </div>
+                <a href="/cities/${c.slug}" target="_blank" style="color:#6366f1;font-size:0.8rem;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            </div>
+        `).join(''),
+        '</div>',
+        '</div>',
+        '<div class="adm-panel">',
         '<div class="adm-panel-header" style="display:flex;align-items:center;justify-content:space-between;">',
         '<h3><i class="fa-solid fa-envelope-open-text" style="color:#3b82f6;margin-right:6px"></i>Recent User Queries</h3>',
         '<a href="/admin/queries" style="font-size:0.85rem;color:#3b82f6;font-weight:600;text-decoration:none;">View All →</a>',
@@ -415,7 +436,6 @@ function renderAdminOverview(container) {
               '<thead><tr style="background:#f8fafc;">' +
               '<th style="padding:9px 14px;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Name</th>' +
               '<th style="padding:9px 14px;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Topic</th>' +
-              '<th style="padding:9px 14px;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Date</th>' +
               '<th style="padding:9px 14px;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Status</th>' +
               '</tr></thead><tbody>' +
               recentQueries.map(q => {
@@ -424,16 +444,14 @@ function renderAdminOverview(container) {
                       : (!q.is_read
                           ? '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;">New</span>'
                           : '<span style="background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;">Read</span>');
-                  const d = new Date(q.created_at);
-                  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                   return '<tr style="border-top:1px solid #f1f5f9;' + (!q.is_read && q.status !== 'replied' ? 'background:#fffbeb;' : '') + '">' +
                       '<td style="padding:10px 14px;font-weight:600;color:#1e293b;">' + escHtml(q.first_name + ' ' + q.last_name) + '</td>' +
                       '<td style="padding:10px 14px;color:#64748b;">' + escHtml(q.topic_label || q.topic) + '</td>' +
-                      '<td style="padding:10px 14px;color:#64748b;font-size:0.85rem;">' + dateStr + '</td>' +
                       '<td style="padding:10px 14px;">' + statusHtml + '</td>' +
                       '</tr>';
               }).join('') +
               '</tbody></table></div>',
+        '</div>',
         '</div>',
     ].join('');
 }
@@ -1465,6 +1483,7 @@ function renderAdminCities(container) {
                 '</div>',
                 '<div class="adm-form-group adm-form-full"><label>City Description (Living Guide)</label><textarea id="f-description" class="adm-textarea" style="height:150px;" placeholder="Describe the city, neighborhoods, and lifestyle...">' + escHtml(c.description || '') + '</textarea></div>',
                 '<div class="adm-form-group adm-form-full"><label>FAQ Items (JSON Format)</label><textarea id="f-faqs" class="adm-textarea" style="height:150px;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"question": "How is the rent?", "answer": "It varies..."}]\'>' + escHtml(JSON.stringify(c.faq_items || [], null, 2)) + '</textarea><p style="font-size:0.75rem;color:#64748b;margin-top:4px;">Format: Array of objects with "question" and "answer" keys.</p></div>',
+                '<div class="adm-form-group adm-form-full"><label>Community Reviews (JSON Format)</label><textarea id="f-reviews" class="adm-textarea" style="height:120px;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"name": "John Doe", "text": "Amazing city!", "rating": 5, "date": "2 days ago"}]\'>' + escHtml(JSON.stringify(c.reviews || [], null, 2)) + '</textarea><p style="font-size:0.75rem;color:#64748b;margin-top:4px;">Format: Array of objects with "name", "text", "rating", and "date" keys.</p></div>',
                 '<div class="adm-form-group adm-form-full"><label>Meta Title</label><input id="f-meta-title" class="adm-input" value="' + escHtml(c.meta_title || '') + '"></div>',
                 '<div class="adm-form-group adm-form-full"><label>Meta Description</label><textarea id="f-meta-desc" class="adm-textarea">' + escHtml(c.meta_description || '') + '</textarea></div>',
                 '<div class="adm-form-group"><label>Active</label><label class="adm-toggle-wrap" style="display:inline-flex"><input type="checkbox" id="f-active"' + (c.is_active !== false ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label></div>',
@@ -1508,6 +1527,7 @@ function renderAdminCities(container) {
                 '</td>',
                 '<td>' + (country ? escHtml((country.flag_emoji ? country.flag_emoji + ' ' : '') + country.name) : '—') + '</td>',
                 '<td style="display:flex;gap:8px;">',
+                '<a href="/cities/' + c.slug + '" target="_blank" class="adm-btn adm-btn-sm" style="text-decoration:none;"><i class="fa-solid fa-eye"></i> View</a>',
                 '<button class="adm-btn adm-btn-sm" data-edit-city="' + c.city_id + '"><i class="fa-solid fa-pen"></i> Edit</button>',
                 '<button class="adm-btn adm-btn-sm adm-btn-danger" data-del-city="' + c.city_id + '"><i class="fa-solid fa-trash"></i> Delete</button>',
                 '</td>',
@@ -1787,6 +1807,7 @@ function renderAdminCities(container) {
                 listing_count: editingCity ? (editingCity.listing_count ?? 0) : 0,
                 member_count: editingCity ? (editingCity.member_count ?? 0) : 0,
                 faq_items: faqs,
+                reviews: JSON.parse(container.querySelector('#f-reviews').value || '[]'),
                 description: container.querySelector('#f-description').value.trim(),
             };
 

@@ -32,6 +32,25 @@ export function renderCityPage(app, params) {
             : 0;
 
         const latestPosts = db.posts.findAll().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
+        
+        // Reviews (DB or Static Fallback)
+        const reviews = (city.reviews && Array.isArray(city.reviews) && city.reviews.length > 0)
+            ? city.reviews
+            : [
+                { name: 'Sarah Miller', date: '2 days ago', rating: 5, text: `Found an amazing flatmate in ${city.name} through this community in less than a week. Highly recommended!` },
+                { name: 'David Chen', date: '1 week ago', rating: 5, text: `The ${city.name} community is super active. Lots of verified listings and people are actually responsive.` },
+                { name: 'Emma Watson', date: '3 days ago', rating: 4, text: `Great resource for finding affordable rooms in ${city.name}. Just be careful with scammers, as always.` }
+            ];
+
+        // FAQ Items (DB or Fallback)
+        const faqs = (city.faq_items && Array.isArray(city.faq_items) && city.faq_items.length > 0)
+            ? city.faq_items.map(f => ({ q: f.question, a: f.answer }))
+            : [
+                { q: `How do I join the ${city.name} community?`, a: `Simply browse the available listings or connect with roommates looking in ${city.name}. Our platform helps you find verified matches hassle-free.` },
+                { q: `Is it free to find a roommate in ${city.name}?`, a: 'Yes! Our community is free to join and use. We believe finding a home should be accessible to everyone.' },
+                { q: 'How can I avoid scams during my search?', a: 'Never send money before seeing a room in person. We recommend meeting potential roommates in public first and checking their profiles for authenticity.' },
+                { q: 'Can I post my own room for rent?', a: 'Absolutely! You can post your room for free and reach thousands of people actively searching for a home right now.' }
+            ];
 
         app.innerHTML = `
         ${renderNavbar()}
@@ -67,6 +86,19 @@ export function renderCityPage(app, params) {
             .gd-blog-footer { margin-top: auto; padding-top: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #8a94a6; font-weight: 600; border-top: 1px solid #f1f5f9; }
             .gd-blog-more { color: #7c3aed; font-weight: 800; display: flex; align-items: center; gap: 6px; }
 
+            /* ── Reviews Section ── */
+            .gd-reviews-section { padding: 80px 0; background: #fff; border-bottom: 1px solid #e8edf4; }
+            .gd-reviews-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+            .gd-review-card { background: #F8FAFC; padding: 32px; border-radius: 24px; border: 1px solid #e8edf4; transition: transform 0.3s ease; }
+            .gd-review-card:hover { transform: translateY(-5px); }
+            .gd-review-stars { color: #f59e0b; margin-bottom: 16px; font-size: 0.9rem; }
+            .gd-review-text { font-size: 1.05rem; line-height: 1.6; color: #475569; margin-bottom: 24px; font-style: italic; }
+            .gd-review-user { display: flex; align-items: center; gap: 12px; }
+            .gd-review-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+            .gd-review-info { display: flex; flex-direction: column; }
+            .gd-review-name { font-size: 0.95rem; font-weight: 700; color: #1a2740; }
+            .gd-review-date { font-size: 0.8rem; color: #8a94a6; }
+
             @media (max-width: 1024px) {
                 .gd-blog-grid { grid-template-columns: 1fr 1fr; }
             }
@@ -76,7 +108,36 @@ export function renderCityPage(app, params) {
                 .gd-feature-list li { justify-content: center; }
                 .gd-blog-grid { grid-template-columns: 1fr; }
                 .gd-feature-title { font-size: 1.8rem; }
+                .gd-feature-title { font-size: 1.8rem; }
             }
+
+            /* ── FAQ Section (Ported) ── */
+            .gd-faq-section { padding: 80px 0; background: #fff; border-top: 1px solid #e8edf4; }
+            .gd-faq-container { max-width: 900px; margin: 0 auto; }
+            .gd-faq-list { display: flex; flex-direction: column; }
+            .gd-faq-item { display: flex; gap: 24px; padding: 32px 0; border-bottom: 1px solid #eef2f6; }
+            .gd-faq-item:last-child { border-bottom: none; }
+            .gd-faq-icon-box { flex-shrink: 0; width: 48px; height: 48px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 1.2rem; }
+            .gd-faq-content { flex: 1; }
+            .gd-faq-q { font-size: 1.1rem; font-weight: 700; color: #1a2740; margin-bottom: 8px; line-height: 1.4; }
+            .gd-faq-a { font-size: 1rem; line-height: 1.6; color: #64748b; }
+
+            /* ── Related Cities (Ported) ── */
+            .gd-related-section { padding: 80px 0; background: #F8FAFC; border-top: 1px solid #e8edf4; }
+            .gd-related-scroll { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 20px; scroll-snap-type: x mandatory; -ms-overflow-style: none; scrollbar-width: none; }
+            .gd-related-scroll::-webkit-scrollbar { display: none; }
+            .gd-related-card { min-width: 280px; background: #fff; border-radius: 20px; overflow: hidden; border: 1px solid #e8edf4; text-decoration: none; color: inherit; flex-shrink: 0; scroll-snap-align: start; transition: all 0.3s ease; }
+            .gd-related-card:hover { transform: translateY(-5px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+            .gd-related-img { height: 160px; overflow: hidden; background: #e2e8f0; }
+            .gd-related-img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s ease; }
+            .gd-related-card:hover .gd-related-img img { transform: scale(1.08); }
+            .gd-related-body { padding: 20px; }
+            .gd-related-name { font-size: 1.1rem; font-weight: 800; color: #1a2740; margin-bottom: 8px; }
+            .gd-related-meta { font-size: 0.85rem; color: #64748b; display: flex; align-items: center; gap: 12px; }
+            .gd-related-meta i { color: #7c3aed; }
+
+            .gd-section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; gap: 24px; text-align: left; }
+            .gd-section-link { color: #7c3aed; font-weight: 700; font-size: 0.95rem; text-decoration: none; display: flex; align-items: center; gap: 6px; }
         </style>
         <div class="city-page">
 
@@ -147,13 +208,13 @@ export function renderCityPage(app, params) {
             <!-- ── AVAILABLE ROOMS ── -->
             <section class="city-section">
                 <div class="container">
-                    <div class="city-section-header">
+                    <div class="gd-section-header">
                         <div>
-                            <h2>Available Rooms in ${city.name}</h2>
-                            <p>Browse the latest verified listings in the ${city.name} area.</p>
+                            <h2 style="font-size: 1.8rem; font-weight: 800;">Available Rooms in ${city.name}</h2>
+                            <p style="color: #64748b; margin-top: 8px;">Browse the latest verified listings in the ${city.name} area.</p>
                         </div>
-                        <a href="/search/rooms?city=${city.slug}" class="btn btn-outline btn-sm">
-                            View All ${cityListings.length} <i class="fa-solid fa-arrow-right"></i>
+                        <a href="/search/rooms?city=${city.slug}" class="gd-section-link">
+                            View all ${cityListings.length} <i class="fa-solid fa-arrow-right"></i>
                         </a>
                     </div>
                     ${cityListings.length > 0
@@ -171,10 +232,10 @@ export function renderCityPage(app, params) {
             <!-- ── NEIGHBORHOODS ── -->
             <section class="city-section city-section-alt">
                 <div class="container">
-                    <div class="city-section-header">
+                    <div class="gd-section-header">
                         <div>
-                            <h2>Popular Neighborhoods in ${city.name}</h2>
-                            <p>Find the area that fits your lifestyle and budget.</p>
+                            <h2 style="font-size: 1.8rem; font-weight: 800;">Popular Neighborhoods in ${city.name}</h2>
+                            <p style="color: #64748b; margin-top: 8px;">Find the area that fits your lifestyle and budget.</p>
                         </div>
                     </div>
                     ${cityNeighborhoods.length > 0
@@ -191,13 +252,13 @@ export function renderCityPage(app, params) {
             <!-- ── ROOMMATES LOOKING ── -->
             <section class="city-section city-section-alt">
                 <div class="container">
-                    <div class="city-section-header">
+                    <div class="gd-section-header">
                         <div>
-                            <h2>Roommates Looking in ${city.name}</h2>
-                            <p>Connect with people actively searching for a home right now.</p>
+                            <h2 style="font-size: 1.8rem; font-weight: 800;">Roommates Looking in ${city.name}</h2>
+                            <p style="color: #64748b; margin-top: 8px;">Connect with people actively searching for a home right now.</p>
                         </div>
-                        <a href="/search/roommates?city=${city.slug}" class="btn btn-outline btn-sm">
-                            See All Profiles <i class="fa-solid fa-arrow-right"></i>
+                        <a href="/search/roommates?city=${city.slug}" class="gd-section-link">
+                            See all profiles <i class="fa-solid fa-arrow-right"></i>
                         </a>
                     </div>
                     ${roommateProfiles.length > 0
@@ -237,9 +298,6 @@ export function renderCityPage(app, params) {
             <section class="gd-feature-section" style="background: #f8fafc;">
                 <div class="container">
                     <div class="gd-feature-row">
-                        <div class="gd-feature-img-wrapper">
-                            <img src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&h=600&fit=crop" class="gd-feature-img" alt="Local Expertise">
-                        </div>
                         <div class="gd-feature-content">
                             <div class="gd-feature-badge">Local Expertise</div>
                             <h2 class="gd-feature-title">Expert Advice for ${city.name}</h2>
@@ -250,6 +308,24 @@ export function renderCityPage(app, params) {
                                 <li><i class="fas fa-check-circle"></i> Legal Assistance</li>
                             </ul>
                         </div>
+                        <div class="gd-feature-img-wrapper">
+                            <img src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&h=600&fit=crop" class="gd-feature-img" alt="Local Expertise">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── REVIEWS ── -->
+            <section class="gd-reviews-section">
+                <div class="container">
+                    <div class="gd-section-header">
+                        <div>
+                            <h2 style="font-size: 1.8rem; font-weight: 800;">Community Reviews</h2>
+                            <p style="color: #64748b; margin-top: 8px;">What members are saying about our ${city.name} roommate community.</p>
+                        </div>
+                    </div>
+                    <div class="gd-reviews-grid">
+                        ${reviews.map(renderReviewCard).join('')}
                     </div>
                 </div>
             </section>
@@ -257,9 +333,12 @@ export function renderCityPage(app, params) {
             <!-- ── BLOG SECTION ── -->
             <section class="gd-blog-section">
                 <div class="container">
-                    <div class="city-section-header centered">
-                        <h2>Latest from the Blog</h2>
-                        <p>Moving tips, neighborhood guides, and roommate advice.</p>
+                    <div class="gd-section-header">
+                        <div>
+                            <h2 style="font-size: 1.8rem; font-weight: 800;">Latest from the Blog</h2>
+                            <p style="color: #64748b; margin-top: 8px;">Moving tips, neighborhood guides, and roommate advice.</p>
+                        </div>
+                        <a href="/blog" class="gd-section-link">Read all posts <i class="fa-solid fa-arrow-right"></i></a>
                     </div>
                     <div class="gd-blog-grid">
                         ${latestPosts.map(post => `
@@ -283,56 +362,41 @@ export function renderCityPage(app, params) {
             </section>
 
             <!-- ── FAQ ── -->
-            ${city.faq_items && city.faq_items.length > 0 ? `
-            <section class="city-section city-section-alt faq-section">
-                <div class="container faq-container">
-                    <div class="city-section-header centered">
-                        <h2>Frequently Asked Questions</h2>
-                        <p>Common questions about renting and finding roommates in ${city.name}.</p>
+            <section class="gd-faq-section">
+                <div class="container gd-faq-container">
+                    <div class="gd-section-header" style="justify-content: center; text-align: center;">
+                        <div>
+                            <h2 style="font-size: 1.8rem; font-weight: 800;">Frequently Asked Questions</h2>
+                            <p style="color: #64748b; margin-top: 8px;">Everything you need to know about finding rooms and roommates in ${city.name}.</p>
+                        </div>
                     </div>
-                    <div class="faq-list">
-                        ${city.faq_items.map((faq, i) => `
-                            <div class="faq-item">
-                                <div class="faq-icon-box">
-                                    <i class="fa-solid fa-question"></i>
+                    <div class="gd-faq-list">
+                        ${faqs.map((faq, i) => `
+                            <div class="gd-faq-item">
+                                <div class="gd-faq-icon-box">
+                                    <i class="fa-solid fa-question-circle"></i>
                                 </div>
-                                <div class="faq-content">
-                                    <div class="faq-q">${faq.question}</div>
-                                    <div class="faq-a">${faq.answer}</div>
+                                <div class="gd-faq-content">
+                                    <div class="gd-faq-q">${faq.q}</div>
+                                    <div class="gd-faq-a">${faq.a}</div>
                                 </div>
                             </div>
                         `).join('')}
                     </div>
                 </div>
-                <script type="application/ld+json">
-                {
-                  "@context": "https://schema.org",
-                  "@type": "FAQPage",
-                  "mainEntity": [
-                    ${city.faq_items.map(faq => `{
-                      "@type": "Question",
-                      "name": "${faq.question.replace(/"/g, '\\"')}",
-                      "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": "${faq.answer.replace(/"/g, '\\"')}"
-                      }
-                    }`).join(',')}
-                  ]
-                }
-                </script>
             </section>
-            ` : ''}
 
             <!-- ── NEARBY CITIES ── -->
-            <section class="city-section nearby-section">
+            <section class="gd-related-section">
                 <div class="container">
-                    <div class="city-section-header">
+                    <div class="gd-section-header">
                         <div>
-                            <h2>Explore Nearby Cities</h2>
-                            <p>Considering other areas? Discover more options close to ${city.name}.</p>
+                            <h2 style="font-size: 1.8rem; font-weight: 800;">Explore Nearby Cities</h2>
+                            <p style="color: #64748b; margin-top: 8px;">Considering other areas? Discover more options close to ${city.name}.</p>
                         </div>
+                        <a href="/cities" class="gd-section-link">View all cities <i class="fa-solid fa-arrow-right"></i></a>
                     </div>
-                    <div class="nearby-cities-grid">
+                    <div class="gd-related-scroll">
                         ${renderNearbyCities(city)}
                     </div>
                 </div>
@@ -483,6 +547,24 @@ function renderRoommateCard(r) {
     `;
 }
 
+/* ─── Helper: Review Card ─── */
+function renderReviewCard(review) {
+    const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+    return `
+        <div class="gd-review-card">
+            <div class="gd-review-stars">${stars}</div>
+            <p class="gd-review-text">"${review.text}"</p>
+            <div class="gd-review-user">
+                <img src="https://i.pravatar.cc/100?u=${encodeURIComponent(review.name)}" alt="${review.name}" class="gd-review-avatar">
+                <div class="gd-review-info">
+                    <span class="gd-review-name">${review.name}</span>
+                    <span class="gd-review-date">${review.date}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 /* ─── Helper: Nearby Cities ─── */
 function renderNearbyCities(currentCity) {
     const allCities = db.getCollection('cities');
@@ -497,16 +579,16 @@ function renderNearbyCities(currentCity) {
         const img = c.hero_image || FALLBACK_CITY_IMG;
         const liveCount = allListings.filter(l => l.city === c.city_id && l.status === 'active').length;
         return `
-            <a href="/cities/${c.slug}" class="nearby-city-card">
-                <div class="nearby-city-img" style="background-image:url('${img}')">
-                    <div class="nearby-city-overlay">
-                        <h4>${c.name}</h4>
-                        <span class="nearby-distance"><i class="fa-solid fa-location-dot"></i> ${Math.round(c.distance)} mi</span>
-                    </div>
+            <a href="/cities/${c.slug}" class="gd-related-card">
+                <div class="gd-related-img">
+                    <img src="${img}" alt="${c.name}">
                 </div>
-                <div class="nearby-city-meta">
-                    <span><i class="fa-solid fa-house"></i> ${liveCount} listings</span>
-                    <span><i class="fa-solid fa-tag"></i> $${c.avg_rent}/mo</span>
+                <div class="gd-related-body">
+                    <h4 class="gd-related-name">${c.name}</h4>
+                    <div class="gd-related-meta">
+                        <span><i class="fa-solid fa-house"></i> ${liveCount} listings</span>
+                        <span><i class="fa-solid fa-tag"></i> $${c.avg_rent}/mo</span>
+                    </div>
                 </div>
             </a>
         `;
