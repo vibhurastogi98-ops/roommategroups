@@ -190,7 +190,32 @@ app.post('/users', async (c) => {
 app.get('/listings', async (c) => {
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM listings LIMIT 500').all()
-    return dbJson(c, results)
+    const mapped = results.map((r: any) => {
+      if (r.raw_data) {
+        try { return JSON.parse(r.raw_data) } catch (e) { }
+      }
+      return {
+        listing_id: r.listing_id,
+        user_id: r.user_id,
+        title: r.title,
+        description: r.description,
+        city: r.city,
+        neighborhood: r.neighborhood_id,
+        address: r.address,
+        price: r.rent,
+        room_type: r.room_type,
+        bathrooms: r.bathrooms,
+        availableFrom: r.available_from,
+        leaseDuration: r.lease_term,
+        amenities: r.amenities ? JSON.parse(r.amenities) : [],
+        photos: r.images ? JSON.parse(r.images) : [],
+        status: r.status,
+        is_featured: r.is_featured === 1,
+        views_count: r.view_count,
+        created_at: r.created_at
+      }
+    })
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }
@@ -200,16 +225,12 @@ app.post('/listings', async (c) => {
   try {
     const body = await c.req.json()
     const id = body.listing_id || `list_${Date.now()}`
+    body.listing_id = id
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO listings (listing_id, title, description, price, city, category,
-       status, moderation_status, user_id, photos, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT OR REPLACE INTO listings (listing_id, user_id, raw_data, created_at)
+       VALUES (?, ?, ?, ?)`
     ).bind(
-      id, body.title || '', body.description || '', body.price || 0,
-      body.city || '', body.category || '', body.status || 'active',
-      body.moderation_status || 'pending', body.user_id || '',
-      JSON.stringify(body.photos || []),
-      body.created_at || new Date().toISOString()
+      id, body.user_id || 'system', JSON.stringify(body), body.created_at || new Date().toISOString()
     ).run()
     return dbJson(c, { success: true, listing_id: id }, 201)
   } catch (err) {
@@ -222,9 +243,8 @@ app.put('/listings/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const sets = Object.entries(body).map(([k]) => `${k} = ?`).join(', ')
-    const vals = [...Object.values(body), id]
-    await c.env.DB.prepare(`UPDATE listings SET ${sets} WHERE listing_id = ?`).bind(...vals).run()
+    await c.env.DB.prepare(`UPDATE listings SET raw_data = ?, updated_at = ? WHERE listing_id = ?`)
+      .bind(JSON.stringify(body), new Date().toISOString(), id).run()
     return dbJson(c, { success: true })
   } catch (err) {
     const error = err as Error
@@ -246,7 +266,15 @@ app.delete('/listings/:id', async (c) => {
 app.get('/cities', async (c) => {
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM cities').all()
-    return dbJson(c, results)
+    // Convert SQL integers back to booleans
+    const mapped = results.map((r: any) => ({
+      ...r,
+      is_active: r.is_active === 1,
+      show_in_popular: r.show_in_popular === 1,
+      show_in_footer: r.show_in_footer === 1,
+      faq_items: r.faq_items ? JSON.parse(r.faq_items) : []
+    }))
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }
@@ -260,8 +288,8 @@ app.post('/cities', async (c) => {
       `INSERT OR REPLACE INTO cities
        (city_id, name, slug, country, state_province, hero_image, description,
         avg_rent, listing_count, member_count, is_active, show_in_popular, show_in_footer,
-        meta_title, meta_description, latitude, longitude)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        meta_title, meta_description, latitude, longitude, faq_items)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       id, body.name || '', body.slug || '', body.country || '',
       body.state_province || '', body.hero_image || '', body.description || '',
@@ -269,7 +297,8 @@ app.post('/cities', async (c) => {
       body.is_active !== false ? 1 : 0,
       body.show_in_popular ? 1 : 0, body.show_in_footer ? 1 : 0,
       body.meta_title || '', body.meta_description || '',
-      body.latitude || 0, body.longitude || 0
+      body.latitude || 0, body.longitude || 0,
+      JSON.stringify(body.faq_items || [])
     ).run()
     return dbJson(c, { success: true, city_id: id }, 201)
   } catch (err) {
@@ -282,11 +311,10 @@ app.put('/cities/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    // Map boolean fields to integers for SQLite
     const boolFields = ['is_active', 'show_in_popular', 'show_in_footer']
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
-      mapped[k] = boolFields.includes(k) ? (v ? 1 : 0) : v
+      mapped[k] = boolFields.includes(k) ? (v ? 1 : 0) : (k === 'faq_items' ? JSON.stringify(v) : v)
     }
     const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
     const vals = [...Object.values(mapped), id]
@@ -314,7 +342,26 @@ app.get('/posts', async (c) => {
     const { results } = await c.env.DB.prepare(
       'SELECT * FROM posts ORDER BY published_date DESC'
     ).all()
-    return dbJson(c, results)
+    const mapped = results.map((r: any) => {
+      if (r.raw_data) {
+        try { return JSON.parse(r.raw_data) } catch (e) { }
+      }
+      return {
+        post_id: r.post_id,
+        slug: r.slug,
+        title: r.title,
+        excerpt: r.excerpt,
+        category: r.category,
+        author: { name: r.author_name, avatar: r.author_avatar, bio: r.author_bio },
+        date: r.date_label,
+        readTime: r.read_time,
+        image: r.image,
+        content: r.content,
+        published_date: r.published_date,
+        is_published: r.is_published === 1
+      }
+    })
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }
@@ -324,18 +371,14 @@ app.post('/posts', async (c) => {
   try {
     const body = await c.req.json()
     const id = body.post_id || `post_${Date.now()}`
+    body.post_id = id
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO posts
-       (post_id, slug, title, excerpt, category, author, date, read_time,
-        image, content, published_date, is_published)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+       (post_id, slug, title, raw_data, published_date)
+       VALUES (?,?,?,?,?)`
     ).bind(
-      id, body.slug || '', body.title || '', body.excerpt || '',
-      body.category || '', JSON.stringify(body.author || {}),
-      body.date || '', body.readTime || '',
-      body.image || '', body.content || '',
-      body.published_date || new Date().toISOString(),
-      body.is_published ? 1 : 0
+      id, body.slug || '', body.title || '', JSON.stringify(body),
+      body.published_date || new Date().toISOString()
     ).run()
     return dbJson(c, { success: true, post_id: id }, 201)
   } catch (err) {
@@ -348,15 +391,8 @@ app.put('/posts/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const mapped: Record<string, any> = {}
-    for (const [k, v] of Object.entries(body)) {
-      mapped[k] = (k === 'is_published') ? (v ? 1 : 0)
-                : (k === 'author' && typeof v === 'object') ? JSON.stringify(v)
-                : v
-    }
-    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
-    const vals = [...Object.values(mapped), id]
-    await c.env.DB.prepare(`UPDATE posts SET ${sets} WHERE post_id = ?`).bind(...vals).run()
+    await c.env.DB.prepare(`UPDATE posts SET raw_data = ?, updated_at = ? WHERE post_id = ?`)
+      .bind(JSON.stringify(body), new Date().toISOString(), id).run()
     return dbJson(c, { success: true })
   } catch (err) {
     const error = err as Error
