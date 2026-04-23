@@ -208,13 +208,21 @@ function saveDB(data) {
 }
 function generateId(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
 
+// Collections that are synced to D1 so all devices share the same data
+const D1_SYNC_MAP = {
+    cities:    { save: (item) => api.saveCity(item),   update: (id,d) => api.updateCity(id,d),   del: (id) => api.deleteCity(id) },
+    listings:  { save: (item) => api.saveListing(item),update: (id,d) => api.updateListing(id,d),del: (id) => api.deleteListing(id) },
+    posts:     { save: (item) => api.savePost(item),   update: (id,d) => api.updatePost(id,d),   del: (id) => api.deletePost(id) },
+    fb_cities: { save: (item) => api.saveFbCity(item), update: (id,d) => api.updateFbCity(id,d), del: (id) => api.deleteFbCity(id) },
+};
+
 class Collection {
     constructor(name, idField, prefix) {
         this.name = name; this.idField = idField; this.prefix = prefix;
     }
     findAll() { return getDB()[this.name] || []; }
-    findById(id) { 
-        return this.findAll().find(i => (i[this.idField] === id) || (i.id === id)) || null; 
+    findById(id) {
+        return this.findAll().find(i => (i[this.idField] === id) || (i.id === id)) || null;
     }
     find(predicate) { return this.findAll().filter(predicate); }
     findOne(predicate) { return this.findAll().find(predicate) || null; }
@@ -233,6 +241,9 @@ class Collection {
         const item = { [this.idField]: generateId(this.prefix), created_at: new Date().toISOString(), ...data };
         raw[this.name].push(item);
         saveDB(raw);
+        // 🔄 Sync to D1 so all devices see this immediately
+        const sync = D1_SYNC_MAP[this.name];
+        if (sync) sync.save(item).catch(e => console.warn('[D1 sync create]', e));
         return item;
     }
     update(id, data) {
@@ -242,6 +253,9 @@ class Collection {
         if (i === -1) return null;
         col[i] = { ...col[i], ...data };
         saveDB(raw);
+        // 🔄 Sync to D1
+        const sync = D1_SYNC_MAP[this.name];
+        if (sync) sync.update(id, data).catch(e => console.warn('[D1 sync update]', e));
         return col[i];
     }
     delete(id) {
@@ -249,98 +263,82 @@ class Collection {
         const col = raw[this.name] || [];
         raw[this.name] = col.filter(x => (x[this.idField] !== id) && (x.id !== id));
         saveDB(raw);
+        // 🔄 Sync to D1
+        const sync = D1_SYNC_MAP[this.name];
+        if (sync) sync.del(id).catch(e => console.warn('[D1 sync delete]', e));
     }
 }
 
 export async function initDB() {
-    const hasLocalData = !!localStorage.getItem(DB_KEY);
-    
-    // Check Hono API connection in background (silent to avoid console noise if not running)
-    api.get('/r2-check', true).then(res => {
-        console.log('[API] Hono connection established:', res.message);
-    }).catch(() => {
-        console.debug('[API] Hono backend not available locally — using localStorage fallback.');
-    });
-
-    // If we already have local data, migrate any new collections
-    if (hasLocalData) {
-        console.log('[DB] Using cached localStorage data.');
-        const raw = getDB();
-        let updated = false;
-        if (!raw.fb_countries) { raw.fb_countries = SEED_DATA.fb_countries; updated = true; }
-        if (!raw.fb_cities) { raw.fb_cities = SEED_DATA.fb_cities; updated = true; }
-        else {
-            if (raw.fb_cities.length > 0 && raw.fb_cities[0].is_popular === undefined) {
-                raw.fb_cities = raw.fb_cities.map((c, idx) => ({ 
-                    ...c, 
-                    is_popular: true, 
-                    priority: c.priority !== undefined ? c.priority : (idx + 1) 
-                }));
-                updated = true;
-            }
-        }
-        if (!raw.user_queries) { raw.user_queries = []; updated = true; }
-        // Versioned Migration: Force Refresh Curated Data (Fix visuals/mixups)
-        if (!raw.system_version || raw.system_version < 3) {
-            console.log('[DB] Migrating to version 3 (Force Data Sync)');
-            raw.cities = SEED_DATA.cities.map(sc => {
-                const existing = raw.cities?.find(c => c.city_id === sc.city_id);
-                return existing ? { ...existing, ...sc } : sc;
-            });
-            raw.fb_cities = SEED_DATA.fb_cities;
-            raw.system_version = 3;
-            updated = true;
-        }
-        // Migrate: ensure all 5 base blog categories exist
-        if (!raw.categories) { raw.categories = SEED_DATA.categories; updated = true; }
-        else {
-            const existingCatIds = new Set(raw.categories.map(c => c.category_id));
-            SEED_DATA.categories.forEach(sc => {
-                if (!existingCatIds.has(sc.category_id)) { raw.categories.push(sc); updated = true; }
-            });
-        }
-        // Migrate: remove all fake seed users (keep only real users + admin)
-        if (raw.users && raw.users.some(u => SEED_FAKE_USER_IDS.has(u.user_id))) {
-            raw.users = raw.users.filter(u => !SEED_FAKE_USER_IDS.has(u.user_id));
-            updated = true;
-        }
-        // Migrate: remove all listings owned by fake seed users
-        if (raw.listings && raw.listings.some(l => SEED_FAKE_USER_IDS.has(l.user_id))) {
-            raw.listings = raw.listings.filter(l => !SEED_FAKE_USER_IDS.has(l.user_id));
-            updated = true;
-        }
-        // Migrate: remove threads involving fake seed users
-        if (raw.threads && raw.threads.some(t => t.participants && t.participants.some(p => SEED_FAKE_USER_IDS.has(p)))) {
-            const removedThreadIds = new Set(
-                raw.threads.filter(t => t.participants && t.participants.some(p => SEED_FAKE_USER_IDS.has(p))).map(t => t.thread_id)
-            );
-            raw.threads = raw.threads.filter(t => !removedThreadIds.has(t.thread_id));
-            if (raw.messages) raw.messages = raw.messages.filter(m => !removedThreadIds.has(m.thread_id));
-            updated = true;
-        }
-        // Migrate: remove reports involving fake seed users or their listings
-        if (raw.reports && raw.reports.some(r => SEED_FAKE_USER_IDS.has(r.reporter_id) || SEED_FAKE_USER_IDS.has(r.target_id))) {
-            raw.reports = raw.reports.filter(r => !SEED_FAKE_USER_IDS.has(r.reporter_id) && !SEED_FAKE_USER_IDS.has(r.target_id));
-            updated = true;
-        }
-        // Migrate: remove admin_logs created by fake seed users
-        if (raw.admin_logs && raw.admin_logs.some(l => SEED_FAKE_USER_IDS.has(l.admin_id))) {
-            raw.admin_logs = raw.admin_logs.filter(l => !SEED_FAKE_USER_IDS.has(l.admin_id));
-            updated = true;
-        }
-        // Migrate: remove hardcoded seed neighborhoods
-        const SEED_NH_IDS = new Set(['nh_austin_downtown','nh_austin_domain','nh_austin_east','nh_austin_west_campus','nh_austin_south_lamar']);
-        if (raw.neighborhoods && raw.neighborhoods.some(n => SEED_NH_IDS.has(n.neighborhood_id))) {
-            raw.neighborhoods = raw.neighborhoods.filter(n => !SEED_NH_IDS.has(n.neighborhood_id));
-            updated = true;
-        }
-        if (updated) saveDB(raw);
-        return;
+    // ── Step 1: Seed localStorage if this is a brand-new device ──
+    if (!localStorage.getItem(DB_KEY)) {
+        console.log('[DB] First load — seeding localStorage with initial data.');
+        localStorage.setItem(DB_KEY, JSON.stringify(SEED_DATA));
     }
 
-    // First-ever load: seed from localStorage
-    console.log('[DB] Seeding localStorage with initial data.');
-    localStorage.setItem(DB_KEY, JSON.stringify(SEED_DATA));
+    // ── Step 2: Run localStorage migrations ───────────────────
+    const raw = getDB();
+    let updated = false;
+    if (!raw.fb_countries) { raw.fb_countries = SEED_DATA.fb_countries; updated = true; }
+    if (!raw.user_queries)  { raw.user_queries = [];                      updated = true; }
+    if (!raw.categories)    { raw.categories   = SEED_DATA.categories;    updated = true; }
+    else {
+        const existingCatIds = new Set(raw.categories.map(c => c.category_id));
+        SEED_DATA.categories.forEach(sc => {
+            if (!existingCatIds.has(sc.category_id)) { raw.categories.push(sc); updated = true; }
+        });
+    }
+    // Remove fake seed users/listings/threads
+    if (raw.users?.some(u => SEED_FAKE_USER_IDS.has(u.user_id))) {
+        raw.users = raw.users.filter(u => !SEED_FAKE_USER_IDS.has(u.user_id)); updated = true;
+    }
+    if (raw.listings?.some(l => SEED_FAKE_USER_IDS.has(l.user_id))) {
+        raw.listings = raw.listings.filter(l => !SEED_FAKE_USER_IDS.has(l.user_id)); updated = true;
+    }
+    if (raw.threads?.some(t => t.participants?.some(p => SEED_FAKE_USER_IDS.has(p)))) {
+        const badThreads = new Set(
+            raw.threads.filter(t => t.participants?.some(p => SEED_FAKE_USER_IDS.has(p))).map(t => t.thread_id)
+        );
+        raw.threads = raw.threads.filter(t => !badThreads.has(t.thread_id));
+        if (raw.messages) raw.messages = raw.messages.filter(m => !badThreads.has(m.thread_id));
+        updated = true;
+    }
+    if (raw.reports?.some(r => SEED_FAKE_USER_IDS.has(r.reporter_id) || SEED_FAKE_USER_IDS.has(r.target_id))) {
+        raw.reports = raw.reports.filter(r => !SEED_FAKE_USER_IDS.has(r.reporter_id) && !SEED_FAKE_USER_IDS.has(r.target_id));
+        updated = true;
+    }
+    if (raw.admin_logs?.some(l => SEED_FAKE_USER_IDS.has(l.admin_id))) {
+        raw.admin_logs = raw.admin_logs.filter(l => !SEED_FAKE_USER_IDS.has(l.admin_id)); updated = true;
+    }
+    const SEED_NH_IDS = new Set(['nh_austin_downtown','nh_austin_domain','nh_austin_east','nh_austin_west_campus','nh_austin_south_lamar']);
+    if (raw.neighborhoods?.some(n => SEED_NH_IDS.has(n.neighborhood_id))) {
+        raw.neighborhoods = raw.neighborhoods.filter(n => !SEED_NH_IDS.has(n.neighborhood_id)); updated = true;
+    }
+    if (updated) saveDB(raw);
+
+    // ── Step 3: Load live data from D1 (shared across ALL devices) ──
+    // This is the key step: D1 is the single source of truth for
+    // admin-edited content. Fetch it and overwrite localStorage.
+    try {
+        const [d1Cities, d1Listings, d1Posts, d1FbCities] = await Promise.all([
+            api.getCities().catch(() => null),
+            api.getListings().catch(() => null),
+            api.getPosts().catch(() => null),
+            api.getFbCities().catch(() => null),
+        ]);
+        const live = getDB();
+        let liveUpdated = false;
+        if (Array.isArray(d1Cities)    && d1Cities.length > 0)    { live.cities    = d1Cities;    liveUpdated = true; }
+        if (Array.isArray(d1Listings)  && d1Listings.length > 0)  { live.listings  = d1Listings;  liveUpdated = true; }
+        if (Array.isArray(d1Posts)     && d1Posts.length > 0)     { live.posts     = d1Posts;     liveUpdated = true; }
+        if (Array.isArray(d1FbCities)  && d1FbCities.length > 0)  { live.fb_cities = d1FbCities;  liveUpdated = true; }
+        if (liveUpdated) {
+            saveDB(live);
+            console.log('[DB] ✅ Loaded live data from D1 — all devices in sync.');
+        }
+    } catch (err) {
+        console.debug('[DB] D1 not reachable — using cached localStorage data.', err);
+    }
 }
 
 // Function to reset database (for testing purposes)
