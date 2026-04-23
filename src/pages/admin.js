@@ -1860,6 +1860,11 @@ function renderAdminFBGroups(container) {
                 '<input id="fbg-city-members" type="number" class="adm-input" value="' + (c.total_members || '') + '" placeholder="e.g. 24800"></div>',
                 '<div class="adm-form-group"><label>Priority (Order)</label>',
                 '<input id="fbg-city-priority" type="number" class="adm-input" value="' + (c.priority || '') + '" placeholder="e.g. 1"></div>',
+                '<div class="adm-form-group adm-form-full"><label>Group Description / About</label>',
+                '<textarea id="fbg-city-description" class="adm-input" style="height:80px;resize:vertical;" placeholder="Tell members about this city group community...">' + escHtml(c.description || '') + '</textarea></div>',
+                '<div class="adm-form-group adm-form-full"><label>Group FAQs (JSON Format)</label>',
+                '<textarea id="fbg-city-faqs" class="adm-input" style="height:120px;resize:vertical;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"q": "How to join?", "a": "Click the button above."}]\'>' + escHtml(JSON.stringify(c.faqs || [], null, 2)) + '</textarea>',
+                '<p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Format: Array of objects with "q" and "a" properties.</p></div>',
                 '<div class="adm-form-group adm-form-full" style="display:flex;align-items:center;gap:20px;margin-top:10px;flex-wrap:wrap;">',
                 '<div style="display:flex;align-items:center;gap:10px;">',
                 '<label class="adm-toggle-wrap"><input type="checkbox" id="fbg-city-popular"' + (c.is_popular !== false ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label>',
@@ -2087,6 +2092,15 @@ function renderAdminFBGroups(container) {
             const isPopular = container.querySelector('#fbg-city-popular').checked;
             const isFooter = container.querySelector('#fbg-city-footer').checked;
             const image = container.querySelector('#fbg-city-image-url').value.trim();
+            const description = container.querySelector('#fbg-city-description').value.trim();
+            const faqJson = container.querySelector('#fbg-city-faqs').value.trim();
+
+            let faqs = [];
+            try {
+                if (faqJson) faqs = JSON.parse(faqJson);
+            } catch (e) {
+                showToast('Invalid FAQ JSON format. Saving with empty FAQs.', 'warning');
+            }
 
             if (!countryId || !cityName || !groupName || !groupLink) {
                 showToast('Country, city name, group name, and link are required.', 'error'); return;
@@ -2101,7 +2115,9 @@ function renderAdminFBGroups(container) {
                 priority,
                 is_popular: isPopular,
                 is_footer: isFooter,
-                city_image: image 
+                city_image: image,
+                description,
+                faqs
             };
 
             if (editingCity) {

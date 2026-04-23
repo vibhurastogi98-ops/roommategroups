@@ -48,6 +48,44 @@ function renderListingCard(listing) {
     `;
 }
 
+function renderBlogCard(post) {
+    const fallback = 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&q=80&w=600';
+    const image = post.featured_image || post.image || fallback;
+    return `
+        <a href="/blog/${post.slug}" class="gd-blog-card">
+            <div class="gd-blog-img">
+                <img src="${image}" alt="${post.title}" loading="lazy" onerror="this.onerror=null;this.src='${fallback}';">
+                <span class="gd-blog-cat">${post.category || 'Guide'}</span>
+            </div>
+            <div class="gd-blog-body">
+                <h3 class="gd-blog-title">${post.title}</h3>
+                <p class="gd-blog-excerpt">${post.excerpt || 'Read our latest tips and guides for your roommate search.'}</p>
+                <div class="gd-blog-footer">
+                    <span><i class="far fa-calendar"></i> ${post.date || 'Apr 23, 2026'}</span>
+                    <span class="gd-blog-more">Read More →</span>
+                </div>
+            </div>
+        </a>
+    `;
+}
+
+function renderReviewCard(review) {
+    const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+    return `
+        <div class="gd-review-card">
+            <div class="gd-review-stars">${stars}</div>
+            <p class="gd-review-text">"${review.text}"</p>
+            <div class="gd-review-user">
+                <img src="https://i.pravatar.cc/100?u=${encodeURIComponent(review.name)}" alt="${review.name}" class="gd-review-avatar">
+                <div class="gd-review-info">
+                    <span class="gd-review-name">${review.name}</span>
+                    <span class="gd-review-date">${review.date}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderRelatedCard(city, currentSlug) {
     const slug = citySlugFrom(city.city_name);
     if (slug === currentSlug) return '';
@@ -93,11 +131,29 @@ export function renderGroupDetailPage(app, params) {
         ? db.listings.find(l => l.city === matchingCity.city_id && l.status === 'active').slice(0, 6)
         : [];
 
+    // Get blog posts (featured or random 3)
+    const blogs = db.posts ? db.posts.findAll().filter(p => p.is_published !== false).slice(0, 3) : [];
+
+    // Static reviews for now
+    const reviews = [
+        { name: 'Sarah Miller', date: '2 days ago', rating: 5, text: 'Found an amazing flatmate in London through this group in less than a week. Highly recommended!' },
+        { name: 'David Chen', date: '1 week ago', rating: 5, text: 'The community is super active. Lots of verified listings and people are actually responsive.' },
+        { name: 'Emma Watson', date: '3 days ago', rating: 4, text: 'Great resource for finding affordable rooms in the city. Just be careful with scammers, as always.' }
+    ];
+
+    // FAQ Items (DB or Fallback)
+    const faqs = (group.faqs && Array.isArray(group.faqs) && group.faqs.length > 0) ? group.faqs : [
+        { q: 'How do I join this Facebook group?', a: `Simply click the "Join Group" button at the top of this page. You will be redirected to Facebook where you can request to join. Make sure to answer the membership questions!` },
+        { q: 'Is it free to find a roommate here?', a: 'Yes! Our community groups are free to join and use. We believe finding a home should be accessible to everyone.' },
+        { q: 'How can I avoid scams in the group?', a: 'Never send money before seeing a room in person. We recommend meeting potential roommates in public first and checking their profiles for authenticity.' },
+        { q: 'Can I post my own listing in the group?', a: 'Absolutely! Most groups encourage members to post their available rooms or "roommate wanted" ads. Just follow the group rules.' }
+    ];
+
     // Related groups (exclude current)
     const related = allGroups.filter(g => citySlugFrom(g.city_name) !== slug).slice(0, 6);
 
     const fallback = 'https://images.unsplash.com/photo-1449844908441-8829872d2607?w=1600&h=600&fit=crop';
-    const description = getDescription(slug);
+    const description = group.description || getDescription(slug);
     const foundedYear = 2018 + (group.priority || 0) % 4;
 
     app.innerHTML = `
@@ -263,31 +319,58 @@ export function renderGroupDetailPage(app, params) {
                 font-size: 0.75rem;
                 font-weight: 600;
                 text-transform: uppercase;
-                letter-spacing: 0.06em;
                 color: #8a94a6;
             }
 
-            /* ── Listings Section ── */
-            .gd-listings-section { padding: 56px 0; }
-            .gd-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 12px; }
-            .gd-section-header h2 { font-size: 1.4rem; font-weight: 800; color: #1a2740; letter-spacing: -0.02em; }
-            .gd-section-link { font-size: 0.9rem; font-weight: 700; color: #7c3aed; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-            .gd-section-link:hover { color: #5b21b6; }
-            .gd-listings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-            .gd-listing-card { background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid rgba(0,0,0,0.07); text-decoration: none; color: inherit; display: flex; flex-direction: column; transition: transform 0.3s ease, box-shadow 0.3s ease; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-            .gd-listing-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.1); }
-            .gd-listing-img { position: relative; height: 180px; overflow: hidden; background: #e2e8f0; }
-            .gd-listing-img img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; display: block; }
-            .gd-listing-card:hover .gd-listing-img img { transform: scale(1.07); }
-            .gd-listing-badge { position: absolute; top: 10px; left: 10px; background: #7c3aed; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 4px 10px; border-radius: 100px; }
-            .gd-listing-body { padding: 16px 18px 18px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
-            .gd-listing-price { font-size: 1.25rem; font-weight: 800; color: #7c3aed; }
-            .gd-listing-price span { font-size: 0.8rem; font-weight: 400; color: #8a94a6; }
-            .gd-listing-title { font-size: 0.9rem; color: #1a2740; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-            .gd-listing-view { font-size: 0.8rem; font-weight: 700; color: #7c3aed; margin-top: 8px; }
-            .gd-no-listings { background: #fff; border-radius: 16px; padding: 48px; text-align: center; color: #8a94a6; border: 1px solid #e8edf4; }
-            .gd-no-listings i { font-size: 2.5rem; margin-bottom: 16px; display: block; opacity: 0.3; }
-            .gd-no-listings a { display: inline-block; margin-top: 16px; background: #7c3aed; color: #fff; padding: 10px 24px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+            /* ── Feature Sections ── */
+            .gd-feature-section { padding: 80px 0; background: #F8FAFC; border-bottom: 1px solid #e8edf4; }
+            .gd-feature-row { display: flex; align-items: center; gap: 64px; }
+            .gd-feature-row.reverse { flex-direction: row-reverse; }
+            .gd-feature-img-wrapper { flex: 1; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+            .gd-feature-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s ease; }
+            .gd-feature-img-wrapper:hover .gd-feature-img { transform: scale(1.05); }
+            .gd-feature-content { flex: 1; }
+            .gd-feature-title { font-size: 2.2rem; font-weight: 800; color: #1a2740; margin-bottom: 20px; line-height: 1.2; letter-spacing: -0.02em; }
+            .gd-feature-desc { font-size: 1.1rem; line-height: 1.7; color: #475569; margin-bottom: 24px; }
+            .gd-feature-list { list-style: none; padding: 0; margin: 0 0 32px; display: flex; flex-direction: column; gap: 12px; }
+            .gd-feature-list li { display: flex; align-items: center; gap: 12px; font-weight: 600; color: #1a2740; font-size: 1rem; }
+            .gd-feature-list li i { color: #10b981; font-size: 1.2rem; }
+
+            /* ── Reviews Section ── */
+            .gd-reviews-section { padding: 56px 0; background: #fff; border-top: 1px solid #e8edf4; border-bottom: 1px solid #e8edf4; }
+            .gd-reviews-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+            .gd-review-card { background: #F8FAFC; padding: 24px; border-radius: 16px; border: 1px solid #e8edf4; }
+            .gd-review-stars { color: #f59e0b; margin-bottom: 12px; font-size: 0.9rem; }
+            .gd-review-text { font-size: 0.95rem; line-height: 1.6; color: #475569; margin-bottom: 20px; font-style: italic; }
+            .gd-review-user { display: flex; align-items: center; gap: 12px; }
+            .gd-review-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+            .gd-review-info { display: flex; flex-direction: column; }
+            .gd-review-name { font-size: 0.9rem; font-weight: 700; color: #1a2740; }
+            .gd-review-date { font-size: 0.75rem; color: #8a94a6; }
+
+            /* ── FAQ Section ── */
+            .gd-faq-section { padding: 56px 0; }
+            .gd-faq-container { max-width: 800px; margin: 0 auto; }
+            .gd-faq-item { background: #fff; border-radius: 12px; border: 1px solid #e8edf4; margin-bottom: 12px; overflow: hidden; }
+            .gd-faq-question { width: 100%; text-align: left; padding: 18px 24px; background: none; border: none; font-size: 1rem; font-weight: 700; color: #1a2740; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+            .gd-faq-question:hover { background: #fcfdfe; }
+            .gd-faq-answer { padding: 0 24px 18px; color: #475569; font-size: 0.95rem; line-height: 1.6; display: none; }
+            .gd-faq-item.active .gd-faq-answer { display: block; }
+            .gd-faq-item.active .gd-faq-question i { transform: rotate(180deg); }
+
+            /* ── Blog Section ── */
+            .gd-blog-section { padding: 56px 0; background: #F4F6F9; }
+            .gd-blog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+            .gd-blog-card { background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #e8edf4; text-decoration: none; color: inherit; display: flex; flex-direction: column; transition: transform 0.3s ease; }
+            .gd-blog-card:hover { transform: translateY(-4px); }
+            .gd-blog-img { position: relative; height: 160px; overflow: hidden; }
+            .gd-blog-img img { width: 100%; height: 100%; object-fit: cover; }
+            .gd-blog-cat { position: absolute; top: 12px; left: 12px; background: #7c3aed; color: #fff; font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 100px; text-transform: uppercase; }
+            .gd-blog-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+            .gd-blog-title { font-size: 1rem; font-weight: 800; color: #1a2740; line-height: 1.4; }
+            .gd-blog-excerpt { font-size: 0.85rem; color: #64748b; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+            .gd-blog-footer { margin-top: auto; padding-top: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #8a94a6; font-weight: 600; }
+            .gd-blog-more { color: #7c3aed; font-weight: 800; }
 
             /* ── Related Groups ── */
             .gd-related-section { padding: 0 0 72px; }
@@ -330,15 +413,23 @@ export function renderGroupDetailPage(app, params) {
                 width: 100%;
                 justify-content: center;
             }
+            @media (max-width: 1024px) {
+                .gd-feature-row { gap: 40px; }
+                .gd-feature-title { font-size: 1.8rem; }
+                .gd-reviews-grid, .gd-blog-grid { grid-template-columns: 1fr 1fr; }
+            }
             @media (max-width: 768px) {
+                .gd-feature-row { flex-direction: column; gap: 32px; text-align: center; }
+                .gd-feature-row.reverse { flex-direction: column; }
+                .gd-feature-list { align-items: center; }
                 .gd-sticky-bar { display: flex; }
                 .gd-about-inner { grid-template-columns: 1fr; gap: 32px; }
-                .gd-listings-grid { grid-template-columns: 1fr 1fr; }
+                .gd-reviews-grid, .gd-blog-grid { grid-template-columns: 1fr; }
                 body { padding-bottom: 72px; }
             }
             @media (max-width: 480px) {
-                .gd-listings-grid { grid-template-columns: 1fr; }
                 .gd-hero { height: 380px; }
+                .gd-feature-title { font-size: 1.6rem; }
             }
         </style>
 
@@ -402,23 +493,104 @@ export function renderGroupDetailPage(app, params) {
                 </div>
             </section>
 
-            <!-- Listings -->
-            <section class="gd-listings-section">
+            <!-- Features Section 1 (Image Left) -->
+            <section class="gd-feature-section">
                 <div class="container">
-                    <div class="gd-section-header">
-                        <h2>Recent Listings in ${group.city_name}</h2>
-                        ${matchingCity ? `<a href="/search/rooms?city=${matchingCity.slug}" class="gd-section-link">View all listings <i class="fas fa-arrow-right"></i></a>` : ''}
+                    <div class="gd-feature-row">
+                        <div class="gd-feature-img-wrapper">
+                            <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop" alt="Community Interaction" class="gd-feature-img">
+                        </div>
+                        <div class="gd-feature-content">
+                            <div class="gd-about-label">Verified Community</div>
+                            <h2 class="gd-feature-title">Find Your Ideal Room or Roommate Now!</h2>
+                            <p class="gd-feature-desc">
+                                Join thousands of locals in ${group.city_name} who are actively looking for shared housing. Our community is built on trust and transparency, making it easier than ever to find a compatible living situation.
+                            </p>
+                            <ul class="gd-feature-list">
+                                <li><i class="fas fa-check-circle"></i> Verified profiles and listings</li>
+                                <li><i class="fas fa-check-circle"></i> Direct communication with members</li>
+                                <li><i class="fas fa-check-circle"></i> Safe and moderated environment</li>
+                            </ul>
+                            <a href="${group.fb_group_link}" target="_blank" class="gd-join-btn" style="margin-top: 12px;">Explore Group Content</a>
+                        </div>
                     </div>
-                    ${listings.length > 0
-                        ? `<div class="gd-listings-grid">${listings.map(renderListingCard).join('')}</div>`
-                        : `<div class="gd-no-listings">
-                                <i class="fas fa-home"></i>
-                                <p>No active listings yet in ${group.city_name}.</p>
-                                <a href="/post-listing${matchingCity ? '?city=' + matchingCity.slug : ''}">Be the first to post →</a>
-                           </div>`
-                    }
                 </div>
             </section>
+
+            <!-- Features Section 2 (Image Right) -->
+            <section class="gd-feature-section" style="background: #fff;">
+                <div class="container">
+                    <div class="gd-feature-row reverse">
+                        <div class="gd-feature-content">
+                            <div class="gd-about-label">Local Expertise</div>
+                            <h2 class="gd-feature-title">Navigate ${group.city_name}'s Market with Ease</h2>
+                            <p class="gd-feature-desc">
+                                Whether you're a student at a local university, a tech professional, or a local looking to rent out a spare room, RoommateGroups makes it easy to find a housemate in ${group.city_name} hassle-free.
+                            </p>
+                            <p class="gd-feature-desc">
+                                No matter your budget or lifestyle, our curated community groups provide the best platform to connect with like-minded individuals in your preferred neighborhoods.
+                            </p>
+                            <a href="/blog" class="gd-section-link" style="font-size: 1rem; margin-top: 8px;">Read our ${group.city_name} Rental Guide →</a>
+                        </div>
+                        <div class="gd-feature-img-wrapper">
+                            <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=600&fit=crop" alt="Local Market" class="gd-feature-img">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Reviews -->
+            <section class="gd-reviews-section">
+                <div class="container">
+                    <div class="gd-section-header">
+                        <h2>Community Reviews</h2>
+                        <span class="gd-section-link">Average 4.9/5 Rating</span>
+                    </div>
+                    <div class="gd-reviews-grid">
+                        ${reviews.map(renderReviewCard).join('')}
+                    </div>
+                </div>
+            </section>
+
+            <!-- FAQ -->
+            <section class="gd-faq-section">
+                <div class="container">
+                    <div class="gd-section-header" style="justify-content: center; text-align: center; margin-bottom: 40px;">
+                        <div>
+                            <h2 style="font-size: 1.8rem;">Frequently Asked Questions</h2>
+                            <p style="color: #64748b; margin-top: 8px;">Everything you need to know about our city groups.</p>
+                        </div>
+                    </div>
+                    <div class="gd-faq-container">
+                        ${faqs.map(faq => `
+                            <div class="gd-faq-item">
+                                <button class="gd-faq-question">
+                                    ${faq.q}
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                                <div class="gd-faq-answer">
+                                    <p>${faq.a}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </section>
+
+            <!-- Blog -->
+            ${blogs.length > 0 ? `
+            <section class="gd-blog-section">
+                <div class="container">
+                    <div class="gd-section-header">
+                        <h2>From Our Blog</h2>
+                        <a href="/blog" class="gd-section-link">Read all posts <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                    <div class="gd-blog-grid">
+                        ${blogs.map(renderBlogCard).join('')}
+                    </div>
+                </div>
+            </section>
+            ` : ''}
 
             <!-- Related Groups -->
             <section class="gd-related-section">
@@ -443,6 +615,17 @@ export function renderGroupDetailPage(app, params) {
             </a>
         </div>
     `;
+
+    // FAQ Toggle logic
+    const faqItems = app.querySelectorAll('.gd-faq-item');
+    faqItems.forEach(item => {
+        const question = item.querySelector('.gd-faq-question');
+        question.addEventListener('click', () => {
+            const isActive = item.classList.contains('active');
+            faqItems.forEach(i => i.classList.remove('active'));
+            if (!isActive) item.classList.add('active');
+        });
+    });
 
     initNavbar();
 }
