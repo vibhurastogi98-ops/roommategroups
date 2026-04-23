@@ -13,7 +13,13 @@ async function req(method, path, data, silent = false) {
     try {
         const opts = { method, headers: { 'Content-Type': 'application/json' } };
         if (data !== undefined) opts.body = JSON.stringify(data);
-        const res = await fetch(`${API_URL}${path}`, opts);
+        
+        // Add cache-busting to GET requests to ensure we always get fresh data from D1
+        const url = method === 'GET' 
+            ? `${API_URL}${path}${path.includes('?') ? '&' : '?'}_t=${Date.now()}`
+            : `${API_URL}${path}`;
+            
+        const res = await fetch(url, opts);
         if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${res.statusText}`);
         return await res.json();
     } catch (err) {

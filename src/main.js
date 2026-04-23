@@ -75,10 +75,10 @@ addRoute('/admin/queries', renderAdminPage, [requireAdmin()]);
 // Start
 const app = document.querySelector('#app');
 
-// Initialize database (only reset if completely missing)
-initDB();
-
-initRouter(app);
+// Initialize database (fetch live data from D1 before rendering)
+initDB().finally(() => {
+    initRouter(app);
+});
 
 // Global Share Modal
 const shareModalHtml = `
