@@ -5,15 +5,21 @@ import { renderFooter } from '../components/footer.js';
 // ── Helpers ──────────────────────────────────────────
 
 function formatMembers(n) {
+    if (!n) return '0';
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    if (n >= 1000) return (n / 1000).toFixed(1).replace('.0','') + 'K';
     return String(n);
+}
+
+function citySlug(name) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 function renderFBCityCard(city) {
     const fallback = 'https://images.unsplash.com/photo-1449844908441-8829872d2607?w=600&h=400&fit=crop';
+    const slug = citySlug(city.city_name);
     return `
-        <div class="fb-city-card animate-on-scroll visible">
+        <a href="/fb-groups/${slug}" class="fb-city-card animate-on-scroll visible" style="text-decoration:none;color:inherit;display:flex;flex-direction:column;cursor:pointer;">
             <div class="fb-city-image-wrap">
                 <img
                     src="${city.city_image || fallback}"
@@ -31,21 +37,16 @@ function renderFBCityCard(city) {
                     <i class="fab fa-facebook" style="color:#1877f2;margin-right:6px;"></i>
                     ${city.fb_group_name}
                 </div>
-                <div class="fb-member-count">
-                    <i class="fas fa-users" style="color:var(--primary);margin-right:5px;"></i>
-                    <strong>${formatMembers(city.total_members)}</strong> members
+                <div class="fb-member-count" style="margin-bottom:4px;">
+                    <i class="fas fa-location-dot" style="color:#94a3b8;margin-right:5px;font-size:0.75rem;"></i>
+                    <span style="font-size:0.82rem;color:#8a94a6;">${city.city_name}</span>
                 </div>
-                <a
-                    href="${city.fb_group_link}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="btn btn-primary fb-join-btn"
-                >
-                    <i class="fab fa-facebook"></i>
-                    Join Group
-                </a>
+                <div style="display:inline-flex;align-items:center;gap:6px;background:#F1F5F9;color:#475569;font-size:0.78rem;font-weight:700;padding:5px 12px;border-radius:100px;margin-top:6px;width:fit-content;">
+                    <i class="fas fa-users" style="color:#7c3aed;font-size:0.7rem;"></i>
+                    ${formatMembers(city.total_members)}+ Members
+                </div>
             </div>
-        </div>
+        </a>
     `;
 }
 

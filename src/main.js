@@ -24,6 +24,7 @@ import { renderListingDetailPage } from './pages/listing.js';
 import { renderProfilePage } from './pages/profile.js';
 import { renderFBGroupsPage } from './pages/fb-groups.js';
 import { renderPricingPage } from './pages/pricing.js';
+import { renderGroupDetailPage } from './pages/group-detail.js';
 import { initDB } from './services/db.js';
 addRoute('/', renderHomePage);
 addRoute('/pricing', renderPricingPage);
@@ -55,6 +56,7 @@ addRoute('/contact', renderContactPage);
 addRoute('/listing/:id', renderListingDetailPage);
 addRoute('/profile/:id', renderProfilePage);
 addRoute('/fb-groups', renderFBGroupsPage);
+addRoute('/fb-groups/:slug', renderGroupDetailPage);
 
 // Admin routes (protected with admin middleware)
 addRoute('/admin-login', renderAdminLoginPage);

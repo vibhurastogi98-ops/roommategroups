@@ -50,7 +50,7 @@ export function renderNavbar() {
           </span>
         </a>
         <div class="nav-links" id="nav-links">
-          <a href="/#cities" class="nav-anchor" data-external="true">Cities</a>
+          <a href="/fb-groups">Cities</a>
           <a href="/#how-it-works" class="nav-anchor" data-external="true">How It Works</a>
           <a href="/#listings" class="nav-anchor" data-external="true">Listings</a>
           <a href="/pricing">Pricing</a>

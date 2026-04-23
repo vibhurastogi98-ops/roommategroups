@@ -165,34 +165,38 @@ export function renderHomePage(app) {
         ${fbGroups.length === 0
       ? `<div class="home-cities-empty"><i class="fab fa-facebook"></i><p>No featured groups available. Check back soon!</p></div>`
       : `<div class="home-cities-grid">
-              ${fbGroups.map(g => `
-                <div class="hc-card animate-on-scroll">
-                  <a href="${g.fb_group_link}" target="_blank" rel="noopener" class="hc-img-wrap" style="display: block;">
+              ${fbGroups.map(g => {
+                const slug = g.city_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                const memberLabel = g.total_members >= 1000000
+                  ? (g.total_members / 1000000).toFixed(1) + 'M'
+                  : g.total_members >= 1000
+                    ? Math.round(g.total_members / 1000) + 'K'
+                    : (g.total_members || 0).toString();
+                return `
+                <a href="/fb-groups/${slug}" class="hc-card animate-on-scroll" style="text-decoration:none;color:inherit;">
+                  <div class="hc-img-wrap" style="display:block;">
                     ${g.city_image
-          ? `<img src="${g.city_image}" alt="${g.fb_group_name}" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.add('hc-no-img');this.remove();">`
-          : `<div class="hc-placeholder"><i class="fab fa-facebook"></i></div>`}
+                      ? `<img src="${g.city_image}" alt="${g.fb_group_name}" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.add('hc-no-img');this.remove();">`
+                      : `<div class="hc-placeholder"><i class="fab fa-facebook"></i></div>`}
                     <div class="hc-overlay"></div>
-                  </a>
+                  </div>
                   <div class="hc-body">
-                    <a href="${g.fb_group_link}" target="_blank" rel="noopener" style="text-decoration: none; color: inherit;">
-                      <div class="hc-name">${g.fb_group_name}</div>
-                    </a>
+                    <div class="hc-name">${g.fb_group_name}</div>
                     <div class="hc-meta">
                       <span class="hc-country"><i class="fas fa-location-dot"></i> ${g.city_name}</span>
                     </div>
-                    <div class="hc-stats">
-                      <span><i class="fas fa-users"></i> ${g.total_members ? g.total_members.toLocaleString() : '0'}+ Members</span>
+                    <div style="display:inline-flex;align-items:center;gap:6px;background:#F1F5F9;color:#475569;font-size:0.78rem;font-weight:700;padding:5px 12px;border-radius:100px;margin-top:10px;width:fit-content;">
+                      <i class="fas fa-users" style="color:#7c3aed;font-size:0.7rem;"></i>
+                      ${memberLabel}+ Members
                     </div>
-                    <a href="${g.fb_group_link}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="margin-top: 18px; width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700;">
-                      <i class="fab fa-facebook-f"></i> Join Group
-                    </a>
                   </div>
-                </div>
-              `).join('')}
+                </a>
+              `}).join('')}
             </div>
             <div class="view-more-container animate-on-scroll" style="text-align: center; margin-top: 48px;">
               <a href="/fb-groups" class="btn btn-primary btn-lg">View All FB Groups <i class="fas fa-arrow-right" style="margin-left: 8px;"></i></a>
             </div>`
+
     }
       </div>
     </section>

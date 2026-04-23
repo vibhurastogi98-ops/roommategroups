@@ -1913,7 +1913,10 @@ function renderAdminFBGroups(container) {
                 '</td>',
                 '<td>' + (country ? escHtml(country.country_name) : '—') + '</td>',
                 '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escHtml(c.fb_group_name) + '">' + escHtml(c.fb_group_name) + '</td>',
-                '<td><a href="' + escHtml(c.fb_group_link) + '" target="_blank" rel="noopener" style="color:var(--primary);">Link <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:.75rem;"></i></a></td>',
+                '<td style="display:flex;flex-direction:column;gap:4px;">' +
+                  '<a href="' + escHtml(c.fb_group_link) + '" target="_blank" rel="noopener" style="color:#1877f2;font-size:0.8rem;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="fab fa-facebook-f"></i> Facebook</a>' +
+                  '<a href="/fb-groups/' + c.city_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g,'') + '" style="color:var(--primary);font-size:0.8rem;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-eye"></i> View Page</a>' +
+                '</td>',
                 '<td>' + (Number(c.total_members) || 0).toLocaleString() + '</td>',
                 '<td>' + (c.priority || '—') + '</td>',
                 '<td>',
