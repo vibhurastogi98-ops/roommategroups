@@ -75,20 +75,26 @@ addRoute('/admin/queries', renderAdminPage, [requireAdmin()]);
 // Start
 const app = document.querySelector('#app');
 
-// Initialize database (fetch live data from D1 in the background)
-initDB().then((updated) => {
-    if (updated) {
-        console.log('[Main] DB updated, re-resolving current route...');
-        // If data was updated from D1, re-resolve the current route to show fresh data
-        // We use a small delay to ensure any other background tasks finish
-        setTimeout(() => {
-            if (typeof window.resolveRouter === 'function') window.resolveRouter();
-        }, 100);
-    }
-});
+// Show a loading spinner while D1 data is being fetched
+app.innerHTML = `
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc;">
+    <div style="text-align:center;">
+      <div style="width:48px;height:48px;border:4px solid #e2e8f0;border-top-color:#1a1a1a;border-radius:50%;animation:rg-spin 0.7s linear infinite;margin:0 auto 16px;"></div>
+      <p style="color:#64748b;font-family:system-ui,sans-serif;font-size:0.95rem;">Loading RoommateGroups…</p>
+    </div>
+  </div>
+  <style>@keyframes rg-spin{to{transform:rotate(360deg)}}</style>
+`;
 
-// Start the router immediately with cached data
-initRouter(app);
+// Initialize database first (fetch live data from D1), THEN start the router.
+// This ensures admin/auth middleware always has the latest D1 data when it runs.
+initDB().then(() => {
+    console.log('[Main] D1 sync complete — starting router.');
+    initRouter(app);
+}).catch((err) => {
+    console.warn('[Main] D1 sync failed, starting router with cached data.', err);
+    initRouter(app);
+});
 
 
 // Global Share Modal

@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
   profile_photo    TEXT,
   bio              TEXT,
   city             TEXT,
+  country          TEXT,
   age_range        TEXT,
+  occupation       TEXT,
   lifestyle_tags   TEXT,           -- JSON array stored as text
   verification_level TEXT DEFAULT 'none',
   subscription_tier  TEXT DEFAULT 'free',
@@ -22,6 +24,11 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash    TEXT,
   role             TEXT DEFAULT 'user',
   is_active        INTEGER DEFAULT 1,
+  profileComplete  INTEGER DEFAULT 0,  -- 1 = profile setup completed
+  emailVerified    INTEGER DEFAULT 1,
+  budgetMin        INTEGER,
+  budgetMax        INTEGER,
+  moveInTimeline   TEXT,
   created_at       TEXT DEFAULT (datetime('now')),
   last_active      TEXT
 );

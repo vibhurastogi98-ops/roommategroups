@@ -128,7 +128,10 @@ export function renderDashboardPage(app) {
 // ── Helpers ──────────────────────────────────────────────────
 
 function getUnreadCountBadge(userId) {
-    const threads = db.threads.find(t => t.participants.includes(userId));
+    const threads = db.threads.find(t => {
+        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        return parts.includes(userId);
+    });
     const unread = threads.reduce((sum, t) => sum + (t['unread_count_' + userId] || 0), 0);
     if (unread > 0) return '<span class="badge badge-primary badge-sm" style="margin-left:auto;">' + unread + '</span>';
     return '';
@@ -180,9 +183,12 @@ function showToast(message, type = 'success') {
 function renderOverview(container, user) {
     const userListings = db.listings.find(l => l.user_id === user.user_id);
     const activeListingsCount = userListings.filter(l => l.status === 'active').length;
-    const totalViews = userListings.reduce((sum, l) => sum + (l.views_count || 0), 0);
+    const totalViews = userListings.reduce((sum, l) => sum + (l.view_count || l.views_count || 0), 0);
     const savedCount = (user.saved_listings || []).length;
-    const threads = db.threads.find(t => t.participants.includes(user.user_id));
+    const threads = db.threads.find(t => {
+        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        return parts.includes(user.user_id);
+    });
     const unreadMessages = threads.reduce((sum, t) => sum + (t['unread_count_' + user.user_id] || 0), 0);
 
     // ── Build activity from real data ──
@@ -342,7 +348,7 @@ function renderMyListings(container, user) {
                 '<p>' + escapeHtml(location) + (rentPrice !== '?' ? ' &bull; $' + rentPrice + '/mo' : '') + '</p>',
                 '</div></div></td>',
                 '<td><span class="badge ' + (isActive ? 'badge-success' : l.status === 'paused' ? 'badge-warning' : 'badge-gray') + '" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">' + l.status.charAt(0).toUpperCase() + l.status.slice(1) + '</span></td>',
-                '<td><div class="td-stats"><span><i class="fa-solid fa-eye"></i> ' + (l.views_count || 0) + '</span><span><i class="fa-solid fa-message"></i> ' + msgCount + '</span></div></td>',
+                '<td><div class="td-stats"><span><i class="fa-solid fa-eye"></i> ' + (l.view_count || l.views_count || 0) + '</span><span><i class="fa-solid fa-message"></i> ' + msgCount + '</span></div></td>',
                 '<td><div class="td-actions">',
                 '<button class="btn-icon-sm action-view" data-id="' + l.listing_id + '" title="View listing"><i class="fa-solid fa-eye"></i></button>',
                 '<button class="btn-icon-sm action-edit" data-id="' + l.listing_id + '" title="Edit listing"><i class="fa-solid fa-pen"></i></button>',
@@ -548,7 +554,10 @@ function renderMessages(container, user) {
     // ── Helpers ──
 
     function getFilteredThreads() {
-        const all = db.threads.find(t => t.participants.includes(user.user_id));
+        const all = db.threads.find(t => {
+            const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+            return parts.includes(user.user_id);
+        });
         return all
             .filter(t => {
                 if (activeTab === 'unread') return (t['unread_count_' + user.user_id] || 0) > 0 && !t.is_archived;
@@ -657,7 +666,7 @@ function renderMessages(container, user) {
             '<a href="/profile/' + ouId + '" class="msg-hdr-avatar-link"><img src="' + src + '" class="msg-hdr-avatar" alt="' + escapeHtml(ou.display_name) + '"></a>',
             '<div class="msg-header-info">',
             '<div class="msg-header-name"><a href="/profile/' + ouId + '" class="msg-hdr-name-link">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou.verification_level) + '</div>',
-            li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; $' + li.price + '/mo</a>' : '',
+            li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; $' + (li.rent ?? li.price ?? '?') + '/mo</a>' : '',
             '</div>',
             '</div>',
             '<div class="msg-header-right">',

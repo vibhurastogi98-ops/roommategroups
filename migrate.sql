@@ -35,7 +35,9 @@ CREATE TABLE users (
   profile_photo      TEXT,
   bio                TEXT,
   city               TEXT,
+  country            TEXT,
   age_range          TEXT,
+  occupation         TEXT,
   lifestyle_tags     TEXT,
   verification_level TEXT DEFAULT 'none',
   subscription_tier  TEXT DEFAULT 'free',
@@ -46,6 +48,11 @@ CREATE TABLE users (
   password_hash      TEXT,
   role               TEXT DEFAULT 'user',
   is_active          INTEGER DEFAULT 1,
+  profileComplete    INTEGER DEFAULT 0,
+  emailVerified      INTEGER DEFAULT 1,
+  budgetMin          INTEGER,
+  budgetMax          INTEGER,
+  moveInTimeline     TEXT,
   created_at         TEXT DEFAULT (datetime('now')),
   last_active        TEXT
 );
@@ -326,8 +333,9 @@ INSERT INTO cities (city_id, name, slug, country, state_province, latitude, long
   ('city_detroit',     'Detroit',       'detroit',       'country_us', 'MI',  42.3314,  -83.0458,  'https://images.unsplash.com/photo-1502174832274-bc1ec64c3963?auto=format&fit=crop&w=800&q=85',   1000, 187,  550,  1, 1, 1),
   ('city_st_louis',    'St. Louis',     'st-louis',      'country_us', 'MO',  38.6270,  -90.1994,  'https://images.unsplash.com/photo-1471644865743-1623432420fd?auto=format&fit=crop&w=800&q=85',   1050, 143,  400,  1, 1, 0);
 
-INSERT INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, created_at) VALUES
-  ('user_admin_1', 'admin@roommategroups.com', 'RG Admin', 'System Administrator', 'city_austin', 'id', 'admin', 'admin', 1, '2025-01-01T00:00:00Z');
+INSERT INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, profileComplete, emailVerified, created_at, password_hash) VALUES
+  ('user_admin_1', 'admin@roommategroups.com',  'RG Admin',        'System Administrator', 'city_austin', 'id',        'admin', 'admin', 1, 1, 1, '2025-01-01T00:00:00Z', 'h_n7qt9z'),
+  ('user_admin_2', 'hello@roommategroups.com', 'roommategroups', 'Master Admin',          'city_austin', 'community', 'admin', 'admin', 1, 1, 1, '2026-04-24T00:00:00Z', 'h_sa5p9x');
 
 INSERT INTO fb_countries (fb_country_id, country_name, created_at) VALUES
   ('fbc_1', 'United States',  '2026-01-01T00:00:00Z'),

@@ -215,7 +215,8 @@ app.post('/users', async (c) => {
       'user_id', 'email', 'display_name', 'profile_photo', 'bio', 'city', 'age_range', 
       'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
       'saved_listings', 'saved_searches', 'blocked_users', 'password_hash', 'role', 
-      'is_active', 'created_at', 'last_active'
+      'is_active', 'profileComplete', 'emailVerified', 'created_at', 'last_active',
+      'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline'
     ]
     const filtered: Record<string, any> = {}
     for (const col of validCols) {
@@ -252,12 +253,15 @@ app.put('/users/:id', async (c) => {
     }
     // Handle booleans mapping for SQLite if needed
     if ('is_active' in mapped) mapped['is_active'] = mapped['is_active'] ? 1 : 0
+    if ('profileComplete' in mapped) mapped['profileComplete'] = mapped['profileComplete'] ? 1 : 0
+    if ('emailVerified' in mapped) mapped['emailVerified'] = mapped['emailVerified'] ? 1 : 0
     
     const validCols = [
       'user_id', 'email', 'display_name', 'profile_photo', 'bio', 'city', 'age_range', 
       'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
       'saved_listings', 'saved_searches', 'blocked_users', 'password_hash', 'role', 
-      'is_active', 'created_at', 'last_active'
+      'is_active', 'profileComplete', 'emailVerified', 'created_at', 'last_active',
+      'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline'
     ]
     const filtered: Record<string, any> = {}
     for (const col of validCols) {

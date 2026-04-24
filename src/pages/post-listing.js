@@ -891,7 +891,7 @@ async function handlePublish() {
         address: draft.address, room_type: draft.roomType, available_from: draft.availableFrom,
         lease_duration: draft.leaseDuration, furnished: draft.furnished, amenities: draft.amenities,
         images: JSON.stringify(draft.photos), roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
-        status: 'active', moderation_status: 'pending', is_featured: isFeatured, views_count: 0,
+        status: 'active', moderation_status: 'pending', is_featured: isFeatured, view_count: 0,
         bedrooms: parseInt(draft.bedrooms) || null, bathrooms: parseInt(draft.bathrooms) || null,
         size_sqft: parseInt(draft.sizeSqft) || null,
         budgetMin: draft.budgetMin || null, budgetMax: draft.budgetMax || null,

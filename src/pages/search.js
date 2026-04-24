@@ -55,8 +55,14 @@ function renderSearchCard(listing) {
     let isSaved = false;
     if (currentUser) {
         const dbUser = db.users.findById(currentUser.id);
-        if (dbUser && dbUser.saved_listings && dbUser.saved_listings.includes(listing.listing_id)) {
-            isSaved = true;
+        if (dbUser) {
+            // Guard: saved_listings may come from D1 as a JSON string
+            const savedList = Array.isArray(dbUser.saved_listings)
+                ? dbUser.saved_listings
+                : (typeof dbUser.saved_listings === 'string'
+                    ? JSON.parse(dbUser.saved_listings || '[]')
+                    : []);
+            isSaved = savedList.includes(listing.listing_id);
         }
     }
 
@@ -247,8 +253,13 @@ export function renderSearchPage(app) {
             
             const dbUser = db.users.findById(user.id);
             if (!dbUser) return;
-            
-            if (!dbUser.saved_listings) dbUser.saved_listings = [];
+
+            // Guard: saved_listings may come back from D1 as a JSON string
+            if (!Array.isArray(dbUser.saved_listings)) {
+                dbUser.saved_listings = typeof dbUser.saved_listings === 'string'
+                    ? JSON.parse(dbUser.saved_listings || '[]')
+                    : [];
+            }
             
             const idx = dbUser.saved_listings.indexOf(listingId);
             if (idx > -1) {
@@ -413,10 +424,11 @@ export function renderSearchPage(app) {
         if (isVerifiedOnly) params.set('verified', 'true');
         if (amenities.length > 0) params.set('amenities', amenities.join(','));
 
-        const newPath = '/search/rooms?' + params.toString();
-        // Only push if changed to avoid history spam
-        if (window.location.pathname + window.location.search !== newPath) {
-            navigate(newPath);
+        const newSearch = params.toString() ? '?' + params.toString() : '';
+        const newUrl = '/search/rooms' + newSearch;
+        // Update URL silently (replaceState) — no page re-render, no history spam
+        if ((window.location.pathname + window.location.search) !== newUrl) {
+            window.history.replaceState(null, '', newUrl);
         }
 
         // Filter db
