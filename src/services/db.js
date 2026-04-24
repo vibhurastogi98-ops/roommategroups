@@ -36,6 +36,7 @@ const SEED_DATA = {
             passwordHash: 'h_n7qt9z',
             role: 'admin',
             is_active: true,
+            profileComplete: true,
             created_at: '2025-01-01T00:00:00Z',
             last_active: new Date().toISOString(),
         }

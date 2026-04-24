@@ -324,7 +324,7 @@ export function renderProfileSetupPage(app) {
     updateBudgetSlider();
 
     // ── Form Submit ──
-    document.getElementById('profile-form').addEventListener('submit', (e) => {
+    document.getElementById('profile-form').addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const country = profileCountrySelect.value;
@@ -366,8 +366,8 @@ export function renderProfileSetupPage(app) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
-        setTimeout(() => {
-            const result = updateProfile(user.id, profileData);
+        setTimeout(async () => {
+            const result = await updateProfile(user.id, profileData);
 
             if (result.success) {
                 showToast('Profile saved successfully!', 'success');

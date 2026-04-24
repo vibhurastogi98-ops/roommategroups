@@ -80,7 +80,7 @@ function startOAuthFlow(onSuccess, onError) {
     client.requestAccessToken();
 }
 
-function handleGoogleUser(payload, onSuccess, onError) {
+async function handleGoogleUser(payload, onSuccess, onError) {
     if (!payload?.email) {
         onError?.('Google account must have an email address.');
         return;
@@ -101,7 +101,7 @@ function handleGoogleUser(payload, onSuccess, onError) {
     };
 
     if (!user) {
-        user = db.users.create({
+        user = await db.users.create({
             ...userData,
             passwordHash: null,
             bio: '', 
@@ -120,14 +120,12 @@ function handleGoogleUser(payload, onSuccess, onError) {
             profileComplete: false,
         });
     } else {
-        db.users.update(user.user_id, userData);
+        user = await db.users.update(user.user_id, userData);
     }
 
-    // Restore the full user object from DB after update/create
-    const finalUser = db.users.findById(user.user_id);
-
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: finalUser.user_id, email: finalUser.email }));
-    onSuccess?.({ user: { ...finalUser, id: finalUser.user_id, fullName: finalUser.display_name }, isNew });
+    // Now user is the awaited result
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email }));
+    onSuccess?.({ user: { ...user, id: user.user_id, fullName: user.display_name }, isNew });
 }
 
 /**

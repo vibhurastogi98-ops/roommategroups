@@ -1,4 +1,4 @@
-import { getCurrentUser, logout, getVerificationBadge } from '../services/auth.js';
+import { getCurrentUser, logout, getVerificationBadge, isAdmin } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db } from '../services/db.js';
 
@@ -69,7 +69,7 @@ export function renderDashboardPage(app) {
         navLink('/dashboard/verification', 'fa-shield-halved', 'Verification', 'verification'),
         navLink('/dashboard/subscription', 'fa-credit-card', 'Subscription', 'subscription'),
         navLink('/dashboard/settings', 'fa-gear', 'Settings', 'settings'),
-        (dbUser.role === 'admin' ? '<div class="sidebar-nav-section" style="margin-top:4px;">Admin</div>' + navLink('/admin', 'fa-lock', 'Admin Panel', '') : ''),
+        (isAdmin() ? '<div class="sidebar-nav-section" style="margin-top:4px;">Admin</div>' + navLink('/admin', 'fa-lock', 'Admin Panel', '') : ''),
         '</nav>',
         '<div class="sidebar-footer">',
         '<button id="btn-signout" class="sidebar-link" style="color:#1a1a1a;"><span class="link-icon" style="color:#1a1a1a;"><i class="fa-solid fa-arrow-right-from-bracket"></i></span> Sign Out</button>',

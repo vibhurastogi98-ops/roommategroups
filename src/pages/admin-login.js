@@ -1,4 +1,4 @@
-import { login } from '../services/auth.js';
+import { login, isAdmin } from '../services/auth.js';
 import { navigate } from '../router.js';
 
 export function renderAdminLoginPage(app) {
@@ -120,7 +120,7 @@ export function renderAdminLoginPage(app) {
             }
 
             // Check if user has admin role
-            if (result.user.role !== 'admin') {
+            if (!isAdmin()) {
                 showError('global-error', 'Access denied. Admin privileges required.');
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-shield-halved"></i> Access Admin Panel';

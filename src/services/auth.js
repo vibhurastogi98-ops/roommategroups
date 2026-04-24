@@ -24,7 +24,7 @@ export async function register({ fullName, email, password }) {
     const existing = db.users.findOne(u => u.email.toLowerCase() === email.toLowerCase());
     if (existing) return { success: false, error: 'An account with this email already exists.' };
 
-    const user = db.users.create({
+    const user = await db.users.create({
         display_name: fullName, email: email.toLowerCase(),
         passwordHash: password ? simpleHash(password) : null, city: '', country: '',
         profile_photo: '', bio: '', age_range: '', occupation: '',
@@ -48,7 +48,7 @@ export async function login(email, password) {
         // If user was created without a password (legacy or social), set it on first login
         // In a real app we'd trigger a "Set Password" flow, here we'll just set it
         user.passwordHash = simpleHash(password || 'password123');
-        db.users.update(user.user_id, { passwordHash: user.passwordHash });
+        await db.users.update(user.user_id, { passwordHash: user.passwordHash });
     } else if (password && user.passwordHash !== simpleHash(password)) {
         return { success: false, error: 'Invalid email or password.' };
     } else if (!password && user.passwordHash) {
@@ -56,7 +56,7 @@ export async function login(email, password) {
         return { success: false, error: 'Password is required for this account.' };
     }
 
-    db.users.update(user.user_id, { last_active: new Date().toISOString() });
+    user = await db.users.update(user.user_id, { last_active: new Date().toISOString() });
     localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email }));
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
 }
@@ -77,7 +77,7 @@ export function getCurrentUser() {
     return { ...user, id: user.user_id, fullName: user.display_name };
 }
 
-export function updateProfile(userId, profileData) {
+export async function updateProfile(userId, profileData) {
     const existing = db.users.findById(userId);
     if (!existing) return { success: false, error: 'User not found.' };
 
@@ -85,11 +85,11 @@ export function updateProfile(userId, profileData) {
     if (profileData.city !== undefined && profileData.city !== existing.city) {
         if (existing.city) {
             const oldCity = db.cities.findById(existing.city);
-            if (oldCity) db.cities.update(oldCity.city_id, { member_count: Math.max(0, (oldCity.member_count || 0) - 1) });
+            if (oldCity) await db.cities.update(oldCity.city_id, { member_count: Math.max(0, (oldCity.member_count || 0) - 1) });
         }
         if (profileData.city) {
             const newCity = db.cities.findById(profileData.city);
-            if (newCity) db.cities.update(newCity.city_id, { member_count: (newCity.member_count || 0) + 1 });
+            if (newCity) await db.cities.update(newCity.city_id, { member_count: (newCity.member_count || 0) + 1 });
         }
     }
 
@@ -103,7 +103,7 @@ export function updateProfile(userId, profileData) {
     if (profileData.ageRange !== undefined) dbData.age_range = profileData.ageRange;
     if (profileData.lifestyleTags !== undefined) dbData.lifestyle_tags = profileData.lifestyleTags;
 
-    const user = db.users.update(userId, dbData);
+    const user = await db.users.update(userId, dbData);
     if (!user) return { success: false, error: 'User not found.' };
 
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
@@ -115,7 +115,7 @@ export function isLoggedIn() {
 
 export function isAdmin() {
     const user = getCurrentUser();
-    return user !== null && user.role === 'admin';
+    return user !== null && user.role === 'admin' && user.email === 'hello@roommategroups.com' && user.fullName === 'roommategroups';
 }
 
 // ── Password Strength ──
