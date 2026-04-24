@@ -113,7 +113,13 @@ function initNavbarBadge() {
     }
 
     updateBadge();
-    window._navBadgeInterval = setInterval(updateBadge, 10000);
+    window._navBadgeInterval = setInterval(async () => {
+        await syncMessagesAndThreads();
+        updateBadge();
+    }, 3000);
+
+    // Also update if other parts of the app trigger a sync
+    window.addEventListener('db-synced', updateBadge);
 }
 
 export function initNavbar() {

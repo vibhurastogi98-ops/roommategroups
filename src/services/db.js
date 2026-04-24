@@ -351,6 +351,48 @@ export async function initDB() {
     return false;
 }
 
+/**
+ * ── Background Sync ──
+ * Only fetches threads and messages to keep it lightweight.
+ */
+export async function syncMessagesAndThreads() {
+    try {
+        const [d1Threads, d1Messages, d1Notifications] = await Promise.all([
+            api.getThreads().catch(() => null),
+            api.getMessages().catch(() => null),
+            api.get('/notifications').catch(() => []),
+        ]);
+
+        const dbData = getDB();
+        let changed = false;
+
+        if (Array.isArray(d1Threads)) {
+            const old = JSON.stringify(dbData.threads);
+            const next = JSON.stringify(d1Threads);
+            if (old !== next) { dbData.threads = d1Threads; changed = true; }
+        }
+        if (Array.isArray(d1Messages)) {
+            const old = JSON.stringify(dbData.messages);
+            const next = JSON.stringify(d1Messages);
+            if (old !== next) { dbData.messages = d1Messages; changed = true; }
+        }
+        if (Array.isArray(d1Notifications)) {
+            const old = JSON.stringify(dbData.notifications);
+            const next = JSON.stringify(d1Notifications);
+            if (old !== next) { dbData.notifications = d1Notifications; changed = true; }
+        }
+
+        if (changed) {
+            saveDB(dbData);
+            window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: 'messages' } }));
+            return true;
+        }
+    } catch (err) {
+        console.warn('[DB] Background sync failed', err);
+    }
+    return false;
+}
+
 
 // Function to reset database (for testing purposes)
 export function resetDB() {

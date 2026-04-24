@@ -842,6 +842,68 @@ app.delete('/messages/:id', async (c) => {
   }
 })
 
+// ── D1: Notifications ───────────────────────────────────────────
+app.get('/notifications', async (c) => {
+  try {
+    const user_id = c.req.query('user_id')
+    let query = 'SELECT * FROM notifications'
+    let args: any[] = []
+    if (user_id) {
+      query += ' WHERE user_id = ?'
+      args.push(user_id)
+    }
+    query += ' ORDER BY created_at DESC'
+    const { results } = await c.env.DB.prepare(query).bind(...args).all()
+    const mapped = results.map((n: any) => ({ ...n, is_read: !!n.is_read }))
+    return dbJson(c, mapped)
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
+app.post('/notifications', async (c) => {
+  try {
+    const body = await c.req.json()
+    const id = body.notification_id || `notif_${Date.now()}`
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO notifications (notification_id, user_id, type, title, body, link, is_read, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id, body.user_id, body.type || 'info', body.title || '', body.body || '', body.link || '',
+      body.is_read ? 1 : 0, body.created_at || new Date().toISOString()
+    ).run()
+    return dbJson(c, { success: true, notification_id: id }, 201)
+  } catch (err) {
+    return dbJson(c, { error: err instanceof Error ? err.message : 'Error' }, 500)
+  }
+})
+
+app.put('/notifications/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const mapped: Record<string, any> = {}
+    for (const [k, v] of Object.entries(body)) {
+      mapped[k] = k === 'is_read' ? (v ? 1 : 0) : v
+    }
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(mapped), id]
+    await c.env.DB.prepare(`UPDATE notifications SET ${sets} WHERE notification_id = ?`).bind(...vals).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: err instanceof Error ? err.message : 'Error' }, 500)
+  }
+})
+
+app.delete('/notifications/:id', async (c) => {
+  try {
+    await c.env.DB.prepare('DELETE FROM notifications WHERE notification_id = ?').bind(c.req.param('id')).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Delete failed' }, 500)
+  }
+})
+
 // ── D1: Bulk sync — admin pushes entire localStorage collection to D1 ─
 // POST /sync  { collection: 'cities'|'listings'|'posts'|'fb_cities', items: [...] }
 app.post('/sync', async (c) => {
@@ -854,7 +916,7 @@ app.post('/sync', async (c) => {
     const routeMap: Record<string, string> = {
       cities: '/cities', listings: '/listings',
       posts: '/posts', fb_cities: '/fb-cities',
-      threads: '/threads', messages: '/messages'
+      threads: '/threads', messages: '/messages', notifications: '/notifications'
     }
     if (!routeMap[collection]) return dbJson(c, { error: 'Unknown collection' }, 400)
 

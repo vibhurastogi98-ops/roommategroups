@@ -1,6 +1,6 @@
 import { getCurrentUser, logout, getVerificationBadge, isAdmin } from '../services/auth.js';
 import { navigate } from '../router.js';
-import { db } from '../services/db.js';
+import { db, syncMessagesAndThreads } from '../services/db.js';
 
 // Module-level timer so it survives re-renders and can be cleared on navigation
 let _msgPollingTimer = null;
@@ -923,15 +923,70 @@ function renderMessages(container, user) {
         });
     });
 
-    // Polling
+    // Polling for real-time messages
     if (_msgPollingTimer) clearInterval(_msgPollingTimer);
-    _msgPollingTimer = setInterval(() => {
-        refreshThreadList();
-        // Update sidebar badge
-        const badgeEl = document.querySelector('a[href="/dashboard/messages"] .badge-primary');
-        const newUnread = db.threads.find(t => t.participants.includes(user.user_id)).reduce((s, t) => s + (t['unread_count_' + user.user_id] || 0), 0);
-        if (badgeEl) badgeEl.textContent = newUnread > 0 ? newUnread : '';
-    }, 10000);
+    _msgPollingTimer = setInterval(async () => {
+        const changed = await syncMessagesAndThreads();
+        if (changed || true) { // Always refresh counts, but maybe only re-render if changed
+            refreshThreadList();
+            
+            // If we are looking at a conversation, check for new messages
+            if (activeThreadId) {
+                const msgs = db.messages.find(m => m.thread_id === activeThreadId);
+                const historyEl = container.querySelector('#msg-history');
+                const currentCount = historyEl ? historyEl.querySelectorAll('.msg-bubble-row').length : 0;
+                
+                if (msgs.length > currentCount) {
+                    // New messages arrived! 
+                    // Instead of full renderConversation (which clears input), just refresh history
+                    renderConversationHistoryOnly();
+                }
+            }
+
+            // Update sidebar badge
+            const badgeEl = document.querySelector('a[href="/dashboard/messages"] .badge-primary');
+            const newUnread = db.threads.find(t => t.participants.includes(user.user_id)).reduce((s, t) => s + (t['unread_count_' + user.user_id] || 0), 0);
+            if (badgeEl) badgeEl.textContent = newUnread > 0 ? newUnread : '';
+        }
+    }, 3000);
+
+    // Helper to refresh only the bubbles, preserving input/header
+    function renderConversationHistoryOnly() {
+        const historyEl = container.querySelector('#msg-history');
+        if (!historyEl) return;
+
+        const msgs = db.messages.find(m => m.thread_id === activeThreadId).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        
+        const bubbles = msgs.map(m => {
+            const isMe = m.sender_id === user.user_id;
+            const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const receipt = isMe ? '<span class="msg-receipt ' + (m.is_read ? 'read' : '') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
+            const photo = m.photo_url ? '<div class="msg-photo-wrap"><img src="' + m.photo_url + '" class="msg-photo-thumb" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + m.photo_url + '\'"></div>' : '';
+            const text = m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '';
+            
+            // Mark as read while we are at it
+            if (!isMe && !m.is_read) {
+                db.messages.update(m.message_id, { is_read: true, read_at: new Date().toISOString() });
+            }
+
+            return [
+                '<div class="msg-bubble-row ' + (isMe ? 'msg-out' : 'msg-in') + '" data-mid="' + m.message_id + '">',
+                !isMe ? '<img src="' + (db.users.findById(m.sender_id)?.profile_photo || 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff') + '" class="msg-bubble-avatar">' : '',
+                '<div class="msg-bubble-group">',
+                photo,
+                text,
+                '<div class="msg-bubble-meta"><span class="msg-time">' + time + '</span>' + receipt + '</div>',
+                '</div>',
+                '</div>'
+            ].join('');
+        }).join('');
+
+        historyEl.innerHTML = bubbles;
+        scrollToBottom();
+        
+        // Reset unread count for the thread
+        db.threads.update(activeThreadId, { ['unread_count_' + user.user_id]: 0 });
+    }
 }
 
 // ── Saved ─────────────────────────────────────────────────────
