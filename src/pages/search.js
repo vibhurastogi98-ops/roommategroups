@@ -231,7 +231,7 @@ export function renderSearchPage(app) {
     const grid = app.querySelector('#search-grid');
 
     // Handle Save / Favorite Clicks
-    grid.addEventListener('click', (e) => {
+    grid.addEventListener('click', async (e) => {
         const favBtn = e.target.closest('.s-card-fav');
         if (favBtn) {
             e.preventDefault();

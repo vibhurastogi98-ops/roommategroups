@@ -168,7 +168,7 @@ export function renderContactPage(app) {
 
     const submitBtn = app.querySelector('#btn-contact-submit');
     if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
+        submitBtn.addEventListener('click', async () => {
             const fnameEl   = app.querySelector('#contact-fname');
             const lnameEl   = app.querySelector('#contact-lname');
             const emailEl   = app.querySelector('#contact-email');
@@ -204,7 +204,7 @@ export function renderContactPage(app) {
             submitBtn.disabled = true;
 
             // Save to database
-            db.user_queries.create({
+            await db.user_queries.create({
                 first_name: fname,
                 last_name: lname,
                 email,
