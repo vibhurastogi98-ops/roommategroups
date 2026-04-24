@@ -886,11 +886,11 @@ async function handlePublish() {
 
     const listingData = {
         user_id: user.id, category: draft.category, title: draft.title, description: draft.description,
-        price: (draft.category === 'roommate_wanted' || draft.category === 'room_wanted') ? (draft.budgetMax || 0) : (draft.price || 0), 
+        rent: (draft.category === 'roommate_wanted' || draft.category === 'room_wanted') ? (draft.budgetMax || 0) : (draft.price || 0), 
         currency: draft.currency, country: draft.country, city: draft.city, neighborhood: draft.neighborhood,
         address: draft.address, room_type: draft.roomType, available_from: draft.availableFrom,
         lease_duration: draft.leaseDuration, furnished: draft.furnished, amenities: draft.amenities,
-        photos: draft.photos, roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
+        images: JSON.stringify(draft.photos), roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
         status: 'active', moderation_status: 'pending', is_featured: isFeatured, views_count: 0,
         bedrooms: parseInt(draft.bedrooms) || null, bathrooms: parseInt(draft.bathrooms) || null,
         size_sqft: parseInt(draft.sizeSqft) || null,

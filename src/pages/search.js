@@ -31,7 +31,10 @@ function relTime(iso) {
 
 function renderSearchCard(listing) {
     const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
-    const rawPhoto = listing.photos && listing.photos[0];
+    // images can be a JSON string (from D1) or an array (from localStorage)
+    let _imgs = listing.images || listing.photos || [];
+    if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
+    const rawPhoto = _imgs[0];
     const photo = (rawPhoto ? getPhotoSrc(rawPhoto, 'thumb') : null) || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
 
     // Poster info
@@ -72,7 +75,7 @@ function renderSearchCard(listing) {
                 </div>
             </a>
             <div class="s-card-body">
-                <div class="s-card-price">$${listing.price}<span>/mo</span></div>
+                <div class="s-card-price">$${listing.rent ?? listing.price ?? '?'}<span>/mo</span></div>
                 <a href="/listing/${listing.listing_id}" style="text-decoration:none; color:inherit;"><h3 class="s-card-title">${escHtml(listing.title)}</h3></a>
                 <div class="s-card-meta">
                     <i class="fa-solid fa-location-dot"></i> ${escHtml(db.cities.findOne(c => c.city_id === listing.city)?.name || (listing.city ? listing.city.replace('city_', '').replace(/_/g, ' ') : 'Unknown City'))}
@@ -312,7 +315,7 @@ export function renderSearchPage(app) {
             // Custom HTML price marker
             const icon = L.divIcon({
                 className: 'custom-map-marker',
-                html: `<div class="map-price-marker">$${l.price}</div>`,
+                html: `<div class="map-price-marker">$${l.rent ?? l.price ?? '?'}</div>`,
                 iconSize: [50, 24],
                 iconAnchor: [25, 24]
             });
@@ -322,11 +325,13 @@ export function renderSearchPage(app) {
             markersMap[l.listing_id] = marker;
 
             // Popup
+            const _popImgs = (l.images || l.photos || []);
+            const popImg = typeof _popImgs === 'string' ? JSON.parse(_popImgs || '[]')[0] : _popImgs[0];
             marker.bindPopup(`
                 <div class="map-popup-card">
-                    <img src="${(l.photos && l.photos[0]) || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=300'}" alt="">
+                    <img src="${popImg || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=300'}" alt="">
                     <div class="map-popup-body">
-                        <strong>$${l.price}/mo</strong>
+                        <strong>$${l.rent ?? l.price ?? '?'}/mo</strong>
                         <div>${l.title.substring(0, 30)}...</div>
                     </div>
                 </div>
@@ -437,11 +442,11 @@ export function renderSearchPage(app) {
         }
 
         if (minPrice) {
-            results = results.filter(l => l.price >= parseInt(minPrice, 10));
+            results = results.filter(l => (l.rent ?? l.price ?? 0) >= parseInt(minPrice, 10));
         }
 
         if (maxPrice) {
-            results = results.filter(l => l.price <= parseInt(maxPrice, 10));
+            results = results.filter(l => (l.rent ?? l.price ?? 0) <= parseInt(maxPrice, 10));
         }
 
         if (duration !== 'all') {
@@ -469,9 +474,9 @@ export function renderSearchPage(app) {
 
         // Sort
         if (sort === 'price_asc') {
-            results.sort((a, b) => a.price - b.price);
+            results.sort((a, b) => (a.rent ?? a.price ?? 0) - (b.rent ?? b.price ?? 0));
         } else if (sort === 'price_desc') {
-            results.sort((a, b) => b.price - a.price);
+            results.sort((a, b) => (b.rent ?? b.price ?? 0) - (a.rent ?? a.price ?? 0));
         } else {
             // Newest with Featured prioritization
             results.sort((a, b) => {

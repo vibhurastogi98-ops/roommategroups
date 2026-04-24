@@ -70,8 +70,11 @@ export function renderListingDetailPage(app, params) {
     }
 
     const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
-    const photos = listing.photos && listing.photos.length > 0 
-        ? listing.photos 
+    // images can be a JSON string (from D1) or an array (from localStorage)
+    let _imgs = listing.images || listing.photos || [];
+    if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
+    const photos = _imgs.length > 0
+        ? _imgs
         : ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=800&fit=crop'];
 
     // Poster Info
@@ -281,7 +284,7 @@ export function renderListingDetailPage(app, params) {
             <!-- Right Column: Stick Sidebar -->
             <div class="ld-sidebar">
                 <div class="ld-price-card">
-                    <div class="ld-price">$${listing.price} <span>/ month</span></div>
+                    <div class="ld-price">$${listing.rent ?? listing.price ?? '?'} <span>/ month</span></div>
                     <div class="ld-deposit">Includes utilities: ${listing.utilities_included ? 'Yes' : 'No'} • Deposit: $${listing.deposit || 0}</div>
                     
                     ${isOwner ? `

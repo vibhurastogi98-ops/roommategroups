@@ -327,16 +327,19 @@ function renderMyListings(container, user) {
             const location = cityObj ? cityObj.name : (l.city || '');
             const msgCount = db.threads.find(t => t.listing_id === l.listing_id && t.participants.includes(user.user_id)).length;
             const isActive = l.status === 'active';
-            const rawPhoto = l.photos && l.photos[0];
+            const _imgs = l.images || l.photos || [];
+            const parsedImgs = typeof _imgs === 'string' ? JSON.parse(_imgs || '[]') : _imgs;
+            const rawPhoto = parsedImgs && parsedImgs[0];
             const thumbSrc = !rawPhoto ? '' : (typeof rawPhoto === 'string' ? rawPhoto : (rawPhoto.thumb || rawPhoto.medium || rawPhoto.full || ''));
             const thumb = thumbSrc ? 'background-image:url(\'' + thumbSrc + '\')' : '';
+            const rentPrice = l.rent ?? l.price ?? '?';
             return [
                 '<tr data-lid="' + l.listing_id + '">',
                 '<td><div class="td-listing">',
-                '<div class="td-thumb" style="' + thumb + '">' + (!l.photos || !l.photos[0] ? '<i class="fa-solid fa-house"></i>' : '') + '</div>',
+                '<div class="td-thumb" style="' + thumb + '">' + (!parsedImgs || !parsedImgs[0] ? '<i class="fa-solid fa-house"></i>' : '') + '</div>',
                 '<div class="td-info">',
                 '<h4><a href="/listing/' + l.listing_id + '" style="color:inherit;text-decoration:none;">' + escapeHtml(l.title) + '</a></h4>',
-                '<p>' + escapeHtml(location) + (l.price ? ' &bull; $' + l.price + '/mo' : '') + '</p>',
+                '<p>' + escapeHtml(location) + (rentPrice !== '?' ? ' &bull; $' + rentPrice + '/mo' : '') + '</p>',
                 '</div></div></td>',
                 '<td><span class="badge ' + (isActive ? 'badge-success' : l.status === 'paused' ? 'badge-warning' : 'badge-gray') + '" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">' + l.status.charAt(0).toUpperCase() + l.status.slice(1) + '</span></td>',
                 '<td><div class="td-stats"><span><i class="fa-solid fa-eye"></i> ' + (l.views_count || 0) + '</span><span><i class="fa-solid fa-message"></i> ' + msgCount + '</span></div></td>',
@@ -411,7 +414,7 @@ function renderMyListings(container, user) {
     function openEditModal(l) {
         const overlay = container.querySelector('#edit-listing-overlay');
         container.querySelector('#el-title').value = l.title || '';
-        container.querySelector('#el-price').value = l.price || '';
+        container.querySelector('#el-price').value = l.rent ?? l.price ?? '';
         container.querySelector('#el-deposit').value = l.deposit || '';
         container.querySelector('#el-room-type').value = l.room_type || 'private_room';
         container.querySelector('#el-available').value = l.available_from || l.move_in_date || '';
@@ -514,7 +517,7 @@ function renderMyListings(container, user) {
         if (!price) { showToast('Price is required.', 'error'); return; }
         const updates = {
             title,
-            price,
+            rent: price,
             deposit: parseInt(container.querySelector('#el-deposit').value) || 0,
             room_type: container.querySelector('#el-room-type').value,
             available_from: container.querySelector('#el-available').value,
@@ -929,7 +932,9 @@ function renderSaved(container, user) {
 
     const cards = savedListings.map(l => {
         const city = db.cities.findById(l.city);
-        const rawPhoto0 = l.photos && l.photos[0];
+        const _imgs = l.images || l.photos || [];
+        const parsedImgs = typeof _imgs === 'string' ? JSON.parse(_imgs || '[]') : _imgs;
+        const rawPhoto0 = parsedImgs && parsedImgs[0];
         const photo = !rawPhoto0 ? FALLBACK : (typeof rawPhoto0 === 'string' ? rawPhoto0 : (rawPhoto0.medium || rawPhoto0.thumb || rawPhoto0.full || FALLBACK));
         return [
             '<div class="saved-card">',
@@ -937,7 +942,7 @@ function renderSaved(container, user) {
             '<button class="save-btn active" data-id="' + l.listing_id + '" title="Remove from saved"><i class="fa-solid fa-heart"></i></button>',
             '</div>',
             '<div class="saved-card-body">',
-            '<div class="saved-card-price">$' + l.price + '<span style="font-size:0.78rem;font-weight:500;color:var(--text-muted);">/mo</span></div>',
+            '<div class="saved-card-price">$' + (l.rent ?? l.price ?? '?') + '<span style="font-size:0.78rem;font-weight:500;color:var(--text-muted);">/mo</span></div>',
             '<div class="saved-card-title">' + escapeHtml(l.title) + '</div>',
             '<div class="saved-card-location"><i class="fa-solid fa-location-dot"></i> ' + escapeHtml(city ? city.name : 'Unknown location') + '</div>',
             '<div class="saved-card-actions">',

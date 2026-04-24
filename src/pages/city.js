@@ -28,7 +28,7 @@ export function renderCityPage(app, params) {
         const roommateProfiles = db.listings.find(l => l.city === city.city_id && (l.category === 'roommate_wanted' || l.category === 'room_wanted'));
         const cityMemberCount = db.users.find(u => u.city === city.city_id && u.role !== 'admin').length;
         const avgRent = cityListings.length > 0
-            ? Math.round(cityListings.reduce((sum, l) => sum + (l.price || 0), 0) / cityListings.length)
+            ? Math.round(cityListings.reduce((sum, l) => sum + (l.rent ?? l.price ?? 0), 0) / cityListings.length)
             : 0;
 
         const latestPosts = db.posts.findAll().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
@@ -470,7 +470,10 @@ function renderListingCard(l) {
         const dbUser = db.users.findById(currentUser.id);
         if (dbUser && dbUser.saved_listings && dbUser.saved_listings.includes(l.listing_id)) isSaved = true;
     }
-    const photo = l.photos && l.photos[0] ? l.photos[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
+    // images can be a JSON string (from D1) or an array (from localStorage)
+    let _imgs = l.images || l.photos || [];
+    if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
+    const photo = _imgs[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
     const roomType = (l.room_type || l.category || 'room').replace(/_/g, ' ').toUpperCase();
 
     return `
@@ -484,7 +487,7 @@ function renderListingCard(l) {
                     <button class="save-btn ${isSaved ? 'active' : ''}" data-id="${l.listing_id}" aria-label="Save listing">
                         <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                     </button>
-                    <span class="listing-price-badge">$${l.price}<em>/mo</em></span>
+                    <span class="listing-price-badge">$${l.rent ?? l.price ?? '?'}<em>/mo</em></span>
                 </div>
                 <div class="listing-card-body">
                     <h3>${l.title}</h3>
@@ -534,7 +537,7 @@ function renderRoommateCard(r) {
     return `
         <div class="roommate-card">
             <div class="roommate-card-img" style="background-image:url('${user.profile_photo}')">
-                <span class="roommate-budget">$${r.price}/mo</span>
+                <span class="roommate-budget">$${r.rent ?? r.price ?? '?'}/mo</span>
             </div>
             <div class="roommate-card-body">
                 <h3 class="roommate-name">${user.display_name} ${getVerificationBadge(user)}</h3>

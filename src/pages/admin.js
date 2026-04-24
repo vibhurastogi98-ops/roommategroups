@@ -542,7 +542,9 @@ function renderAdminListings(container) {
                 const poster = db.users.findById(l.user_id);
                 const isSelected = selectedIds.has(l.listing_id);
                 const reportCount = db.reports.find(r => r.target_id === l.listing_id && r.status === 'pending').length;
-                const thumb = (l.photos && l.photos[0]) ? l.photos[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
+                let _imgs = l.images || l.photos || [];
+                if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
+                const thumb = (_imgs && _imgs[0]) ? _imgs[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
                 return [
                     '<div class="adm-listing-row' + (isSelected ? ' selected' : '') + '" data-id="' + l.listing_id + '">',
                     '<input type="checkbox" class="adm-row-check"' + (isSelected ? ' checked' : '') + ' data-id="' + l.listing_id + '">',
@@ -552,7 +554,7 @@ function renderAdminListings(container) {
                     '<div class="adm-listing-meta">',
                     '<span><i class="fa-solid fa-user"></i> ' + (poster ? escHtml(poster.display_name) : 'Unknown') + '</span>',
                     '<span><i class="fa-solid fa-location-dot"></i> ' + locationStr + '</span>',
-                    '<span><i class="fa-solid fa-tag"></i> $' + l.price + '/mo</span>',
+                    '<span><i class="fa-solid fa-tag"></i> $' + (l.rent ?? l.price ?? '?') + '/mo</span>',
                     '<span><i class="fa-solid fa-clock"></i> ' + relTime(l.created_at) + '</span>',
                     reportCount > 0 ? '<span class="adm-report-badge"><i class="fa-solid fa-flag"></i> ' + reportCount + ' report' + (reportCount > 1 ? 's' : '') + '</span>' : '',
                     '</div>',
@@ -1824,6 +1826,15 @@ function renderAdminCities(container) {
                 return;
             }
 
+            let reviews = [];
+            try {
+                reviews = JSON.parse(container.querySelector('#f-reviews').value || '[]');
+            } catch(e) {
+                showToast('Invalid Reviews JSON format.', 'error');
+                btn.innerHTML = originalText; btn.disabled = false;
+                return;
+            }
+
             const data = {
                 name,
                 slug,
@@ -1842,7 +1853,7 @@ function renderAdminCities(container) {
                 listing_count: editingCity ? (editingCity.listing_count ?? 0) : 0,
                 member_count: editingCity ? (editingCity.member_count ?? 0) : 0,
                 faq_items: faqs,
-                reviews: JSON.parse(container.querySelector('#f-reviews').value || '[]'),
+                reviews,
                 description: container.querySelector('#f-description').value.trim(),
             };
 
@@ -2307,7 +2318,11 @@ function renderAdminSettings(container) {
             const cityImgKB = ((parsed.cities || []).reduce((s, c) => s + (c.hero_image && c.hero_image.startsWith('data:') ? c.hero_image.length : 0), 0) / 1024).toFixed(1);
             const logKB = (JSON.stringify(parsed.admin_logs || []).length / 1024).toFixed(1);
             const reportKB = (JSON.stringify(parsed.reports || []).length / 1024).toFixed(1);
-            const listingImgKB = ((parsed.listings || []).reduce((s, l) => s + (l.photos || []).filter(p => p && p.startsWith('data:')).reduce((a, p) => a + p.length, 0), 0) / 1024).toFixed(1);
+            const listingImgKB = ((parsed.listings || []).reduce((s, l) => {
+                let _imgs = l.images || l.photos || [];
+                if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
+                return s + _imgs.filter(p => p && p.startsWith('data:')).reduce((a, p) => a + p.length, 0);
+            }, 0) / 1024).toFixed(1);
             return [
                 '<div class="adm-card" style="grid-column:1/-1">',
                 '<h3>Database Storage</h3>',
@@ -2368,10 +2383,13 @@ function renderAdminSettings(container) {
         const raw = JSON.parse(localStorage.getItem('rg_database') || '{}');
         let count = 0;
         (raw.listings || []).forEach(l => {
-            if (Array.isArray(l.photos)) {
-                const before = l.photos.length;
-                l.photos = l.photos.filter(p => !p || !p.startsWith('data:'));
-                count += before - l.photos.length;
+            let _imgs = l.images || l.photos || [];
+            if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
+            if (Array.isArray(_imgs)) {
+                const before = _imgs.length;
+                _imgs = _imgs.filter(p => !p || !p.startsWith('data:'));
+                count += before - _imgs.length;
+                l.images = JSON.stringify(_imgs);
             }
         });
         localStorage.setItem('rg_database', JSON.stringify(raw));

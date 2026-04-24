@@ -21,7 +21,10 @@ const testimonials = [
 
 function renderListingCard(listing, index) {
   const gradient = ['linear-gradient(135deg, #1a1a1a 0%, #444444 100%)', 'linear-gradient(135deg, #1a1a1a 0%, #444444 100%)', 'linear-gradient(135deg, #1a1a1a 0%, #444444 100%)', 'linear-gradient(135deg, #1a1a1a 0%, #444444 100%)'][index % 4];
-  const photo = listing.photos?.[0] || '';
+  // images can be a JSON string (from D1) or an array (from localStorage)
+  let _imgs = listing.images || listing.photos || [];
+  if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
+  const photo = _imgs[0] || '';
   const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
 
   return `
@@ -31,7 +34,7 @@ function renderListingCard(listing, index) {
         <div class="listing-type-badge">${isRoommate ? 'Looking for Room' : listing.room_type || 'Private Room'}</div>
       </div>
       <div class="listing-card-body">
-        <div class="listing-price">$${listing.price}<span>/mo</span></div>
+        <div class="listing-price">$${listing.rent ?? listing.price ?? '?'}<span>/mo</span></div>
         <div class="listing-title">${listing.title}</div>
         <div class="listing-location">
           <i class="fas fa-location-dot"></i>

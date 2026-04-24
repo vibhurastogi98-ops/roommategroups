@@ -32,7 +32,12 @@ function getDescription(slug) {
 
 function renderListingCard(listing) {
     const fallback = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&h=400&fit=crop';
-    const photo = listing.photos?.[0] || fallback;
+    // images can be a JSON string (from D1) or an array (from localStorage)
+    let imgs = listing.images || listing.photos || [];
+    if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { imgs = []; } }
+    const photo = imgs[0] || fallback;
+    // rent may come as 'rent' (schema) or legacy 'price'
+    const price = listing.rent ?? listing.price ?? '?';
     return `
         <a href="/listing/${listing.listing_id}" class="gd-listing-card">
             <div class="gd-listing-img">
@@ -40,7 +45,7 @@ function renderListingCard(listing) {
                 <div class="gd-listing-badge">${listing.room_type || 'Private Room'}</div>
             </div>
             <div class="gd-listing-body">
-                <div class="gd-listing-price">$${listing.price}<span>/mo</span></div>
+                <div class="gd-listing-price">$${price}<span>/mo</span></div>
                 <div class="gd-listing-title">${listing.title}</div>
                 <div class="gd-listing-view">View Listing →</div>
             </div>

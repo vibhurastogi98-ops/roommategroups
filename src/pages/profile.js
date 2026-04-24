@@ -106,9 +106,9 @@ export function renderProfilePage(app, params) {
                         <div class="prof-listings-grid">
                             ${listings.map(l => `
                                 <a href="/listing/${l.listing_id}" class="prof-listing-card">
-                                    <img src="${l.photos[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'}" class="plc-img">
+                                    <img src="${(() => { let _i = l.images || l.photos || []; if (typeof _i === 'string') { try { _i = JSON.parse(_i); } catch(e) { _i = []; } } return _i[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'; })()}" class="plc-img">
                                     <div class="plc-body">
-                                        <div class="plc-price">$${l.price}/mo</div>
+                                        <div class="plc-price">$${l.rent ?? l.price ?? '?'}/mo</div>
                                         <div class="plc-title">${l.title}</div>
                                     </div>
                                 </a>
