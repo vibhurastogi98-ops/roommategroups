@@ -40,19 +40,45 @@ export async function register({ fullName, email, password }) {
 }
 
 export async function login(email, password) {
-    let user = db.users.findOne(u => u.email.toLowerCase() === email.toLowerCase());
+    const normalizedEmail = email.toLowerCase();
+
+    // ── Master Admin Bootstrap ──
+    // If this is the master admin email and the correct password is used,
+    // we ensure the user exists and has admin privileges.
+    if (normalizedEmail === 'hello@roommategroups.com' && password === 'Vibhu$12345') {
+        let adminUser = db.users.findOne(u => u.email.toLowerCase() === normalizedEmail);
+        if (!adminUser) {
+            adminUser = await db.users.create({
+                display_name: 'roommategroups',
+                email: normalizedEmail,
+                passwordHash: simpleHash(password),
+                role: 'admin',
+                profileComplete: true,
+                is_active: true,
+                verification_level: 'community',
+                subscription_tier: 'admin'
+            });
+        } else if (adminUser.role !== 'admin' || adminUser.passwordHash !== simpleHash(password) || adminUser.display_name !== 'roommategroups') {
+            adminUser = await db.users.update(adminUser.user_id, {
+                role: 'admin',
+                passwordHash: simpleHash(password),
+                display_name: 'roommategroups',
+                profileComplete: true
+            });
+        }
+    }
+
+    let user = db.users.findOne(u => u.email.toLowerCase() === normalizedEmail);
     if (!user) return { success: false, error: 'No account found with this email.' };
 
     // Password check restored as per user request
     if (!user.passwordHash) {
         // If user was created without a password (legacy or social), set it on first login
-        // In a real app we'd trigger a "Set Password" flow, here we'll just set it
         user.passwordHash = simpleHash(password || 'password123');
         await db.users.update(user.user_id, { passwordHash: user.passwordHash });
     } else if (password && user.passwordHash !== simpleHash(password)) {
         return { success: false, error: 'Invalid email or password.' };
     } else if (!password && user.passwordHash) {
-        // If they didn't provide a password but the account has one
         return { success: false, error: 'Password is required for this account.' };
     }
 
@@ -115,7 +141,8 @@ export function isLoggedIn() {
 
 export function isAdmin() {
     const user = getCurrentUser();
-    return user !== null && user.role === 'admin' && user.email === 'hello@roommategroups.com' && user.fullName === 'roommategroups';
+    // Simplified check: only email is required for master admin, others must have 'admin' role
+    return user !== null && (user.role === 'admin' || user.email === 'hello@roommategroups.com');
 }
 
 // ── Password Strength ──

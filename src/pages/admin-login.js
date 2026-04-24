@@ -25,7 +25,7 @@ export function renderAdminLoginPage(app) {
             <label for="admin-email">Admin Email</label>
             <div class="input-wrapper">
               <i class="fas fa-user-shield"></i>
-              <input type="email" id="admin-email" class="form-input" placeholder="admin@roommategroups.com" required autocomplete="email" />
+              <input type="email" id="admin-email" class="form-input" placeholder="hello@roommategroups.com" required autocomplete="email" />
             </div>
             <div class="form-error" id="email-error"></div>
           </div>
