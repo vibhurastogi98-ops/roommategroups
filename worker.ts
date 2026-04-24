@@ -170,7 +170,28 @@ function dbJson(c: any, data: any, status = 200) {
 app.get('/users', async (c) => {
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM users LIMIT 100').all()
-    return dbJson(c, results)
+    // Map D1 snake_case back to camelCase for frontend compatibility
+    const mapped = results.map((u: any) => {
+      const user = { ...u }
+      if ('password_hash' in user) {
+        user.passwordHash = user.password_hash
+        delete user.password_hash
+      }
+      // Normalize booleans for SQLite (0/1 -> true/false)
+      if ('is_active' in user) user.is_active = !!user.is_active
+      if ('profileComplete' in user) user.profileComplete = !!user.profileComplete
+      if ('emailVerified' in user) user.emailVerified = !!user.emailVerified
+      
+      // Parse JSON fields if they are strings
+      const jsonFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users']
+      jsonFields.forEach(f => {
+        if (typeof user[f] === 'string') {
+          try { user[f] = JSON.parse(user[f]); } catch(e) { user[f] = []; }
+        }
+      })
+      return user
+    })
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }
@@ -179,13 +200,66 @@ app.get('/users', async (c) => {
 app.post('/users', async (c) => {
   try {
     const body = await c.req.json()
-    const { user_id, email, display_name, role } = body
+    const id = body.user_id || `usr_${Date.now()}`
+    const mapped: Record<string, any> = {}
+    for (const [k, v] of Object.entries(body)) {
+      if (k === 'passwordHash') {
+        mapped['password_hash'] = v
+      } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users'].includes(k)) {
+        mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
+      } else {
+        mapped[k] = v
+      }
+    }
+    const cols = Object.keys(mapped)
+    const placeholders = cols.map(() => '?').join(', ')
+    const vals = Object.values(mapped)
+    
     await c.env.DB.prepare(
-      'INSERT INTO users (user_id, email, display_name, role) VALUES (?, ?, ?, ?)'
-    ).bind(user_id || `usr_${Date.now()}`, email, display_name || '', role || 'user').run()
-    return dbJson(c, { success: true }, 201)
+      `INSERT OR REPLACE INTO users (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...vals).run()
+    return dbJson(c, { success: true, user_id: id }, 201)
   } catch (err) {
-    return dbJson(c, { error: 'Failed to create user' }, 500)
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.put('/users/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const mapped: Record<string, any> = {}
+    for (const [k, v] of Object.entries(body)) {
+      if (k === 'passwordHash') {
+        mapped['password_hash'] = v
+      } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users'].includes(k)) {
+        mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
+      } else {
+        mapped[k] = v
+      }
+    }
+    // Handle booleans mapping for SQLite if needed
+    if ('is_active' in mapped) mapped['is_active'] = mapped['is_active'] ? 1 : 0
+    
+    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(mapped), id]
+    await c.env.DB.prepare(`UPDATE users SET ${sets} WHERE user_id = ?`).bind(...vals).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.delete('/users/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    await c.env.DB.prepare('DELETE FROM users WHERE user_id = ?').bind(id).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Delete failed' }, 500)
   }
 })
 
@@ -206,6 +280,7 @@ app.post('/listings', async (c) => {
     // Schema columns: rent (not price), images (not photos)
     const rent = body.rent ?? body.price ?? 0
     const images = body.images || body.photos || []
+    const imagesVal = typeof images === 'string' ? images : JSON.stringify(images)
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO listings
        (listing_id, user_id, title, description, city, room_type,
@@ -220,7 +295,7 @@ app.post('/listings', async (c) => {
       body.room_type || body.category || '',
       body.status || 'active',
       rent,
-      JSON.stringify(images),
+      imagesVal,
       body.created_at || new Date().toISOString(),
       body.updated_at || new Date().toISOString()
     ).run()
@@ -523,7 +598,8 @@ app.post('/fb-cities', async (c) => {
       id, body.country_id || '', body.city_name || '', body.city_image || '',
       body.fb_group_name || '', body.fb_group_link || '',
       body.total_members || 0, body.is_popular ? 1 : 0,
-      body.priority || 99, body.is_footer ? 1 : 0, body.description || '', JSON.stringify(body.faqs || []),
+      body.priority || 99, body.is_footer ? 1 : 0, body.description || '', 
+      typeof body.faqs === 'string' ? body.faqs : JSON.stringify(body.faqs || []),
       body.created_at || new Date().toISOString()
     ).run()
     return dbJson(c, { success: true, fb_city_id: id }, 201)

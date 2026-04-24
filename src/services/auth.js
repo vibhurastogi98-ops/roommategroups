@@ -71,14 +71,16 @@ export async function login(email, password) {
     let user = db.users.findOne(u => u.email.toLowerCase() === normalizedEmail);
     if (!user) return { success: false, error: 'No account found with this email.' };
 
+    const storedHash = user.passwordHash || user.password_hash;
+
     // Password check restored as per user request
-    if (!user.passwordHash) {
+    if (!storedHash) {
         // If user was created without a password (legacy or social), set it on first login
-        user.passwordHash = simpleHash(password || 'password123');
-        await db.users.update(user.user_id, { passwordHash: user.passwordHash });
-    } else if (password && user.passwordHash !== simpleHash(password)) {
+        const newHash = simpleHash(password || 'password123');
+        await db.users.update(user.user_id, { passwordHash: newHash });
+    } else if (password && storedHash !== simpleHash(password)) {
         return { success: false, error: 'Invalid email or password.' };
-    } else if (!password && user.passwordHash) {
+    } else if (!password && storedHash) {
         return { success: false, error: 'Password is required for this account.' };
     }
 

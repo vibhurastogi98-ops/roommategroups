@@ -177,6 +177,7 @@ function generateId(prefix) { return prefix + '_' + Date.now() + '_' + Math.rand
 
 // Collections that are synced to D1 so all devices share the same data
 const D1_SYNC_MAP = {
+    users:        { save: (item) => api.createUser(item), update: (id,d) => api.updateUser(id,d), del: (id) => api.deleteUser(id) },
     cities:       { save: (item) => api.saveCity(item),   update: (id,d) => api.updateCity(id,d),   del: (id) => api.deleteCity(id) },
     listings:     { save: (item) => api.saveListing(item),update: (id,d) => api.updateListing(id,d),del: (id) => api.deleteListing(id) },
     posts:        { save: (item) => api.savePost(item),   update: (id,d) => api.updatePost(id,d),   del: (id) => api.deletePost(id) },
@@ -306,7 +307,8 @@ export async function initDB() {
     // This is the key step: D1 is the single source of truth for
     // admin-edited content. Fetch it and overwrite localStorage.
     try {
-        const [d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries] = await Promise.all([
+        const [d1Users, d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries] = await Promise.all([
+            api.getUsers().catch(() => null),
             api.getCities().catch(() => null),
             api.getListings().catch(() => null),
             api.getPosts().catch(() => null),
@@ -319,6 +321,12 @@ export async function initDB() {
         
         // IMPORTANT: We overwrite local data even if the array is empty [].
         // This ensures that if the admin deletes all data, all devices see an empty list.
+        if (Array.isArray(d1Users)) {
+            // Map D1 snake_case keys back to localStorage camelCase if necessary, 
+            // but for now we just store as is and update auth.js to be flexible.
+            live.users = d1Users; 
+            liveUpdated = true; 
+        }
         if (Array.isArray(d1Cities))    { live.cities    = d1Cities;    liveUpdated = true; }
         if (Array.isArray(d1Listings))  { live.listings  = d1Listings;  liveUpdated = true; }
         if (Array.isArray(d1Posts))     { live.posts     = d1Posts;     liveUpdated = true; }

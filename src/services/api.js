@@ -36,6 +36,8 @@ export const api = {
     // ── Users ────────────────────────────────────────────────
     getUsers:     ()         => req('GET',  '/users'),
     createUser:   (data)     => req('POST', '/users', data),
+    updateUser:   (id, d)    => req('PUT',    `/users/${id}`, d),
+    deleteUser:   (id)       => req('DELETE', `/users/${id}`),
 
     // ── Listings ─────────────────────────────────────────────
     getListings:    ()       => req('GET',    '/listings'),
