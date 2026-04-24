@@ -80,16 +80,19 @@ export function renderHomePage(app) {
     <!-- Hero Section -->
     <section class="hero" id="hero">
       <div class="hero-content">
-        <div class="hero-badge">
-          <i class="fas fa-star"></i>
-          Trusted by 1,500,000+ community members
+        <div class="hero-badge animate-fade-in-up">
+          ✅ Verified Listings · 🚫 No Bots · 🚫 No Spam · 🛡️ 1,500,000+ Trusted Members
         </div>
-        <h1 class="hero-title animate-reveal floating-text">
-          Easily Find Compatible <span class="gradient-text">Roommates</span><br>
-          & List Your <span class="gradient-text">Property</span>
+        <h1 class="hero-title animate-fade-in-up delay-1">
+          Easily Find Rooms, Rentals & <span class="gradient-text">Roommates</span><br>
+          — All in One Place
         </h1>
-        <p class="hero-subtitle">Use our thriving community to find your ideal roommate or attract tenants to your property.</p>
-        <div class="hero-search" id="hero-search">
+        <p class="hero-subtitle animate-fade-in-up delay-2">
+          Search verified rooms, apartments, sublets, co-living spaces and more. 
+          Whether you need a roommate or a place to stay — we've got you covered. 
+          No bots. No spam. Just real listings.
+        </p>
+        <div class="hero-search animate-fade-in-up delay-3" id="hero-search">
           <div class="search-field">
             <select id="search-country" aria-label="Select country">
               <option value="">🌍 Search Country</option>
@@ -120,11 +123,28 @@ export function renderHomePage(app) {
             Find Matches
           </button>
         </div>
+
+        <div class="hero-trust-icons animate-fade-in-up delay-4">
+          <div class="trust-item">
+            <i class="fas fa-home"></i>
+            <span>All Property Types</span>
+          </div>
+          <div class="trust-divider">|</div>
+          <div class="trust-item">
+            <i class="fas fa-shield-halved"></i>
+            <span>Verified Listings</span>
+          </div>
+          <div class="trust-divider">|</div>
+          <div class="trust-item">
+            <i class="fas fa-bolt"></i>
+            <span>Instant Matches</span>
+          </div>
+        </div>
       </div>
     </section>
     <section class="section home-cities-section" id="cities">
       <div class="container">
-        <div class="section-header animate-on-scroll" style="text-align: center; margin-bottom: 48px;">
+        <div class="section-header animate-on-scroll" style="text-align: center; margin-bottom: 24px;">
           <h2>Popular Cities</h2>
           <p>Find your next home in these top locations</p>
         </div>
