@@ -403,13 +403,13 @@ app.post('/fb-cities', async (c) => {
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO fb_cities
        (fb_city_id, country_id, city_name, city_image, fb_group_name, fb_group_link,
-        total_members, is_popular, priority, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`
+        total_members, is_popular, priority, is_footer, description, faqs, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       id, body.country_id || '', body.city_name || '', body.city_image || '',
       body.fb_group_name || '', body.fb_group_link || '',
       body.total_members || 0, body.is_popular ? 1 : 0,
-      body.priority || 99,
+      body.priority || 99, body.is_footer ? 1 : 0, body.description || '', JSON.stringify(body.faqs || []),
       body.created_at || new Date().toISOString()
     ).run()
     return dbJson(c, { success: true, fb_city_id: id }, 201)
@@ -425,7 +425,9 @@ app.put('/fb-cities/:id', async (c) => {
     const body = await c.req.json()
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
-      mapped[k] = k === 'is_popular' ? (v ? 1 : 0) : v
+      mapped[k] = (k === 'is_popular' || k === 'is_footer') ? (v ? 1 : 0)
+                : (k === 'faqs' && typeof v === 'object') ? JSON.stringify(v)
+                : v
     }
     const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
     const vals = [...Object.values(mapped), id]

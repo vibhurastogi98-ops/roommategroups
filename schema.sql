@@ -212,6 +212,9 @@ CREATE TABLE IF NOT EXISTS fb_cities (
   total_members    INTEGER DEFAULT 0,
   is_popular       INTEGER DEFAULT 0,
   priority         INTEGER DEFAULT 0,
+  is_footer        INTEGER DEFAULT 0,
+  description      TEXT,
+  faqs             TEXT,
   created_at       TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (country_id) REFERENCES fb_countries(fb_country_id)
 );
