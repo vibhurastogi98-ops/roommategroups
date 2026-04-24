@@ -2131,15 +2131,31 @@ function renderAdminFBGroups(container) {
         container.querySelector('#fbg-city-image-file')?.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const compressed = await compressImage(ev.target.result, 800, 600, 0.7);
-                container.querySelector('#fbg-city-image-url').value = compressed;
+            
+            try {
+                showToast('Uploading image...', 'info');
+                const imageUrl = await uploadImage(file, 'fb-city.jpg');
+                container.querySelector('#fbg-city-image-url').value = imageUrl;
                 const preview = container.querySelector('#fbg-city-img-preview');
-                preview.src = compressed;
+                preview.src = imageUrl;
                 preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
+                showToast('Image uploaded successfully.', 'success');
+            } catch (err) {
+                console.warn('[ADMIN] FB City upload failed, falling back to Base64:', err);
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const compressed = await compressImage(ev.target.result, 800, 600, 0.7);
+                    container.querySelector('#fbg-city-image-url').value = compressed;
+                    const preview = container.querySelector('#fbg-city-img-preview');
+                    preview.src = compressed;
+                    preview.style.display = 'block';
+                    showToast('Image saved to browser (Local Fallback).', 'success');
+                };
+                reader.onerror = () => {
+                    showToast('Upload failed.', 'error');
+                };
+                reader.readAsDataURL(file);
+            }
         });
 
         // URL input live preview
@@ -2149,7 +2165,7 @@ function renderAdminFBGroups(container) {
             preview.style.display = e.target.value ? 'block' : 'none';
         });
 
-        container.querySelector('#fbg-city-save')?.addEventListener('click', () => {
+        container.querySelector('#fbg-city-save')?.addEventListener('click', async () => {
             const countryId = container.querySelector('#fbg-city-country').value;
             const cityName = container.querySelector('#fbg-city-name').value.trim();
             const groupName = container.querySelector('#fbg-city-group-name').value.trim();
@@ -2187,16 +2203,26 @@ function renderAdminFBGroups(container) {
                 faqs
             };
 
-            if (editingCity) {
-                db.fb_cities.update(editingCity.fb_city_id, data);
-                logAdminAction(admin.user_id, 'Updated FB city', cityName);
-                showToast('City updated.');
-            } else {
-                db.fb_cities.create(data);
-                logAdminAction(admin.user_id, 'Added FB city', cityName);
-                showToast('City added!');
+            const btn = container.querySelector('#fbg-city-save');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            btn.disabled = true;
+
+            try {
+                if (editingCity) {
+                    await db.fb_cities.update(editingCity.fb_city_id, data);
+                    logAdminAction(admin.user_id, 'Updated FB city', cityName);
+                    showToast('City updated.');
+                } else {
+                    await db.fb_cities.create(data);
+                    logAdminAction(admin.user_id, 'Added FB city', cityName);
+                    showToast('City added!');
+                }
+                editingCity = null; showCityForm = false; renderContent();
+            } catch (err) {
+                showToast(err.message || 'Failed to save city.', 'error');
+                btn.innerHTML = originalText; btn.disabled = false;
             }
-            editingCity = null; showCityForm = false; renderContent();
         });
     }
 
