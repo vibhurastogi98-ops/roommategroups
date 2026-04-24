@@ -169,7 +169,7 @@ function dbJson(c: any, data: any, status = 200) {
 // ── D1: Users ────────────────────────────────────────────────
 app.get('/users', async (c) => {
   try {
-    const { results } = await c.env.DB.prepare('SELECT * FROM users LIMIT 100').all()
+    const { results } = await c.env.DB.prepare('SELECT * FROM users LIMIT 1000').all()
     // Map D1 snake_case back to camelCase for frontend compatibility
     const mapped = results.map((u: any) => {
       const user = { ...u }
@@ -288,7 +288,7 @@ app.delete('/users/:id', async (c) => {
 // ── D1: Listings ─────────────────────────────────────────────
 app.get('/listings', async (c) => {
   try {
-    const { results } = await c.env.DB.prepare('SELECT * FROM listings LIMIT 500').all()
+    const { results } = await c.env.DB.prepare('SELECT * FROM listings LIMIT 2000').all()
     return dbJson(c, results)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
@@ -680,6 +680,128 @@ app.delete('/fb-cities/:id', async (c) => {
   }
 })
 
+// ── D1: Threads ──────────────────────────────────────────────
+app.get('/threads', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM threads').all()
+    const mapped = results.map((t: any) => ({
+      ...t,
+      participants: typeof t.participants === 'string' ? JSON.parse(t.participants) : (t.participants || [])
+    }))
+    return dbJson(c, mapped)
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
+app.post('/threads', async (c) => {
+  try {
+    const body = await c.req.json()
+    const id = body.thread_id || `th_${Date.now()}`
+    const participants = typeof body.participants === 'string' ? body.participants : JSON.stringify(body.participants || [])
+    
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO threads (thread_id, participants, listing_id, last_message_at, created_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).bind(
+      id, participants, body.listing_id || null, 
+      body.last_message_at || new Date().toISOString(),
+      body.created_at || new Date().toISOString()
+    ).run()
+    
+    return dbJson(c, { success: true, thread_id: id }, 201)
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.put('/threads/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const mapped: Record<string, any> = {}
+    for (const [k, v] of Object.entries(body)) {
+      if (k === 'participants') {
+        mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
+      } else {
+        mapped[k] = v
+      }
+    }
+    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(mapped), id]
+    await c.env.DB.prepare(`UPDATE threads SET ${sets} WHERE thread_id = ?`).bind(...vals).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.delete('/threads/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    await c.env.DB.prepare('DELETE FROM threads WHERE thread_id = ?').bind(id).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Delete failed' }, 500)
+  }
+})
+
+// ── D1: Messages ─────────────────────────────────────────────
+app.get('/messages', async (c) => {
+  try {
+    const thread_id = c.req.query('thread_id')
+    let query = 'SELECT * FROM messages'
+    let args: any[] = []
+    if (thread_id) {
+      query += ' WHERE thread_id = ?'
+      args.push(thread_id)
+    }
+    const { results } = await c.env.DB.prepare(query).bind(...args).all()
+    return dbJson(c, results)
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
+app.post('/messages', async (c) => {
+  try {
+    const body = await c.req.json()
+    const id = body.message_id || `msg_${Date.now()}`
+    
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO messages (message_id, thread_id, sender_id, content, is_read, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id, body.thread_id, body.sender_id, body.content,
+      body.is_read ? 1 : 0,
+      body.created_at || new Date().toISOString()
+    ).run()
+    
+    // Also update thread last_message_at
+    await c.env.DB.prepare('UPDATE threads SET last_message_at = ? WHERE thread_id = ?')
+      .bind(body.created_at || new Date().toISOString(), body.thread_id)
+      .run()
+
+    return dbJson(c, { success: true, message_id: id }, 201)
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.delete('/messages/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    await c.env.DB.prepare('DELETE FROM messages WHERE message_id = ?').bind(id).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Delete failed' }, 500)
+  }
+})
+
 // ── D1: Bulk sync — admin pushes entire localStorage collection to D1 ─
 // POST /sync  { collection: 'cities'|'listings'|'posts'|'fb_cities', items: [...] }
 app.post('/sync', async (c) => {
@@ -691,7 +813,8 @@ app.post('/sync', async (c) => {
     // Map collection name → route
     const routeMap: Record<string, string> = {
       cities: '/cities', listings: '/listings',
-      posts: '/posts', fb_cities: '/fb-cities'
+      posts: '/posts', fb_cities: '/fb-cities',
+      threads: '/threads', messages: '/messages'
     }
     if (!routeMap[collection]) return dbJson(c, { error: 'Unknown collection' }, 400)
 

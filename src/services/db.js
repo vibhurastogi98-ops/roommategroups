@@ -183,6 +183,8 @@ const D1_SYNC_MAP = {
     posts:        { save: (item) => api.savePost(item),   update: (id,d) => api.updatePost(id,d),   del: (id) => api.deletePost(id) },
     fb_countries: { save: (item) => api.saveFbCountry(item), update: (id,d) => api.updateFbCountry(id,d), del: (id) => api.deleteFbCountry(id) },
     fb_cities:    { save: (item) => api.saveFbCity(item), update: (id,d) => api.updateFbCity(id,d), del: (id) => api.deleteFbCity(id) },
+    threads:      { save: (item) => api.saveThread(item), update: (id,d) => api.updateThread(id,d), del: (id) => api.deleteThread(id) },
+    messages:     { save: (item) => api.saveMessage(item), update: (id,d) => null, del: (id) => api.deleteMessage(id) },
 };
 
 class Collection {
@@ -307,7 +309,7 @@ export async function initDB() {
     // This is the key step: D1 is the single source of truth for
     // admin-edited content. Fetch it and overwrite localStorage.
     try {
-        const [d1Users, d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries] = await Promise.all([
+        const [d1Users, d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries, d1Threads, d1Messages] = await Promise.all([
             api.getUsers().catch(() => null),
             api.getCities().catch(() => null),
             api.getListings().catch(() => null),
@@ -315,6 +317,8 @@ export async function initDB() {
             api.getFbCities().catch(() => null),
             api.get('/categories').catch(() => null),
             api.getFbCountries().catch(() => null),
+            api.getThreads().catch(() => null),
+            api.getMessages().catch(() => null),
         ]);
         const live = getDB();
         let liveUpdated = false;
@@ -333,6 +337,8 @@ export async function initDB() {
         if (Array.isArray(d1FbCities))  { live.fb_cities = d1FbCities;  liveUpdated = true; }
         if (Array.isArray(d1Categories)){ live.categories = d1Categories; liveUpdated = true; }
         if (Array.isArray(d1FbCountries)){ live.fb_countries = d1FbCountries; liveUpdated = true; }
+        if (Array.isArray(d1Threads))   { live.threads = d1Threads; liveUpdated = true; }
+        if (Array.isArray(d1Messages))  { live.messages = d1Messages; liveUpdated = true; }
         
         if (liveUpdated) {
             saveDB(live);

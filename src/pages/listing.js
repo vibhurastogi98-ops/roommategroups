@@ -343,7 +343,7 @@ export function renderListingDetailPage(app, params) {
         // Message Button
         const msgBtn = app.querySelector('#msg-host-btn');
         if (msgBtn) {
-            msgBtn.addEventListener('click', () => {
+            msgBtn.addEventListener('click', async () => {
                 const currentUser = getCurrentUser();
                 if (!currentUser) {
                     navigate('/auth/login');
@@ -359,7 +359,7 @@ export function renderListingDetailPage(app, params) {
                 );
 
                 if (!thread) {
-                    thread = db.threads.create({
+                    thread = await db.threads.create({
                         listing_id: listing.listing_id,
                         participants: [currentUser.id, user.user_id],
                         last_message_at: new Date().toISOString(),
@@ -370,7 +370,7 @@ export function renderListingDetailPage(app, params) {
                         blocked_by: null
                     });
                     // Create first system message
-                    db.messages.create({
+                    await db.messages.create({
                         thread_id: thread.thread_id,
                         sender_id: currentUser.id,
                         content: 'Hi! I am interested in your listing: ' + listing.title,
@@ -379,7 +379,7 @@ export function renderListingDetailPage(app, params) {
                     });
                 } else {
                     // Update timestamp to bring to top
-                    db.threads.update(thread.thread_id, { last_message_at: new Date().toISOString() });
+                    await db.threads.update(thread.thread_id, { last_message_at: new Date().toISOString() });
                 }
 
                 navigate('/dashboard/messages?threadId=' + thread.thread_id);
@@ -417,7 +417,7 @@ export function renderListingDetailPage(app, params) {
 
         const saveBtn = app.querySelector('#active-save-btn');
         if (saveBtn) {
-            saveBtn.addEventListener('click', (e) => {
+            saveBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 const listingId = saveBtn.dataset.id;
                 const userObj = getCurrentUser();
@@ -443,7 +443,7 @@ export function renderListingDetailPage(app, params) {
                     saveBtn.querySelector('i').style.color = '#1a1a1a';
                     saveBtn.querySelector('.save-text').textContent = 'Saved to Favorites';
                 }
-                db.users.update(userObj.id, { saved_listings: dbUser.saved_listings });
+                await db.users.update(userObj.id, { saved_listings: dbUser.saved_listings });
             });
         }
 

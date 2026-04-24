@@ -899,7 +899,7 @@ async function handlePublish() {
     };
 
     try {
-        db.listings.create(listingData);
+        await db.listings.create(listingData);
         clearDraft();
 
         const toast = document.createElement('div');

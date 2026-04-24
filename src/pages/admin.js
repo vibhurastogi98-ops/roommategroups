@@ -236,8 +236,8 @@ function screenBadge(score) {
     return '<span class="screen-badge screen-bad"><i class="fa-solid fa-circle-xmark"></i> ' + score + '</span>';
 }
 
-function logAdminAction(adminId, action, target) {
-    db.admin_logs.create({ admin_id: adminId, action, target });
+async function logAdminAction(adminId, action, target) {
+    await db.admin_logs.create({ admin_id: adminId, action, target });
 }
 
 function showToast(msg, type = 'success') {
@@ -488,19 +488,19 @@ function renderAdminListings(container) {
         return db.listings.find(l => l.moderation_status === statusMap[tab]).length;
     }
 
-    function doAction(listingId, action, reason = '') {
+    async function doAction(listingId, action, reason = '') {
         const user = getCurrentUser();
         if (action === 'approve') {
-            db.listings.update(listingId, { moderation_status: 'approved' });
-            logAdminAction(user.user_id, 'Approved listing', listingId);
+            await db.listings.update(listingId, { moderation_status: 'approved' });
+            await logAdminAction(user.user_id, 'Approved listing', listingId);
             showToast('Listing approved.');
         } else if (action === 'reject') {
-            db.listings.update(listingId, { moderation_status: 'rejected', rejection_reason: reason });
-            logAdminAction(user.user_id, 'Rejected listing', listingId);
+            await db.listings.update(listingId, { moderation_status: 'rejected', rejection_reason: reason });
+            await logAdminAction(user.user_id, 'Rejected listing', listingId);
             showToast('Listing rejected.', 'error');
         } else if (action === 'flag') {
-            db.listings.update(listingId, { moderation_status: 'flagged' });
-            logAdminAction(user.user_id, 'Flagged listing for senior review', listingId);
+            await db.listings.update(listingId, { moderation_status: 'flagged' });
+            await logAdminAction(user.user_id, 'Flagged listing for senior review', listingId);
             showToast('Listing flagged for senior review.', 'warning');
         }
         renderContent();
@@ -631,7 +631,7 @@ function renderAdminUsers(container) {
         }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
-    function doUserAction(userId, action) {
+    async function doUserAction(userId, action) {
         const admin = getCurrentUser();
         const u = db.users.findById(userId);
         if (!u) return;
@@ -639,44 +639,53 @@ function renderAdminUsers(container) {
             showToast('You cannot perform this action on your own admin account.', 'error'); return;
         }
         if (action === 'suspend') {
-            db.users.update(userId, { is_active: false });
-            logAdminAction(admin.user_id, 'Suspended user', u.display_name);
+            await db.users.update(userId, { is_active: false });
+            await logAdminAction(admin.user_id, 'Suspended user', u.display_name);
             showToast('User suspended.');
         } else if (action === 'activate') {
-            db.users.update(userId, { is_active: true, is_blocked: false });
-            logAdminAction(admin.user_id, 'Reactivated user', u.display_name);
+            await db.users.update(userId, { is_active: true, is_blocked: false });
+            await logAdminAction(admin.user_id, 'Reactivated user', u.display_name);
             showToast('User reactivated.');
         } else if (action === 'block') {
-            db.users.update(userId, { is_active: false, is_blocked: true });
-            logAdminAction(admin.user_id, 'Blocked user', u.display_name);
+            await db.users.update(userId, { is_active: false, is_blocked: true });
+            await logAdminAction(admin.user_id, 'Blocked user', u.display_name);
             showToast('User blocked. They cannot log in or access the platform.', 'error');
         } else if (action === 'unblock') {
-            db.users.update(userId, { is_active: true, is_blocked: false });
-            logAdminAction(admin.user_id, 'Unblocked user', u.display_name);
+            await db.users.update(userId, { is_active: true, is_blocked: false });
+            await logAdminAction(admin.user_id, 'Unblocked user', u.display_name);
             showToast('User unblocked.');
         } else if (action === 'make_admin') {
-            db.users.update(userId, { role: 'admin' });
-            logAdminAction(admin.user_id, 'Granted admin role', u.display_name);
+            await db.users.update(userId, { role: 'admin' });
+            await logAdminAction(admin.user_id, 'Granted admin role', u.display_name);
             showToast('Admin role granted.');
         } else if (action === 'remove_admin') {
-            db.users.update(userId, { role: 'user' });
-            logAdminAction(admin.user_id, 'Removed admin role', u.display_name);
+            await db.users.update(userId, { role: 'user' });
+            await logAdminAction(admin.user_id, 'Removed admin role', u.display_name);
             showToast('Admin role removed.');
         } else if (action === 'delete') {
             if (!confirm('Permanently delete "' + u.display_name + '"? This will also remove all their listings, messages, and threads. This cannot be undone.')) return;
             // Remove all their listings
-            db.listings.find(l => l.user_id === userId).forEach(l => db.listings.delete(l.listing_id));
+            const userListings = db.listings.find(l => l.user_id === userId);
+            for (const l of userListings) {
+                await db.listings.delete(l.listing_id);
+            }
             // Remove threads they are in + associated messages
-            const userThreadIds = new Set(db.threads.find(t => t.participants && t.participants.includes(userId)).map(t => t.thread_id));
-            userThreadIds.forEach(tid => {
-                db.messages.find(m => m.thread_id === tid).forEach(m => db.messages.delete(m.message_id));
-                db.threads.delete(tid);
-            });
+            const userThreads = db.threads.find(t => t.participants && t.participants.includes(userId));
+            for (const t of userThreads) {
+                const threadMsgs = db.messages.find(m => m.thread_id === t.thread_id);
+                for (const m of threadMsgs) {
+                    await db.messages.delete(m.message_id);
+                }
+                await db.threads.delete(t.thread_id);
+            }
             // Remove reports filed by or against this user
-            db.reports.find(r => r.reporter_id === userId || r.target_id === userId).forEach(r => db.reports.delete(r.report_id));
+            const userReports = db.reports.find(r => r.reporter_id === userId || r.target_id === userId);
+            for (const r of userReports) {
+                await db.reports.delete(r.report_id);
+            }
             // Delete the user
-            db.users.delete(userId);
-            logAdminAction(admin.user_id, 'Deleted user account', u.display_name);
+            await db.users.delete(userId);
+            await logAdminAction(admin.user_id, 'Deleted user account', u.display_name);
             showToast('User "' + u.display_name + '" permanently deleted.', 'error');
         }
         dropdownFor = null;

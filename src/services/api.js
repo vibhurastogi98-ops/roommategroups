@@ -68,4 +68,15 @@ export const api = {
     saveFbCountry:    (item) => req('POST',   '/fb-countries', item),
     updateFbCountry:  (id, d)=> req('PUT',    `/fb-countries/${id}`, d),
     deleteFbCountry:  (id)   => req('DELETE', `/fb-countries/${id}`),
+
+    // ── Threads ──────────────────────────────────────────────
+    getThreads:       ()     => req('GET',    '/threads'),
+    saveThread:       (item) => req('POST',   '/threads', item),
+    updateThread:     (id, d)=> req('PUT',    `/threads/${id}`, d),
+    deleteThread:     (id)   => req('DELETE', `/threads/${id}`),
+
+    // ── Messages ─────────────────────────────────────────────
+    getMessages:      (tid)  => req('GET',    tid ? `/messages?thread_id=${tid}` : '/messages'),
+    saveMessage:      (item) => req('POST',   '/messages', item),
+    deleteMessage:    (id)   => req('DELETE', `/messages/${id}`),
 };

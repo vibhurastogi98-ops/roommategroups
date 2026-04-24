@@ -811,7 +811,7 @@ function renderMessages(container, user) {
         textInput?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); } });
         sendBtn?.addEventListener('click', doSend);
 
-        function doSend() {
+        async function doSend() {
             const content = textInput?.value.trim();
             if (!content) return;
 
@@ -830,9 +830,9 @@ function renderMessages(container, user) {
                 if (warn) warn.style.display = 'flex';
             }
 
-            const newMsg = db.messages.create({ thread_id: activeThreadId, sender_id: user.user_id, content, photo_url: null, is_read: false, read_at: null });
+            const newMsg = await db.messages.create({ thread_id: activeThreadId, sender_id: user.user_id, content, photo_url: null, is_read: false, read_at: null });
             const t = db.threads.findById(activeThreadId);
-            db.threads.update(activeThreadId, {
+            await db.threads.update(activeThreadId, {
                 last_message_at: new Date().toISOString(),
                 last_message_preview: content.substring(0, 80),
                 ['unread_count_' + ouId]: (t['unread_count_' + ouId] || 0) + 1,
@@ -850,10 +850,10 @@ function renderMessages(container, user) {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = ev => {
+            reader.onload = async ev => {
                 const url = ev.target.result;
-                db.messages.create({ thread_id: activeThreadId, sender_id: user.user_id, content: '', photo_url: url, is_read: false, read_at: null });
-                db.threads.update(activeThreadId, { last_message_at: new Date().toISOString(), last_message_preview: '\uD83D\uDCF7 Photo' });
+                await db.messages.create({ thread_id: activeThreadId, sender_id: user.user_id, content: '', photo_url: url, is_read: false, read_at: null });
+                await db.threads.update(activeThreadId, { last_message_at: new Date().toISOString(), last_message_preview: '📷 Photo' });
                 renderConversation();
             };
             reader.readAsDataURL(file);
@@ -961,7 +961,7 @@ function renderSaved(container, user) {
             : '<div class="saved-grid">' + cards + '</div>'
     ].join('');
 
-    container.addEventListener('click', e => {
+    container.addEventListener('click', async e => {
         const saveBtn = e.target.closest('.save-btn');
         if (!saveBtn || !saveBtn.dataset.id) return;
         e.preventDefault();
@@ -971,7 +971,7 @@ function renderSaved(container, user) {
         const idx = saved.indexOf(listingId);
         if (idx > -1) {
             saved.splice(idx, 1);
-            db.users.update(user.user_id, { saved_listings: saved });
+            await db.users.update(user.user_id, { saved_listings: saved });
             showToast('Removed from saved listings.');
             renderSaved(container, user);
         }
@@ -1241,7 +1241,7 @@ function renderSettings(container, user) {
     ].join('');
 
     // Save changes
-    container.querySelector('#btn-save-settings').addEventListener('click', () => {
+    container.querySelector('#btn-save-settings').addEventListener('click', async () => {
         const btn = container.querySelector('#btn-save-settings');
         const newName = container.querySelector('#settings-name').value.trim();
         const newBio  = container.querySelector('#settings-bio').value.trim();
@@ -1275,7 +1275,7 @@ function renderSettings(container, user) {
         const avatarImg = container.querySelector('#settings-avatar-img');
         if (avatarImg.dataset.newSrc) updates.profile_photo = avatarImg.dataset.newSrc;
 
-        db.users.update(user.user_id, updates);
+        await db.users.update(user.user_id, updates);
         Object.assign(user, updates);
 
         btn.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
@@ -1353,10 +1353,10 @@ function renderSettings(container, user) {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = ev => {
+        reader.onload = async ev => {
             const img = container.querySelector('#settings-avatar-img');
             img.src = ev.target.result;
-            db.users.update(user.user_id, { profile_photo: ev.target.result });
+            await db.users.update(user.user_id, { profile_photo: ev.target.result });
             showToast('Profile photo updated!', 'success');
         };
         reader.readAsDataURL(file);

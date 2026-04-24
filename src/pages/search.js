@@ -264,7 +264,7 @@ export function renderSearchPage(app) {
             }
             
             // Persist back to DB
-            db.users.update(user.id, { saved_listings: dbUser.saved_listings });
+            await db.users.update(user.id, { saved_listings: dbUser.saved_listings });
         }
     });
 

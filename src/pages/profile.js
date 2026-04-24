@@ -125,7 +125,7 @@ export function renderProfilePage(app, params) {
     setTimeout(() => {
         const msgBtn = app.querySelector('#prof-msg-btn');
         if (msgBtn) {
-            msgBtn.addEventListener('click', () => {
+            msgBtn.addEventListener('click', async () => {
                 if (!currentUser) {
                     navigate('/auth/login');
                     return;
@@ -142,7 +142,7 @@ export function renderProfilePage(app, params) {
                 );
 
                 if (!thread) {
-                    thread = db.threads.create({
+                    thread = await db.threads.create({
                         listing_id: listingId,
                         participants: [currentUser.id, user.user_id],
                         last_message_at: new Date().toISOString(),
@@ -152,7 +152,7 @@ export function renderProfilePage(app, params) {
                         is_archived: false,
                         blocked_by: null
                     });
-                    db.messages.create({
+                    await db.messages.create({
                         thread_id: thread.thread_id,
                         sender_id: currentUser.id,
                         content: 'Hi! I saw your profile and wanted to connect.',
@@ -160,7 +160,7 @@ export function renderProfilePage(app, params) {
                         created_at: new Date().toISOString()
                     });
                 } else {
-                     db.threads.update(thread.thread_id, { last_message_at: new Date().toISOString() });
+                     await db.threads.update(thread.thread_id, { last_message_at: new Date().toISOString() });
                 }
 
                 navigate('/dashboard/messages?threadId=' + thread.thread_id);
