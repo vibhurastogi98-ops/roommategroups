@@ -293,7 +293,18 @@ app.delete('/users/:id', async (c) => {
 app.get('/listings', async (c) => {
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM listings LIMIT 2000').all()
-    return dbJson(c, results)
+    const mapped = results.map((l: any) => {
+      const listing = { ...l }
+      const jsonFields = ['images', 'photos', 'amenities', 'tags', 'lifestyle_tags']
+      jsonFields.forEach(f => {
+        if (typeof listing[f] === 'string') {
+          try { listing[f] = JSON.parse(listing[f]); } catch(e) { listing[f] = []; }
+        }
+      })
+      if ('is_featured' in listing) listing.is_featured = !!listing.is_featured
+      return listing
+    })
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }
@@ -395,7 +406,21 @@ app.delete('/listings/:id', async (c) => {
 app.get('/cities', async (c) => {
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM cities').all()
-    return dbJson(c, results)
+    const mapped = results.map((c_obj: any) => {
+      const city = { ...c_obj }
+      const jsonFields = ['faq_items', 'reviews']
+      jsonFields.forEach(f => {
+        if (typeof city[f] === 'string') {
+          try { city[f] = JSON.parse(city[f]); } catch(e) { city[f] = []; }
+        }
+      })
+      const boolFields = ['is_active', 'show_in_popular', 'show_in_popular_section', 'show_in_footer']
+      boolFields.forEach(f => {
+        if (f in city) city[f] = !!city[f]
+      })
+      return city
+    })
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }
@@ -570,7 +595,18 @@ app.get('/fb-cities', async (c) => {
     const { results } = await c.env.DB.prepare(
       'SELECT * FROM fb_cities ORDER BY priority ASC'
     ).all()
-    return dbJson(c, results)
+    const mapped = results.map((fbc: any) => {
+      const fbCity = { ...fbc }
+      if (typeof fbCity.faqs === 'string') {
+        try { fbCity.faqs = JSON.parse(fbCity.faqs); } catch(e) { fbCity.faqs = []; }
+      }
+      const boolFields = ['is_popular', 'is_footer']
+      boolFields.forEach(f => {
+        if (f in fbCity) fbCity[f] = !!fbCity[f]
+      })
+      return fbCity
+    })
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }

@@ -77,6 +77,10 @@ export function renderListingDetailPage(app, params) {
         ? _imgs
         : ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=800&fit=crop'];
 
+    // Ensure amenities is an array (handle cached D1 JSON strings)
+    let _amenities = listing.amenities || [];
+    if (typeof _amenities === 'string') { try { _amenities = JSON.parse(_amenities); } catch(e) { _amenities = []; } }
+
     // Poster Info
     let user = listing.user_details;
     if (!user && listing.user_id) user = db.users.findById(listing.user_id);
@@ -268,12 +272,12 @@ export function renderListingDetailPage(app, params) {
                     <div class="ld-desc">${escHtml(listing.description || 'No description provided.')}</div>
                 </div>
 
-                ${listing.amenities && listing.amenities.length > 0 ? `
+                ${_amenities.length > 0 ? `
                 <div class="ld-section" style="border-bottom:none;">
                     <h2><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Amenities Included</h2>
                     <div class="ld-amenities">
-                        ${listing.amenities.map(key => {
-                            const a = allAmenities[key] || { icon: 'fa-circle-check', label: key.replace('amen_', '') };
+                        ${_amenities.map(key => {
+                            const a = allAmenities[key] || { icon: 'fa-circle-check', label: String(key).replace('amen_', '') };
                             return `<div class="ld-amenity"><i class="fa-solid ${a.icon}"></i> ${a.label}</div>`;
                         }).join('')}
                     </div>
