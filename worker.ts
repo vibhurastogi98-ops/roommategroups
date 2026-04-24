@@ -211,9 +211,20 @@ app.post('/users', async (c) => {
         mapped[k] = v
       }
     }
-    const cols = Object.keys(mapped)
+    const validCols = [
+      'user_id', 'email', 'display_name', 'profile_photo', 'bio', 'city', 'age_range', 
+      'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
+      'saved_listings', 'saved_searches', 'blocked_users', 'password_hash', 'role', 
+      'is_active', 'created_at', 'last_active'
+    ]
+    const filtered: Record<string, any> = {}
+    for (const col of validCols) {
+      if (mapped[col] !== undefined) filtered[col] = mapped[col]
+    }
+
+    const cols = Object.keys(filtered)
     const placeholders = cols.map(() => '?').join(', ')
-    const vals = Object.values(mapped)
+    const vals = Object.values(filtered)
     
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO users (${cols.join(', ')}) VALUES (${placeholders})`
@@ -242,9 +253,20 @@ app.put('/users/:id', async (c) => {
     // Handle booleans mapping for SQLite if needed
     if ('is_active' in mapped) mapped['is_active'] = mapped['is_active'] ? 1 : 0
     
-    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
-    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
-    const vals = [...Object.values(mapped), id]
+    const validCols = [
+      'user_id', 'email', 'display_name', 'profile_photo', 'bio', 'city', 'age_range', 
+      'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
+      'saved_listings', 'saved_searches', 'blocked_users', 'password_hash', 'role', 
+      'is_active', 'created_at', 'last_active'
+    ]
+    const filtered: Record<string, any> = {}
+    for (const col of validCols) {
+      if (mapped[col] !== undefined) filtered[col] = mapped[col]
+    }
+
+    if (Object.keys(filtered).length === 0) return dbJson(c, { success: true })
+    const sets = Object.keys(filtered).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(filtered), id]
     await c.env.DB.prepare(`UPDATE users SET ${sets} WHERE user_id = ?`).bind(...vals).run()
     return dbJson(c, { success: true })
   } catch (err) {
@@ -281,24 +303,43 @@ app.post('/listings', async (c) => {
     const rent = body.rent ?? body.price ?? 0
     const images = body.images || body.photos || []
     const imagesVal = typeof images === 'string' ? images : JSON.stringify(images)
+    const validCols = [
+      'listing_id', 'user_id', 'title', 'description', 'city', 'neighborhood_id', 
+      'address', 'latitude', 'longitude', 'rent', 'rent_type', 'room_type', 
+      'bathrooms', 'available_from', 'lease_term', 'amenities', 'tags', 'images', 
+      'status', 'is_featured', 'view_count', 'created_at', 'updated_at'
+    ]
+    const mapped: Record<string, any> = {
+      listing_id: id,
+      user_id: body.user_id || '',
+      title: body.title || '',
+      description: body.description || '',
+      city: body.city || '',
+      room_type: body.room_type || body.category || '',
+      status: body.status || 'active',
+      rent: rent,
+      images: imagesVal,
+      created_at: body.created_at || new Date().toISOString(),
+      updated_at: body.updated_at || new Date().toISOString()
+    }
+    // Add any other valid cols from body
+    validCols.forEach(col => {
+      if (body[col] !== undefined && mapped[col] === undefined) {
+        if (['amenities', 'tags'].includes(col)) {
+          mapped[col] = typeof body[col] === 'string' ? body[col] : JSON.stringify(body[col] || [])
+        } else {
+          mapped[col] = body[col]
+        }
+      }
+    })
+
+    const cols = Object.keys(mapped)
+    const placeholders = cols.map(() => '?').join(', ')
+    const vals = Object.values(mapped)
+
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO listings
-       (listing_id, user_id, title, description, city, room_type,
-        status, rent, images, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      id,
-      body.user_id || '',
-      body.title || '',
-      body.description || '',
-      body.city || '',
-      body.room_type || body.category || '',
-      body.status || 'active',
-      rent,
-      imagesVal,
-      body.created_at || new Date().toISOString(),
-      body.updated_at || new Date().toISOString()
-    ).run()
+      `INSERT OR REPLACE INTO listings (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...vals).run()
     return dbJson(c, { success: true, listing_id: id }, 201)
   } catch (err) {
     const error = err as Error
