@@ -203,16 +203,26 @@ app.post('/listings', async (c) => {
   try {
     const body = await c.req.json()
     const id = body.listing_id || `list_${Date.now()}`
+    // Schema columns: rent (not price), images (not photos)
+    const rent = body.rent ?? body.price ?? 0
+    const images = body.images || body.photos || []
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO listings (listing_id, title, description, price, city, category,
-       status, moderation_status, user_id, photos, created_at)
+      `INSERT OR REPLACE INTO listings
+       (listing_id, user_id, title, description, city, room_type,
+        status, rent, images, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
-      id, body.title || '', body.description || '', body.price || 0,
-      body.city || '', body.category || '', body.status || 'active',
-      body.moderation_status || 'pending', body.user_id || '',
-      JSON.stringify(body.photos || []),
-      body.created_at || new Date().toISOString()
+      id,
+      body.user_id || '',
+      body.title || '',
+      body.description || '',
+      body.city || '',
+      body.room_type || body.category || '',
+      body.status || 'active',
+      rent,
+      JSON.stringify(images),
+      body.created_at || new Date().toISOString(),
+      body.updated_at || new Date().toISOString()
     ).run()
     return dbJson(c, { success: true, listing_id: id }, 201)
   } catch (err) {
@@ -225,8 +235,24 @@ app.put('/listings/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const sets = Object.entries(body).map(([k]) => `${k} = ?`).join(', ')
-    const vals = [...Object.values(body), id]
+    // Serialize JSON array fields and normalize column name aliases
+    const jsonFields = ['images', 'photos', 'amenities', 'tags', 'lifestyle_tags']
+    const mapped: Record<string, any> = {}
+    for (const [k, v] of Object.entries(body)) {
+      if (jsonFields.includes(k)) {
+        mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
+      } else {
+        mapped[k] = v
+      }
+    }
+    // Normalize price → rent alias if frontend sends old field name
+    if ('price' in mapped && !('rent' in mapped)) {
+      mapped['rent'] = mapped['price']
+      delete mapped['price']
+    }
+    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(mapped), id]
     await c.env.DB.prepare(`UPDATE listings SET ${sets} WHERE listing_id = ?`).bind(...vals).run()
     return dbJson(c, { success: true })
   } catch (err) {
@@ -339,15 +365,22 @@ app.post('/posts', async (c) => {
   try {
     const body = await c.req.json()
     const id = body.post_id || `post_${Date.now()}`
+    // Schema uses author_name/author_avatar/author_bio (not a JSON author blob)
+    // and date_label (not date). Handle both flat and nested author formats.
+    const author = body.author || {}
+    const authorName   = body.author_name   || (typeof author === 'object' ? author.name   : '') || ''
+    const authorAvatar = body.author_avatar  || (typeof author === 'object' ? author.avatar : '') || ''
+    const authorBio    = body.author_bio     || (typeof author === 'object' ? author.bio    : '') || ''
+    const dateLabel    = body.date_label || body.date || ''
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO posts
-       (post_id, slug, title, excerpt, category, author, date, read_time,
-        image, content, published_date, is_published)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+       (post_id, slug, title, excerpt, category, author_name, author_avatar, author_bio,
+        date_label, read_time, image, content, published_date, is_published)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       id, body.slug || '', body.title || '', body.excerpt || '',
-      body.category || '', JSON.stringify(body.author || {}),
-      body.date || '', body.readTime || '',
+      body.category || '', authorName, authorAvatar, authorBio,
+      dateLabel, body.readTime || body.read_time || '',
       body.image || '', body.content || '',
       body.published_date || new Date().toISOString(),
       body.is_published ? 1 : 0
@@ -365,10 +398,22 @@ app.put('/posts/:id', async (c) => {
     const body = await c.req.json()
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
-      mapped[k] = (k === 'is_published') ? (v ? 1 : 0)
-                : (k === 'author' && typeof v === 'object') ? JSON.stringify(v)
-                : v
+      if (k === 'is_published') {
+        mapped[k] = v ? 1 : 0
+      } else if (k === 'author' && typeof v === 'object' && v !== null) {
+        // Flatten nested author object into schema columns
+        const a = v as any
+        mapped['author_name']   = a.name   || ''
+        mapped['author_avatar'] = a.avatar || ''
+        mapped['author_bio']    = a.bio    || ''
+      } else if (k === 'date') {
+        // Alias date → date_label
+        mapped['date_label'] = v
+      } else {
+        mapped[k] = v
+      }
     }
+    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
     const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
     const vals = [...Object.values(mapped), id]
     await c.env.DB.prepare(`UPDATE posts SET ${sets} WHERE post_id = ?`).bind(...vals).run()
