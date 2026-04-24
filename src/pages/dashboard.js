@@ -90,7 +90,7 @@ export function renderDashboardPage(app) {
         '<div class="topbar-user-pill"><img src="' + avatarSrc + '" class="topbar-avatar" alt=""><span>' + escapeHtml(dbUser.display_name.split(' ')[0]) + '</span></div>',
         '</div>',
         '</div>',
-        '<div class="dashboard-content fade-in" id="dashboard-content"></div>',
+        '<div class="dashboard-content fade-in' + (viewName === 'messages' ? ' msg-view-active' : '') + '" id="dashboard-content"></div>',
         '</main>',
         '</div>'
     ].join('');
@@ -594,11 +594,11 @@ function renderMessages(container, user) {
             return [
                 '<div class="msg-thread-card ' + (isActive ? 'active' : '') + ' ' + (unread > 0 ? 'has-unread' : '') + '" data-tid="' + t.thread_id + '">',
                 '<div class="msg-tc-avatar-wrap">',
-                '<a href="/profile/' + ouId + '" class="msg-tc-avatar-link" onclick="event.stopPropagation()"><img src="' + src + '" class="msg-tc-avatar" alt="' + escapeHtml(ou.display_name) + '"></a>',
+                '<a href="/profile/' + ouId + '" class="msg-tc-avatar-link" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-tc-avatar" alt="' + escapeHtml(ou.display_name) + '"></a>',
                 getVerificationBadge(ou.verification_level),
                 '</div>',
                 '<div class="msg-tc-body">',
-                '<div class="msg-tc-top"><a href="/profile/' + ouId + '" class="msg-tc-name-link" onclick="event.stopPropagation()">' + escapeHtml(ou.display_name) + '</a><span class="msg-tc-time">' + formatRelativeTime(t.last_message_at) + '</span></div>',
+                '<div class="msg-tc-top"><a href="/profile/' + ouId + '" class="msg-tc-name-link" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a><span class="msg-tc-time">' + formatRelativeTime(t.last_message_at) + '</span></div>',
                 li ? '<div class="msg-tc-listing"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + '</div>' : '',
                 '<div class="msg-tc-preview ' + (unread > 0 ? 'font-semibold' : '') + '">' + escapeHtml(t.last_message_preview || 'New conversation') + '</div>',
                 '</div>',
@@ -650,7 +650,7 @@ function renderMessages(container, user) {
             const text = m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '';
             return [
                 '<div class="msg-bubble-row ' + (isMe ? 'msg-out' : 'msg-in') + '" data-mid="' + m.message_id + '">',
-                !isMe ? '<a href="/profile/' + ouId + '" class="msg-bubble-avatar-link"><img src="' + src + '" class="msg-bubble-avatar"></a>' : '',
+                !isMe ? '<a href="/profile/' + ouId + '" class="msg-bubble-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-bubble-avatar"></a>' : '',
                 '<div class="msg-bubble-group">',
                 photo,
                 text,
@@ -663,10 +663,10 @@ function renderMessages(container, user) {
         const header = [
             '<div class="msg-chat-header">',
             '<div class="msg-header-left">',
-            '<a href="/profile/' + ouId + '" class="msg-hdr-avatar-link"><img src="' + src + '" class="msg-hdr-avatar" alt="' + escapeHtml(ou.display_name) + '"></a>',
+            '<a href="/profile/' + ouId + '" class="msg-hdr-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-hdr-avatar" alt="' + escapeHtml(ou.display_name) + '"></a>',
             '<div class="msg-header-info">',
-            '<div class="msg-header-name"><a href="/profile/' + ouId + '" class="msg-hdr-name-link">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou.verification_level) + '</div>',
-            li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; $' + (li.rent ?? li.price ?? '?') + '/mo</a>' : '',
+            '<div class="msg-header-name"><a href="/profile/' + ouId + '" class="msg-hdr-name-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou.verification_level) + '</div>',
+            li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing" onclick="event.preventDefault(); window.navigate(\'/listing/' + li.listing_id + '\')"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; $' + (li.rent ?? li.price ?? '?') + '/mo</a>' : '',
             '</div>',
             '</div>',
             '<div class="msg-header-right">',
@@ -839,6 +839,12 @@ function renderMessages(container, user) {
                 if (warn) warn.style.display = 'flex';
             }
 
+            // Optimistic UI
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            appendBubble(content, time, '');
+            textInput.value = '';
+            textInput.style.height = 'auto';
+
             const newMsg = await db.messages.create({ thread_id: activeThreadId, sender_id: user.user_id, content, photo_url: null, is_read: false, read_at: null });
             const t = db.threads.findById(activeThreadId);
             await db.threads.update(activeThreadId, {
@@ -847,10 +853,6 @@ function renderMessages(container, user) {
                 ['unread_count_' + ouId]: (t['unread_count_' + ouId] || 0) + 1,
             });
 
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            appendBubble(content, time, newMsg.message_id);
-            textInput.value = '';
-            textInput.style.height = 'auto';
             refreshThreadList();
         }
 
