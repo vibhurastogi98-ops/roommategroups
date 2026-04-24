@@ -570,14 +570,14 @@ function renderReviewCard(review) {
 
 /* ─── Helper: Nearby Cities ─── */
 function renderNearbyCities(currentCity) {
-    const allCities = db.getCollection('cities');
+    const allCities = db.cities.findAll();
     const nearby = allCities
         .filter(c => c.city_id !== currentCity.city_id)
         .map(c => ({ ...c, distance: calculateDistance(currentCity.latitude, currentCity.longitude, c.latitude, c.longitude) }))
         .sort((a, b) => a.distance - b.distance)
         .slice(0, 5);
 
-    const allListings = db.getCollection('listings');
+    const allListings = db.listings.findAll();
     return nearby.map(c => {
         const img = c.hero_image || FALLBACK_CITY_IMG;
         const liveCount = allListings.filter(l => l.city === c.city_id && l.status === 'active').length;
