@@ -5,16 +5,16 @@ import { getCurrentUser } from './auth.js';
  * Upload service to handle file uploads to the server.
  */
 
-const API_URL = window.location.hostname === 'localhost' 
-    ? '/api' 
-    : 'https://roommategroups.vibhurastogi98.workers.dev';
+const API_URL = window.location.hostname === 'localhost'
+    ? 'http://localhost:8787'
+    : window.location.origin;
 
 export async function uploadImage(fileOrBlob, filename = 'image.webp') {
     const formData = new FormData();
     formData.append('image', fileOrBlob, filename);
     
     try {
-        const endpoint = `${API_URL}/upload`;
+        const endpoint = `${API_URL}/r2/upload`;
         const res = await fetch(endpoint, {
             method: 'POST',
             body: formData,

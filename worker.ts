@@ -37,8 +37,8 @@ app.get('/r2-check', async (c) => {
 })
 
 // ── R2: Upload a file (multipart/form-data) ──────────────────
-// POST /upload  → { key, url, size, contentType }
-app.post('/upload', async (c) => {
+// POST /upload or POST /r2/upload  → { key, url, size, contentType }
+async function handleUpload(c: any) {
   try {
     const formData = await c.req.formData()
     const file = formData.get('image') as File | null
@@ -71,7 +71,10 @@ app.post('/upload', async (c) => {
     const error = err as Error
     return c.json({ success: false, error: error.message }, 500)
   }
-})
+}
+
+app.post('/upload', handleUpload)
+app.post('/r2/upload', handleUpload)
 
 // ── R2: Get / serve a file by key ───────────────────────────
 // GET /r2/:key*  e.g. /r2/uploads/abc123.webp
@@ -259,17 +262,22 @@ app.post('/cities', async (c) => {
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO cities
        (city_id, name, slug, country, state_province, hero_image, description,
-        avg_rent, listing_count, member_count, is_active, show_in_popular, show_in_footer,
-        meta_title, meta_description, latitude, longitude)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        avg_rent, listing_count, member_count, is_active, show_in_popular, show_in_popular_section,
+        show_in_footer, meta_title, meta_description, latitude, longitude,
+        faq_items, reviews)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       id, body.name || '', body.slug || '', body.country || '',
       body.state_province || '', body.hero_image || '', body.description || '',
       body.avg_rent || 0, body.listing_count || 0, body.member_count || 0,
       body.is_active !== false ? 1 : 0,
-      body.show_in_popular ? 1 : 0, body.show_in_footer ? 1 : 0,
+      body.show_in_popular ? 1 : 0,
+      body.show_in_popular_section ? 1 : 0,
+      body.show_in_footer ? 1 : 0,
       body.meta_title || '', body.meta_description || '',
-      body.latitude || 0, body.longitude || 0
+      body.latitude || 0, body.longitude || 0,
+      typeof body.faq_items === 'string' ? body.faq_items : JSON.stringify(body.faq_items || []),
+      typeof body.reviews === 'string' ? body.reviews : JSON.stringify(body.reviews || [])
     ).run()
     return dbJson(c, { success: true, city_id: id }, 201)
   } catch (err) {
@@ -282,11 +290,18 @@ app.put('/cities/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    // Map boolean fields to integers for SQLite
-    const boolFields = ['is_active', 'show_in_popular', 'show_in_footer']
+    // Map boolean fields to integers for SQLite; serialize JSON fields
+    const boolFields = ['is_active', 'show_in_popular', 'show_in_popular_section', 'show_in_footer']
+    const jsonFields = ['faq_items', 'reviews']
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
-      mapped[k] = boolFields.includes(k) ? (v ? 1 : 0) : v
+      if (boolFields.includes(k)) {
+        mapped[k] = v ? 1 : 0
+      } else if (jsonFields.includes(k)) {
+        mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
+      } else {
+        mapped[k] = v
+      }
     }
     const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
     const vals = [...Object.values(mapped), id]
