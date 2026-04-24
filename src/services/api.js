@@ -60,4 +60,10 @@ export const api = {
     saveFbCity:    (item)    => req('POST',   '/fb-cities', item),
     updateFbCity:  (id, d)   => req('PUT',    `/fb-cities/${id}`, d),
     deleteFbCity:  (id)      => req('DELETE', `/fb-cities/${id}`),
+
+    // ── FB Countries ─────────────────────────────────────────
+    getFbCountries:   ()     => req('GET',    '/fb-countries'),
+    saveFbCountry:    (item) => req('POST',   '/fb-countries', item),
+    updateFbCountry:  (id, d)=> req('PUT',    `/fb-countries/${id}`, d),
+    deleteFbCountry:  (id)   => req('DELETE', `/fb-countries/${id}`),
 };

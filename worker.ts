@@ -396,6 +396,60 @@ app.get('/fb-cities', async (c) => {
   }
 })
 
+app.get('/fb-countries', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(
+      'SELECT * FROM fb_countries ORDER BY created_at ASC'
+    ).all()
+    return dbJson(c, results)
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
+app.post('/fb-countries', async (c) => {
+  try {
+    const body = await c.req.json()
+    const id = body.fb_country_id || `fbc_${Date.now()}`
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO fb_countries (fb_country_id, country_name, created_at) VALUES (?,?,?)`
+    ).bind(id, body.country_name || '', body.created_at || new Date().toISOString()).run()
+    return dbJson(c, { success: true, fb_country_id: id }, 201)
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.put('/fb-countries/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const mapped: Record<string, any> = {}
+    for (const [k, v] of Object.entries(body)) {
+      mapped[k] = v
+    }
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = Object.values(mapped)
+    if (sets.length > 0) {
+      await c.env.DB.prepare(`UPDATE fb_countries SET ${sets} WHERE fb_country_id = ?`).bind(...vals, id).run()
+    }
+    return dbJson(c, { success: true })
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.delete('/fb-countries/:id', async (c) => {
+  try {
+    await c.env.DB.prepare('DELETE FROM fb_countries WHERE fb_country_id = ?').bind(c.req.param('id')).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
 app.post('/fb-cities', async (c) => {
   try {
     const body = await c.req.json()

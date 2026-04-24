@@ -154,10 +154,11 @@ function generateId(prefix) { return prefix + '_' + Date.now() + '_' + Math.rand
 
 // Collections that are synced to D1 so all devices share the same data
 const D1_SYNC_MAP = {
-    cities:    { save: (item) => api.saveCity(item),   update: (id,d) => api.updateCity(id,d),   del: (id) => api.deleteCity(id) },
-    listings:  { save: (item) => api.saveListing(item),update: (id,d) => api.updateListing(id,d),del: (id) => api.deleteListing(id) },
-    posts:     { save: (item) => api.savePost(item),   update: (id,d) => api.updatePost(id,d),   del: (id) => api.deletePost(id) },
-    fb_cities: { save: (item) => api.saveFbCity(item), update: (id,d) => api.updateFbCity(id,d), del: (id) => api.deleteFbCity(id) },
+    cities:       { save: (item) => api.saveCity(item),   update: (id,d) => api.updateCity(id,d),   del: (id) => api.deleteCity(id) },
+    listings:     { save: (item) => api.saveListing(item),update: (id,d) => api.updateListing(id,d),del: (id) => api.deleteListing(id) },
+    posts:        { save: (item) => api.savePost(item),   update: (id,d) => api.updatePost(id,d),   del: (id) => api.deletePost(id) },
+    fb_countries: { save: (item) => api.saveFbCountry(item), update: (id,d) => api.updateFbCountry(id,d), del: (id) => api.deleteFbCountry(id) },
+    fb_cities:    { save: (item) => api.saveFbCity(item), update: (id,d) => api.updateFbCity(id,d), del: (id) => api.deleteFbCity(id) },
 };
 
 class Collection {
@@ -282,12 +283,13 @@ export async function initDB() {
     // This is the key step: D1 is the single source of truth for
     // admin-edited content. Fetch it and overwrite localStorage.
     try {
-        const [d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories] = await Promise.all([
+        const [d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries] = await Promise.all([
             api.getCities().catch(() => null),
             api.getListings().catch(() => null),
             api.getPosts().catch(() => null),
             api.getFbCities().catch(() => null),
             api.get('/categories').catch(() => null),
+            api.getFbCountries().catch(() => null),
         ]);
         const live = getDB();
         let liveUpdated = false;
@@ -299,6 +301,7 @@ export async function initDB() {
         if (Array.isArray(d1Posts))     { live.posts     = d1Posts;     liveUpdated = true; }
         if (Array.isArray(d1FbCities))  { live.fb_cities = d1FbCities;  liveUpdated = true; }
         if (Array.isArray(d1Categories)){ live.categories = d1Categories; liveUpdated = true; }
+        if (Array.isArray(d1FbCountries)){ live.fb_countries = d1FbCountries; liveUpdated = true; }
         
         if (liveUpdated) {
             saveDB(live);
