@@ -1,7 +1,7 @@
 import { getCurrentUser, isAdmin } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { getTotalUnread } from '../services/messaging.js';
-import { db } from '../services/db.js';
+import { db, syncMessagesAndThreads } from '../services/db.js';
 
 export function getNavAuthButtons() {
     const user = getCurrentUser();
