@@ -216,8 +216,10 @@ app.post('/users', async (c) => {
       'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
       'saved_listings', 'saved_searches', 'blocked_users', 'password_hash', 'role', 
       'is_active', 'profileComplete', 'emailVerified', 'created_at', 'last_active',
-      'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline'
+      'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline',
+      'id_verified', 'id_status', 'id_reject_reason', 'verification_id_photo', 'verification_selfie', 'phone_verified'
     ]
+
     const filtered: Record<string, any> = {}
     for (const col of validCols) {
       if (mapped[col] !== undefined) filtered[col] = mapped[col]
@@ -322,7 +324,9 @@ app.post('/listings', async (c) => {
       'listing_id', 'user_id', 'title', 'description', 'city', 'neighborhood_id', 
       'address', 'latitude', 'longitude', 'rent', 'rent_type', 'room_type', 
       'bathrooms', 'available_from', 'lease_term', 'amenities', 'tags', 'images', 
-      'status', 'is_featured', 'view_count', 'created_at', 'updated_at'
+      'status', 'is_featured', 'view_count', 'created_at', 'updated_at',
+      'moderation_status', 'rejection_reason', 'bedrooms', 'size_sqft', 'preferredArea', 
+      'moveInTimeline', 'budgetMin', 'budgetMax'
     ]
     const mapped: Record<string, any> = {
       listing_id: id,
@@ -842,6 +846,61 @@ app.delete('/messages/:id', async (c) => {
   }
 })
 
+// ── D1: Reports ─────────────────────────────────────────────
+app.get('/reports', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM reports ORDER BY created_at DESC').all()
+    return dbJson(c, results)
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
+app.post('/reports', async (c) => {
+  try {
+    const body = await c.req.json()
+    const id = body.report_id || `rep_${Date.now()}`
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO reports (report_id, reporter_id, target_id, target_type, reason, details, status, resolved_by, resolved_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id, body.reporter_id, body.target_id, body.target_type, body.reason, body.details,
+      body.status || 'pending', body.resolved_by || null, body.resolved_at || null,
+      body.created_at || new Date().toISOString()
+    ).run()
+    return dbJson(c, { success: true, report_id: id }, 201)
+  } catch (err) {
+    return dbJson(c, { error: err instanceof Error ? err.message : 'Error' }, 500)
+  }
+})
+
+app.put('/reports/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const mapped: Record<string, any> = {}
+    for (const [k, v] of Object.entries(body)) {
+      mapped[k] = v
+    }
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(mapped), id]
+    await c.env.DB.prepare(`UPDATE reports SET ${sets} WHERE report_id = ?`).bind(...vals).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: err instanceof Error ? err.message : 'Error' }, 500)
+  }
+})
+
+app.delete('/reports/:id', async (c) => {
+  try {
+    await c.env.DB.prepare('DELETE FROM reports WHERE report_id = ?').bind(c.req.param('id')).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Delete failed' }, 500)
+  }
+})
+
+
 // ── D1: Notifications ───────────────────────────────────────────
 app.get('/notifications', async (c) => {
   try {
@@ -865,12 +924,20 @@ app.post('/notifications', async (c) => {
   try {
     const body = await c.req.json()
     const id = body.notification_id || `notif_${Date.now()}`
+    
+    // Support both frontend (description/website_url) and schema (body/link) naming
+    const title = body.title || ''
+    const content = body.body || body.description || ''
+    const link = body.link || body.website_url || ''
+    const type = body.type || 'info'
+    const is_read = body.is_read ? 1 : 0
+    const created_at = body.created_at || new Date().toISOString()
+
     await c.env.DB.prepare(
       `INSERT OR REPLACE INTO notifications (notification_id, user_id, type, title, body, link, is_read, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
-      id, body.user_id, body.type || 'info', body.title || '', body.body || '', body.link || '',
-      body.is_read ? 1 : 0, body.created_at || new Date().toISOString()
+      id, body.user_id, type, title, content, link, is_read, created_at
     ).run()
     return dbJson(c, { success: true, notification_id: id }, 201)
   } catch (err) {
@@ -937,4 +1004,105 @@ app.post('/sync', async (c) => {
   }
 })
 
+// ── D1: Admin Logs ───────────────────────────────────────────
+app.get('/admin_logs', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT 1000').all()
+    return dbJson(c, results)
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
+app.post('/admin_logs', async (c) => {
+  try {
+    const body = await c.req.json()
+    const id = body.log_id || `log_${Date.now()}`
+    await c.env.DB.prepare(
+      `INSERT INTO admin_logs (log_id, admin_id, action, target_id, details, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id, body.admin_id, body.action, body.target_id || null, body.details || null,
+      body.created_at || new Date().toISOString()
+    ).run()
+    return dbJson(c, { success: true, log_id: id }, 201)
+  } catch (err) {
+    return dbJson(c, { error: 'Insert failed' }, 500)
+  }
+})
+
+// ── D1: User Queries ──────────────────────────────────────────
+app.get('/user_queries', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM user_queries ORDER BY created_at DESC').all()
+    return dbJson(c, results)
+  } catch (err) {
+    return dbJson(c, { error: 'Database error' }, 500)
+  }
+})
+
+app.post('/user_queries', async (c) => {
+  try {
+    const body = await c.req.json()
+    const id = body.query_id || `qry_${Date.now()}`
+    
+    // Filter to valid columns based on the updated contact form requirements
+    const validCols = [
+      'query_id', 'user_id', 'first_name', 'last_name', 'email', 'topic', 
+      'topic_label', 'message', 'status', 'is_read', 'reply', 'replied_at', 'created_at'
+    ]
+    
+    const mapped: Record<string, any> = { query_id: id }
+    validCols.forEach(col => {
+      if (body[col] !== undefined) mapped[col] = body[col]
+    })
+    
+    if (mapped.is_read !== undefined) mapped.is_read = mapped.is_read ? 1 : 0
+
+    const cols = Object.keys(mapped)
+    const placeholders = cols.map(() => '?').join(', ')
+    const vals = Object.values(mapped)
+
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO user_queries (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...vals).run()
+    
+    return dbJson(c, { success: true, query_id: id }, 201)
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.put('/user_queries/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const mapped: Record<string, any> = {}
+    
+    const validCols = [
+      'user_id', 'first_name', 'last_name', 'email', 'topic', 
+      'topic_label', 'message', 'status', 'is_read', 'reply', 'replied_at'
+    ]
+    
+    validCols.forEach(col => {
+      if (body[col] !== undefined) mapped[col] = body[col]
+    })
+    
+    if (mapped.is_read !== undefined) mapped.is_read = mapped.is_read ? 1 : 0
+    
+    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
+    
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(mapped), id]
+    
+    await c.env.DB.prepare(`UPDATE user_queries SET ${sets} WHERE query_id = ?`).bind(...vals).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
 export default app
+

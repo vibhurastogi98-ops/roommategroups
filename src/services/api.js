@@ -79,4 +79,14 @@ export const api = {
     getMessages:      (tid)  => req('GET',    tid ? `/messages?thread_id=${tid}` : '/messages'),
     saveMessage:      (item) => req('POST',   '/messages', item),
     deleteMessage:    (id)   => req('DELETE', `/messages/${id}`),
+
+    // ── Reports ──────────────────────────────────────────────
+    saveReport:       (item) => req('POST',   '/reports', item),
+    updateReport:     (id, d)=> req('PUT',    `/reports/${id}`, d),
+    deleteReport:     (id)   => req('DELETE', `/reports/${id}`),
+
+    // ── Notifications ────────────────────────────────────────
+    saveNotification: (item) => req('POST',   '/notifications', item),
+    updateNotification:(id, d)=> req('PUT',    `/notifications/${id}`, d),
+    deleteNotification:(id)   => req('DELETE', `/notifications/${id}`),
 };

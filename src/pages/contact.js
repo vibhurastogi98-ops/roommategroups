@@ -1,6 +1,7 @@
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { db } from '../services/db.js';
+import { getCurrentUser } from '../services/auth.js';
 
 export function renderContactPage(app) {
     app.innerHTML = `
@@ -203,8 +204,11 @@ export function renderContactPage(app) {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
             submitBtn.disabled = true;
 
+            const user = getCurrentUser();
+
             // Save to database
             await db.user_queries.create({
+                user_id: user ? user.user_id : null,
                 first_name: fname,
                 last_name: lname,
                 email,

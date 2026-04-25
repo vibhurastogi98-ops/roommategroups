@@ -185,6 +185,9 @@ const D1_SYNC_MAP = {
     fb_cities:    { save: (item) => api.saveFbCity(item), update: (id,d) => api.updateFbCity(id,d), del: (id) => api.deleteFbCity(id) },
     threads:      { save: (item) => api.saveThread(item), update: (id,d) => api.updateThread(id,d), del: (id) => api.deleteThread(id) },
     messages:     { save: (item) => api.saveMessage(item), update: (id,d) => null, del: (id) => api.deleteMessage(id) },
+    reports:      { save: (item) => api.saveReport(item), update: (id,d) => api.updateReport(id,d), del: (id) => api.deleteReport(id) },
+    notifications:{ save: (item) => api.saveNotification(item), update: (id,d) => api.updateNotification(id,d), del: (id) => api.deleteNotification(id) },
+    user_queries: { save: (item) => api.post('/user_queries', item), update: (id,d) => api.put(`/user_queries/${id}`, d), del: (id) => api.delete(`/user_queries/${id}`) },
 };
 
 class Collection {
@@ -309,7 +312,7 @@ export async function initDB() {
     // This is the key step: D1 is the single source of truth for
     // admin-edited content. Fetch it and overwrite localStorage.
     try {
-        const [d1Users, d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries, d1Threads, d1Messages] = await Promise.all([
+        const [d1Users, d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries, d1Threads, d1Messages, d1Reports, d1Notifications, d1UserQueries] = await Promise.all([
             api.getUsers().catch(() => null),
             api.getCities().catch(() => null),
             api.getListings().catch(() => null),
@@ -319,6 +322,9 @@ export async function initDB() {
             api.getFbCountries().catch(() => null),
             api.getThreads().catch(() => null),
             api.getMessages().catch(() => null),
+            api.get('/reports').catch(() => null),
+            api.get('/notifications').catch(() => null),
+            api.get('/user_queries').catch(() => null),
         ]);
         const live = getDB();
         let liveUpdated = false;
@@ -339,6 +345,9 @@ export async function initDB() {
         if (Array.isArray(d1FbCountries)){ live.fb_countries = d1FbCountries; liveUpdated = true; }
         if (Array.isArray(d1Threads))   { live.threads = d1Threads; liveUpdated = true; }
         if (Array.isArray(d1Messages))  { live.messages = d1Messages; liveUpdated = true; }
+        if (Array.isArray(d1Reports))   { live.reports = d1Reports; liveUpdated = true; }
+        if (Array.isArray(d1Notifications)){ live.notifications = d1Notifications; liveUpdated = true; }
+        if (Array.isArray(d1UserQueries)) { live.user_queries = d1UserQueries; liveUpdated = true; }
         
         if (liveUpdated) {
             saveDB(live);
@@ -357,10 +366,11 @@ export async function initDB() {
  */
 export async function syncMessagesAndThreads() {
     try {
-        const [d1Threads, d1Messages, d1Notifications] = await Promise.all([
+        const [d1Threads, d1Messages, d1Notifications, d1Reports] = await Promise.all([
             api.getThreads().catch(() => null),
             api.getMessages().catch(() => null),
             api.get('/notifications').catch(() => []),
+            api.get('/reports').catch(() => []),
         ]);
 
         const dbData = getDB();
@@ -380,6 +390,11 @@ export async function syncMessagesAndThreads() {
             const old = JSON.stringify(dbData.notifications);
             const next = JSON.stringify(d1Notifications);
             if (old !== next) { dbData.notifications = d1Notifications; changed = true; }
+        }
+        if (Array.isArray(d1Reports)) {
+            const old = JSON.stringify(dbData.reports);
+            const next = JSON.stringify(d1Reports);
+            if (old !== next) { dbData.reports = d1Reports; changed = true; }
         }
 
         if (changed) {

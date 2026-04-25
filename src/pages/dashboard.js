@@ -60,13 +60,13 @@ export function renderDashboardPage(app) {
         '<nav class="sidebar-nav">',
         '<div class="sidebar-nav-section">Menu</div>',
         navLink('/dashboard', 'fa-house', 'Overview', 'overview'),
-        navLink('/dashboard/listings', 'fa-list-ul', 'My Listings', 'listings'),
+        navLink('/dashboard/listings', 'fa-list-ul', 'My Listings', 'listings', getListingsModerationBadge(dbUser.user_id)),
         navLink('/dashboard/messages', 'fa-message', 'Messages', 'messages', getUnreadCountBadge(dbUser.user_id)),
         navLink('/dashboard/notifications', 'fa-bell', 'Notifications', 'notifications', getUnreadNotifBadge(dbUser.user_id)),
         navLink('/dashboard/saved', 'fa-heart', 'Saved Listings', 'saved'),
         navLink('/dashboard/searches', 'fa-magnifying-glass', 'Saved Searches', 'searches'),
         '<div class="sidebar-nav-section">Account</div>',
-        navLink('/dashboard/verification', 'fa-shield-halved', 'Verification', 'verification'),
+        navLink('/dashboard/verification', 'fa-shield-halved', 'Verification', 'verification', getVerificationStatusBadge(dbUser)),
         navLink('/dashboard/subscription', 'fa-credit-card', 'Subscription', 'subscription'),
         navLink('/dashboard/settings', 'fa-gear', 'Settings', 'settings'),
         (isAdmin() ? '<div class="sidebar-nav-section">Admin</div>' + navLink('/admin', 'fa-lock', 'Admin Panel', '') : ''),
@@ -123,6 +123,37 @@ export function renderDashboardPage(app) {
     if (toggleBtn) toggleBtn.addEventListener('click', openSidebar);
     if (closeBtn)  closeBtn.addEventListener('click', closeSidebar);
     if (backdrop)  backdrop.addEventListener('click', closeSidebar);
+
+    // ── Real-time Badge Updates ──
+    function updateSidebarBadges() {
+        const msgBadge = app.querySelector('#dash-sidebar-msg-badge');
+        const notifBadge = app.querySelector('#dash-sidebar-notif-badge');
+        const listBadge = app.querySelector('#dash-sidebar-list-badge');
+
+        if (msgBadge) {
+            const threads = db.threads.find(t => {
+                const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+                return parts.includes(dbUser.user_id);
+            });
+            const unread = threads.reduce((sum, t) => sum + (t['unread_count_' + dbUser.user_id] || 0), 0);
+            msgBadge.textContent = unread;
+            msgBadge.style.display = unread > 0 ? 'flex' : 'none';
+        }
+        if (notifBadge) {
+            const count = db.notifications.find(n => n.user_id === dbUser.user_id && !n.is_read).length;
+            notifBadge.textContent = count;
+            notifBadge.style.display = count > 0 ? 'flex' : 'none';
+        }
+        if (listBadge) {
+            const pending = db.listings.find(l => l.user_id === dbUser.user_id && l.moderation_status === 'pending').length;
+            const rejected = db.listings.find(l => l.user_id === dbUser.user_id && l.moderation_status === 'rejected').length;
+            const total = pending + rejected;
+            listBadge.textContent = total;
+            listBadge.style.display = total > 0 ? 'flex' : 'none';
+        }
+    }
+
+    window.addEventListener('db-synced', updateSidebarBadges);
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -133,13 +164,24 @@ function getUnreadCountBadge(userId) {
         return parts.includes(userId);
     });
     const unread = threads.reduce((sum, t) => sum + (t['unread_count_' + userId] || 0), 0);
-    if (unread > 0) return '<span class="badge badge-primary badge-sm" style="margin-left:auto;">' + unread + '</span>';
-    return '';
+    return '<span class="badge badge-primary badge-sm" id="dash-sidebar-msg-badge" style="margin-left:auto;background:#ef4444;' + (unread > 0 ? '' : 'display:none;') + '">' + unread + '</span>';
 }
 
 function getUnreadNotifBadge(userId) {
     const count = db.notifications.find(n => n.user_id === userId && !n.is_read).length;
-    if (count > 0) return '<span class="badge badge-primary badge-sm" style="margin-left:auto;">' + count + '</span>';
+    return '<span class="badge badge-primary badge-sm" id="dash-sidebar-notif-badge" style="margin-left:auto;background:#ef4444;' + (count > 0 ? '' : 'display:none;') + '">' + count + '</span>';
+}
+
+function getListingsModerationBadge(userId) {
+    const pending = db.listings.find(l => l.user_id === userId && l.moderation_status === 'pending').length;
+    const rejected = db.listings.find(l => l.user_id === userId && l.moderation_status === 'rejected').length;
+    const total = pending + rejected;
+    return '<span class="badge badge-primary badge-sm" id="dash-sidebar-list-badge" style="margin-left:auto;background:#ef4444;' + (total > 0 ? '' : 'display:none;') + '">' + total + '</span>';
+}
+
+function getVerificationStatusBadge(dbUser) {
+    if (dbUser.id_status === 'pending') return '<span class="badge badge-primary badge-sm" style="margin-left:auto;background:#f59e0b;"><i class="fa-solid fa-clock"></i></span>';
+    if (dbUser.id_status === 'rejected') return '<span class="badge badge-primary badge-sm" style="margin-left:auto;background:#ef4444;"><i class="fa-solid fa-triangle-exclamation"></i></span>';
     return '';
 }
 
@@ -347,7 +389,13 @@ function renderMyListings(container, user) {
                 '<h4><a href="/listing/' + l.listing_id + '" style="color:inherit;text-decoration:none;">' + escapeHtml(l.title) + '</a></h4>',
                 '<p>' + escapeHtml(location) + (rentPrice !== '?' ? ' &bull; $' + rentPrice + '/mo' : '') + '</p>',
                 '</div></div></td>',
-                '<td><span class="badge ' + (isActive ? 'badge-success' : l.status === 'paused' ? 'badge-warning' : 'badge-gray') + '" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">' + l.status.charAt(0).toUpperCase() + l.status.slice(1) + '</span></td>',
+                '<td>' + (() => {
+                    const modStatus = l.moderation_status || 'approved';
+                    if (modStatus === 'pending') return '<span class="badge badge-warning" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-clock"></i> Pending Review</span>';
+                    if (modStatus === 'rejected') return '<div class="status-reject-wrap"><span class="badge badge-danger" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-circle-xmark"></i> Rejected</span><div class="reject-reason-tip">' + escapeHtml(l.rejection_reason || 'Guidelines violation') + '</div></div>';
+                    if (modStatus === 'flagged') return '<span class="badge badge-warning" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-flag"></i> Flagged</span>';
+                    return '<span class="badge ' + (isActive ? 'badge-success' : l.status === 'paused' ? 'badge-warning' : 'badge-gray') + '" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">' + l.status.charAt(0).toUpperCase() + l.status.slice(1) + '</span>';
+                })() + '</td>',
                 '<td><div class="td-stats"><span><i class="fa-solid fa-eye"></i> ' + (l.view_count || l.views_count || 0) + '</span><span><i class="fa-solid fa-message"></i> ' + msgCount + '</span></div></td>',
                 '<td><div class="td-actions">',
                 '<button class="btn-icon-sm action-view" data-id="' + l.listing_id + '" title="View listing"><i class="fa-solid fa-eye"></i></button>',

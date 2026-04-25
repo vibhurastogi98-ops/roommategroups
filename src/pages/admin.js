@@ -63,6 +63,10 @@ export function renderAdminPage(app) {
         const sectionLinks = navLinks.filter(n => n.section === section);
         const hasActive = sectionLinks.some(n => n.id === view);
         const sectionIcon = sectionIcons[section] || 'fa-folder';
+
+        const sectionBadgeCount = sectionLinks.reduce((sum, n) => sum + (Number(n.badge) || 0), 0);
+        const sectionBadgeHtml = sectionBadgeCount > 0 ? '<span class="adm-section-badge">' + sectionBadgeCount + '</span>' : '';
+
         const links = sectionLinks.map(n => {
             const isActive = n.id === view;
             const badgeHtml = n.badge ? '<span class="adm-nav-badge">' + n.badge + '</span>' : '';
@@ -72,10 +76,12 @@ export function renderAdminPage(app) {
                 badgeHtml +
                 '</a>';
         }).join('');
+
         return '<div class="adm-accordion-group' + (hasActive ? ' open' : '') + '">' +
             '<button class="adm-accordion-header">' +
             '<i class="fa-solid ' + sectionIcon + ' adm-accordion-icon"></i>' +
             '<span class="adm-accordion-title">' + section + '</span>' +
+            sectionBadgeHtml +
             '<i class="fa-solid fa-chevron-right adm-accordion-chevron"></i>' +
             '</button>' +
             '<div class="adm-accordion-body">' + links + '</div>' +
@@ -490,13 +496,34 @@ function renderAdminListings(container) {
 
     async function doAction(listingId, action, reason = '') {
         const user = getCurrentUser();
+        const listing = db.listings.findById(listingId);
+        if (!listing) return;
+
         if (action === 'approve') {
-            await db.listings.update(listingId, { moderation_status: 'approved' });
+            await db.listings.update(listingId, { moderation_status: 'approved', status: 'active' });
             await logAdminAction(user.user_id, 'Approved listing', listingId);
+            
+            // Notify listing owner
+            await db.notifications.create({
+                user_id: listing.user_id,
+                type: 'listing_approved',
+                title: 'Listing Approved! ✅',
+                body: `Your listing "${listing.title}" has been approved and is now live.`,
+                link: `/listing/${listingId}`
+            });
             showToast('Listing approved.');
         } else if (action === 'reject') {
-            await db.listings.update(listingId, { moderation_status: 'rejected', rejection_reason: reason });
+            await db.listings.update(listingId, { moderation_status: 'rejected', status: 'rejected', rejection_reason: reason });
             await logAdminAction(user.user_id, 'Rejected listing', listingId);
+
+            // Notify listing owner
+            await db.notifications.create({
+                user_id: listing.user_id,
+                type: 'listing_rejected',
+                title: 'Listing Rejected ❌',
+                body: `Your listing "${listing.title}" was rejected. Reason: ${reason}`,
+                link: `/dashboard`
+            });
             showToast('Listing rejected.', 'error');
         } else if (action === 'flag') {
             await db.listings.update(listingId, { moderation_status: 'flagged' });
@@ -1021,18 +1048,36 @@ function renderAdminVerifications(container) {
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
-    function doVerifyAction(userId, action, reason = '') {
+    async function doVerifyAction(userId, action, reason = '') {
         const admin = getCurrentUser();
         const u = db.users.findById(userId);
         if (!u) return;
         
         if (action === 'approve') {
-            db.users.update(userId, { id_status: 'approved', id_verified: true, verification_level: u.verification_level === 'basic' || u.verification_level === 'phone' ? 'id' : u.verification_level });
-            logAdminAction(admin.user_id, 'Approved ID Verification', u.display_name);
+            await db.users.update(userId, { id_status: 'approved', id_verified: true, verification_level: u.verification_level === 'basic' || u.verification_level === 'phone' ? 'id' : u.verification_level });
+            await logAdminAction(admin.user_id, 'Approved ID Verification', u.display_name);
+            
+            // Notify user
+            await db.notifications.create({
+                user_id: userId,
+                type: 'verification_approved',
+                title: 'ID Verification Approved! ✅',
+                body: 'Your identity has been verified. You now have a verified badge on your profile.',
+                link: '/dashboard/profile'
+            });
             showToast('User ID verified successfully.');
         } else if (action === 'reject') {
-            db.users.update(userId, { id_status: 'rejected', id_reject_reason: reason, verification_id_photo: null, verification_selfie: null });
-            logAdminAction(admin.user_id, 'Rejected ID Verification: ' + reason, u.display_name);
+            await db.users.update(userId, { id_status: 'rejected', id_reject_reason: reason, verification_id_photo: null, verification_selfie: null });
+            await logAdminAction(admin.user_id, 'Rejected ID Verification: ' + reason, u.display_name);
+            
+            // Notify user
+            await db.notifications.create({
+                user_id: userId,
+                type: 'verification_rejected',
+                title: 'ID Verification Rejected ❌',
+                body: `Your ID verification request was rejected. Reason: ${reason}. Please try again with clearer photos.`,
+                link: '/dashboard/profile'
+            });
             showToast('ID Verification rejected and removed.', 'error');
         }
         
@@ -1183,7 +1228,7 @@ function renderAdminReports(container) {
             });
     }
 
-    function doReportAction(reportId, action) {
+    async function doReportAction(reportId, action) {
         const admin = getCurrentUser();
         const r = db.reports.findById(reportId);
         if (!r) return;
@@ -1192,14 +1237,46 @@ function renderAdminReports(container) {
             logAdminAction(admin.user_id, 'Dismissed report', r.target_name);
             showToast('Report dismissed.');
         } else if (action === 'remove') {
-            db.listings.update(r.target_id, { status: 'removed', moderation_status: 'rejected' });
-            db.reports.update(reportId, { status: 'resolved' });
-            logAdminAction(admin.user_id, 'Removed content', r.target_name);
+            await db.listings.update(r.target_id, { status: 'removed', moderation_status: 'rejected' });
+            await db.reports.update(reportId, { status: 'resolved' });
+            await logAdminAction(admin.user_id, 'Removed content', r.target_name);
+
+            // Notify owner
+            const listing = db.listings.findById(r.target_id);
+            if (listing) {
+                await db.notifications.create({
+                    user_id: listing.user_id,
+                    type: 'content_removed',
+                    title: 'Content Removed ⚠️',
+                    body: `Your listing "${listing.title}" was removed due to multiple user reports.`,
+                    link: '/dashboard'
+                });
+            }
             showToast('Content removed.', 'error');
         } else if (action === 'warn') {
-            db.reports.update(reportId, { status: 'warned' });
-            logAdminAction(admin.user_id, 'Issued warning', r.target_name);
+            await db.reports.update(reportId, { status: 'warned' });
+            await logAdminAction(admin.user_id, 'Issued warning', r.target_name);
+
+            // Notify user
+            const targetId = r.target_type === 'user' ? r.target_id : (db.listings.findById(r.target_id)?.user_id);
+            if (targetId) {
+                await db.notifications.create({
+                    user_id: targetId,
+                    type: 'system_warning',
+                    title: 'System Warning ⚠️',
+                    body: `You have received a formal warning due to your recent activity. Please review our community guidelines.`,
+                    link: '/safety'
+                });
+            }
             showToast('Warning issued to user.');
+        } else if (action === 'ban') {
+            const targetId = r.target_type === 'user' ? r.target_id : (db.listings.findById(r.target_id)?.user_id);
+            if (targetId) {
+                await db.users.update(targetId, { is_active: false });
+                await db.reports.update(reportId, { status: 'resolved' });
+                await logAdminAction(admin.user_id, 'Banned user', r.target_name);
+                showToast('User banned successfully.', 'error');
+            }
         }
         renderContent();
     }
@@ -1236,7 +1313,8 @@ function renderAdminReports(container) {
                 r.status === 'pending' ? [
                     '<button class="adm-btn adm-btn-sm" data-rid="' + r.report_id + '" data-raction="dismiss">Dismiss</button>',
                     '<button class="adm-btn adm-btn-sm adm-btn-warn" data-rid="' + r.report_id + '" data-raction="warn">Warn</button>',
-                    r.type === 'listing' ? '<button class="adm-btn adm-btn-sm adm-btn-reject" data-rid="' + r.report_id + '" data-raction="remove">Remove</button>' : '',
+                    r.target_type === 'listing' ? '<button class="adm-btn adm-btn-sm adm-btn-reject" data-rid="' + r.report_id + '" data-raction="remove">Remove</button>' : '',
+                    '<button class="adm-btn adm-btn-sm adm-btn-danger" data-rid="' + r.report_id + '" data-raction="ban"><i class="fa-solid fa-ban"></i> Ban</button>',
                 ].join('') : '<span class="adm-status-pill pill-inactive">' + r.status + '</span>',
                 '</div>',
                 '</div>'
@@ -3601,12 +3679,12 @@ function renderAdminQueries(container) {
     modal?.addEventListener('click', (e) => { if (e.target === modal) { modal.style.display = 'none'; applyFilters(); } });
 
     // Send reply
-    container.querySelector('#qry-send-btn')?.addEventListener('click', () => {
+    container.querySelector('#qry-send-btn')?.addEventListener('click', async () => {
         const queryId = document.getElementById('qry-modal-id').value;
         const replyText = document.getElementById('qry-reply-text').value.trim();
         if (!replyText) { showToast('Please write a reply message.', 'error'); return; }
 
-        db.user_queries.update(queryId, {
+        await db.user_queries.update(queryId, {
             status: 'replied',
             is_read: true,
             reply: replyText,
@@ -3614,6 +3692,19 @@ function renderAdminQueries(container) {
         });
 
         const q = db.user_queries.findById(queryId);
+
+        // If user was logged in when sending the query, notify them
+        if (q && q.user_id) {
+            await db.notifications.create({
+                user_id: q.user_id,
+                title: 'New Support Reply',
+                description: `An admin has replied to your query regarding "${q.topic_label || q.topic}".`,
+                type: 'support_reply',
+                is_read: false,
+                website_url: '/dashboard/notifications' // Or a specific query view if it existed
+            });
+        }
+
         // Simulate email send via mailto
         const subject = encodeURIComponent('Re: Your query – ' + (q?.topic_label || q?.topic || 'Support'));
         const body = encodeURIComponent(replyText);
@@ -3622,7 +3713,7 @@ function renderAdminQueries(container) {
         modal.style.display = 'none';
         applyFilters();
         showToast('Reply sent and query marked as Replied.');
-        logAdminAction('user_admin_1', 'Replied to query', 'Query from ' + (q?.first_name || '') + ' ' + (q?.last_name || '') + ' — ' + (q?.email || ''));
+        logAdminAction(user.id, 'Replied to query', 'Query from ' + (q?.first_name || '') + ' ' + (q?.last_name || '') + ' — ' + (q?.email || ''));
     });
 }
 

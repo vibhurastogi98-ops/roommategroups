@@ -26,11 +26,18 @@ CREATE TABLE IF NOT EXISTS users (
   is_active        INTEGER DEFAULT 1,
   profileComplete  INTEGER DEFAULT 0,  -- 1 = profile setup completed
   emailVerified    INTEGER DEFAULT 1,
+  id_verified      INTEGER DEFAULT 0,
+  id_status        TEXT DEFAULT 'none', -- 'none', 'pending', 'approved', 'rejected'
+  id_reject_reason TEXT,
+  verification_id_photo TEXT,
+  verification_selfie TEXT,
+  phone_verified   INTEGER DEFAULT 0,
   budgetMin        INTEGER,
   budgetMax        INTEGER,
   moveInTimeline   TEXT,
   created_at       TEXT DEFAULT (datetime('now')),
-  last_active      TEXT
+  last_active      TEXT,
+  updated_at       TEXT DEFAULT (datetime('now'))
 );
 
 -- ── 2. listings ─────────────────────────────────────────────
@@ -54,8 +61,16 @@ CREATE TABLE IF NOT EXISTS listings (
   tags             TEXT,           -- JSON array of tag_ids
   images           TEXT,           -- JSON array of image URLs
   status           TEXT DEFAULT 'active',
+  moderation_status TEXT DEFAULT 'approved', -- 'pending', 'approved', 'rejected', 'flagged'
+  rejection_reason TEXT,
   is_featured      INTEGER DEFAULT 0,
   view_count       INTEGER DEFAULT 0,
+  bedrooms         INTEGER,
+  size_sqft        INTEGER,
+  preferredArea    TEXT,
+  moveInTimeline   TEXT,
+  budgetMin        INTEGER,
+  budgetMax        INTEGER,
   created_at       TEXT DEFAULT (datetime('now')),
   updated_at       TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -230,10 +245,18 @@ CREATE TABLE IF NOT EXISTS fb_cities (
 CREATE TABLE IF NOT EXISTS user_queries (
   query_id         TEXT PRIMARY KEY,
   user_id          TEXT,
-  query_text       TEXT,
-  filters          TEXT,           -- JSON object
-  result_count     INTEGER,
-  created_at       TEXT DEFAULT (datetime('now'))
+  first_name       TEXT,
+  last_name        TEXT,
+  email            TEXT,
+  topic            TEXT,
+  topic_label      TEXT,
+  message          TEXT,
+  status           TEXT DEFAULT 'new',
+  is_read          INTEGER DEFAULT 0,
+  reply            TEXT,
+  replied_at       TEXT,
+  created_at       TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 -- ── 17. notifications ───────────────────────────────────────

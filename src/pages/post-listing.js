@@ -891,7 +891,9 @@ async function handlePublish() {
         address: draft.address, room_type: draft.roomType, available_from: draft.availableFrom,
         lease_duration: draft.leaseDuration, furnished: draft.furnished, amenities: draft.amenities,
         images: JSON.stringify(draft.photos), roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
-        status: 'active', moderation_status: 'pending', is_featured: isFeatured, view_count: 0,
+        status: isFree ? 'pending' : 'active', 
+        moderation_status: isFree ? 'pending' : 'approved', 
+        is_featured: isFeatured, view_count: 0,
         bedrooms: parseInt(draft.bedrooms) || null, bathrooms: parseInt(draft.bathrooms) || null,
         size_sqft: parseInt(draft.sizeSqft) || null,
         budgetMin: draft.budgetMin || null, budgetMax: draft.budgetMax || null,
@@ -899,8 +901,27 @@ async function handlePublish() {
     };
 
     try {
-        await db.listings.create(listingData);
+        const item = await db.listings.create(listingData);
         clearDraft();
+
+        // Notify user
+        if (isFree) {
+            await db.notifications.create({
+                user_id: user.id,
+                type: 'moderation_pending',
+                title: 'Listing Pending Review',
+                body: 'Your listing has been submitted and is pending admin approval. It will go live once approved.',
+                link: `/listing/${item.listing_id}`
+            });
+        } else {
+            await db.notifications.create({
+                user_id: user.id,
+                type: 'listing_approved',
+                title: 'Listing Published!',
+                body: 'Your premium listing is now live and visible to all users.',
+                link: `/listing/${item.listing_id}`
+            });
+        }
 
         const toast = document.createElement('div');
         toast.className = 'toast toast-success';
