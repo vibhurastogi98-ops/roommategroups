@@ -217,21 +217,50 @@ export function initNavbar() {
     const hamburger = document.getElementById('hamburger');
     const navLinks = document.getElementById('nav-links');
     const navCta = document.getElementById('nav-cta');
+    // Capture original parent/sibling BEFORE any DOM moves
+    const navCtaOriginalParent = navCta ? navCta.parentElement : null;
+    const navCtaNextSibling = navCta ? navCta.nextElementSibling : null;
+
     if (hamburger && navLinks) {
+        function closeMobileMenu() {
+            navLinks.classList.remove('active');
+            if (navCta) {
+                navCta.classList.remove('active');
+                // Restore nav-cta to its original DOM position.
+                // Use parentElement check (not .contains) because nav-links
+                // is itself inside nav-container, so .contains() always returns true.
+                if (navCtaOriginalParent && navCta.parentElement !== navCtaOriginalParent) {
+                    if (navCtaNextSibling && navCtaNextSibling.parentElement === navCtaOriginalParent) {
+                        navCtaOriginalParent.insertBefore(navCta, navCtaNextSibling);
+                    } else {
+                        navCtaOriginalParent.appendChild(navCta);
+                    }
+                }
+            }
+            document.body.style.overflow = '';
+            const spans = hamburger.querySelectorAll('span');
+            spans[0].style.transform = 'none';
+            spans[1].style.opacity = '1';
+            spans[2].style.transform = 'none';
+        }
+
+        // Expose so anchor clicks can also close menu
+        window._closeMobileMenu = closeMobileMenu;
+
         hamburger.addEventListener('click', () => {
             const isOpen = navLinks.classList.toggle('active');
             if (navCta) {
                 navCta.classList.toggle('active', isOpen);
                 if (isOpen) {
-                    // Position nav-cta immediately below nav-links
-                    requestAnimationFrame(() => {
-                        const linksBottom = navLinks.getBoundingClientRect().bottom;
-                        navCta.style.top = linksBottom + 'px';
-                    });
+                    // Move nav-cta inside nav-links so both scroll in one unified drawer
+                    navLinks.appendChild(navCta);
                 } else {
-                    navCta.style.top = '';
+                    closeMobileMenu();
+                    return;
                 }
             }
+            // Lock/unlock body scroll
+            document.body.style.overflow = isOpen ? 'hidden' : '';
             const spans = hamburger.querySelectorAll('span');
             if (isOpen) {
                 spans[0].style.transform = 'rotate(45deg) translate(5px, 5px)';
@@ -271,17 +300,8 @@ export function initNavbar() {
                 }, 100);
             }
 
-            // Close mobile menu
-            if (navLinks) {
-                navLinks.classList.remove('active');
-                if (navCta) navCta.classList.remove('active');
-                const spans = hamburger?.querySelectorAll('span');
-                if (spans && spans.length === 3) {
-                    spans[0].style.transform = 'none';
-                    spans[1].style.opacity = '1';
-                    spans[2].style.transform = 'none';
-                }
-            }
+            // Close mobile menu and restore scroll
+            if (window._closeMobileMenu) window._closeMobileMenu();
         });
     });
 }

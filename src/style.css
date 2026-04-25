@@ -1929,24 +1929,51 @@ ol {
     font-size: 1.75rem;
   }
 
+  /* ── Mobile Menu: single unified full-screen drawer ── */
   .nav-links {
     display: none;
     position: fixed;
     top: 72px;
     left: 0;
     right: 0;
-    background: #fff;
+    bottom: 0;
+    /* Explicit height guarantees the drawer fills the full viewport on all mobile browsers */
+    height: calc(100vh - 72px);
+    min-height: calc(100vh - 72px);
+    background: #ffffff;
     flex-direction: column;
-    padding: 24px 24px 8px;
-    gap: 20px;
-    border-bottom: 1px solid var(--border);
-    z-index: 998;
+    padding: 20px 24px 60px;
+    gap: 4px;
+    z-index: 999;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    border-top: 1px solid var(--border);
   }
 
   .nav-links.active {
     display: flex;
   }
 
+  /* Nav links — compact size in drawer */
+  .nav-links a {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    padding: 11px 4px;
+    border-bottom: 1px solid var(--border-light);
+    width: 100%;
+  }
+
+  .nav-links a:last-child {
+    border-bottom: none;
+  }
+
+  .nav-links a::after {
+    display: none;
+  }
+
+  /* CTA section inside the drawer */
   .nav-cta {
     display: none;
   }
@@ -1954,38 +1981,50 @@ ol {
   .nav-cta.active {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    position: fixed;
-    top: 72px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: #fff;
-    padding: 16px 24px 40px;
-    border-top: 1px solid var(--border);
-    box-shadow: var(--shadow-lg);
-    z-index: 999;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .nav-cta.active .btn {
+    gap: 8px;
+    position: static;
     width: 100%;
-    justify-content: center;
-    text-align: center;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--border-light);
+    margin-top: 8px;
   }
 
-  .nav-cta.active .nav-msg-btn {
+  /* Every button/link inside the mobile CTA: full width, same height */
+  .nav-cta.active .btn,
+  .nav-cta.active .nav-msg-btn,
+  .nav-cta.active .user-avatar-nav {
+    display: flex;
     width: 100%;
     height: 44px;
     border-radius: 10px;
-    font-size: 0.925rem;
-    gap: 8px;
-    border: 1.5px solid var(--border);
+    font-size: 0.875rem;
     font-weight: 600;
     justify-content: center;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
     transform: none;
     box-shadow: none;
+    min-width: 0;
+  }
+
+  .nav-cta.active .nav-msg-btn {
+    border: 1.5px solid var(--border);
+    background: var(--bg-light);
+    color: var(--text-primary);
+  }
+
+  .nav-cta.active .user-avatar-nav {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+    border: none;
+    padding: 0 16px;
+  }
+
+  /* Dropdown container must stretch full width */
+  .nav-cta.active .nav-user-dropdown-container {
+    width: 100%;
+    position: static;
   }
 
   .nav-cta.active .nav-user-dropdown {
@@ -1997,42 +2036,28 @@ ol {
     transform: none !important;
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--border-light);
-    margin-top: 6px;
-    border-radius: 12px;
+    margin-top: 4px;
+    border-radius: 10px;
     flex-direction: column;
     background: #f8f9fb;
-    padding: 8px;
+    padding: 6px;
   }
 
   .nav-cta.active .nav-user-dropdown.active {
     display: flex !important;
   }
 
-  .nav-cta.active .nav-user-nav,
-  .nav-cta.active .nav-user-dropdown-container {
-    width: 100%;
-    position: static;
-  }
-
-  .nav-cta.active .user-avatar-nav {
-    width: 100%;
-    height: 44px;
-    border-radius: 10px;
-    justify-content: center;
-    transform: none;
-    font-size: 0.9rem;
-  }
-
+  /* Label injection for icon-only buttons */
   .nav-cta.active #nav-notif-btn::before {
     content: 'Notifications';
-    font-size: 0.925rem;
+    font-size: 0.875rem;
     font-weight: 600;
     font-family: var(--font);
   }
 
   .nav-cta.active #nav-msg-btn::before {
     content: 'Messages';
-    font-size: 0.925rem;
+    font-size: 0.875rem;
     font-weight: 600;
     font-family: var(--font);
   }
@@ -2157,7 +2182,8 @@ ol {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  /* top: navbar height (72px) + breathing room */
+  padding: calc(72px + 40px) 20px 40px;
   background: linear-gradient(135deg, #f8fafc 0%, #f0f0f0 50%, #f8fafc 100%);
 }
 
