@@ -610,7 +610,7 @@ ol {
   display: block;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .desktop-only {
     display: none;
   }
@@ -1994,7 +1994,14 @@ ol {
     font-size: 0.9rem;
   }
 
-  .nav-cta.active .nav-msg-btn::before {
+  .nav-cta.active #nav-notif-btn::before {
+    content: 'Notifications';
+    font-size: 0.925rem;
+    font-weight: 600;
+    font-family: var(--font);
+  }
+
+  .nav-cta.active #nav-msg-btn::before {
     content: 'Messages';
     font-size: 0.925rem;
     font-weight: 600;
@@ -4306,6 +4313,14 @@ ol {
   background: var(--bg-light);
   position: relative;
   overflow: hidden; /* Constrain content to this container */
+  z-index: 1100; /* Ensure it's above the site navbar if it somehow persists */
+}
+
+/* Hide global navbar when dashboard is active */
+.dashboard-layout ~ .navbar,
+.navbar:has(+ .dashboard-layout),
+#app:has(.dashboard-layout) .navbar {
+  display: none !important;
 }
 
 /* ── Sidebar ── */
@@ -4345,13 +4360,15 @@ ol {
 
 .mobile-menu-close {
   display: none;
-  background: none;
-  border: none;
-  font-size: 1.1rem;
-  color: var(--text-muted);
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  font-size: 1.2rem;
+  color: var(--text-primary);
   cursor: pointer;
-  padding: 5px;
-  border-radius: 6px;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   transition: var(--transition-fast);
   align-items: center;
   justify-content: center;
@@ -4553,21 +4570,25 @@ ol {
 .dashboard-topbar {
   background: #fff;
   border-bottom: 1px solid var(--border);
-  padding: 13px 20px;
+  padding: 12px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  position: relative; /* Changed from sticky to relative since dashboard-main handles overflow */
+  z-index: 150;
   flex-shrink: 0;
+  min-height: 64px;
 }
 
 .topbar-logo {
   font-weight: 700;
   font-size: 1rem;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .topbar-user-pill {
@@ -4576,6 +4597,20 @@ ol {
   gap: 8px;
   font-size: 0.875rem;
   color: var(--text-secondary);
+  background: var(--bg-light);
+  padding: 4px 10px 4px 4px;
+  border-radius: 20px;
+  border: 1px solid var(--border-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.topbar-user-pill span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar-avatar {
@@ -6258,8 +6293,12 @@ input:checked+.slider:before {
 @media (max-width: 900px) {
   .dashboard-sidebar {
     position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
     transform: translateX(-100%);
     box-shadow: none;
+    z-index: 1000; /* Ensure it's above everything when open */
   }
 
   .dashboard-sidebar.mobile-open {

@@ -80,7 +80,7 @@ export function renderDashboardPage(app) {
         // ── Main ──
         '<main class="dashboard-main">',
         '<div class="dashboard-topbar mobile-only">',
-        '<button id="sidebar-toggle" class="btn btn-icon" style="background:none;border:1px solid var(--border);width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><i class="fa-solid fa-bars" style="font-size:0.9rem;color:var(--text-secondary);"></i></button>',
+        '<button id="sidebar-toggle" class="btn btn-icon" style="background:rgba(0,0,0,0.03);border:1px solid var(--border);width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;"><i class="fa-solid fa-bars" style="font-size:1.1rem;color:var(--text-primary);"></i></button>',
         '<div class="topbar-logo"><i class="fa-solid fa-house-chimney" style="color:var(--primary);margin-right:6px;"></i>Dashboard</div>',
         '<div style="display:flex;align-items:center;gap:8px;">',
         '<a href="/dashboard/notifications" class="nav-msg-btn" style="position:relative;" title="Notifications">',
