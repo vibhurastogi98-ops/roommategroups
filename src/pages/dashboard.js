@@ -29,13 +29,13 @@ export function renderDashboardPage(app) {
 
     const avatarSrc = dbUser.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(dbUser.display_name) + '&background=1B4F72&color=fff&size=80');
     const tierKey = dbUser.subscription_tier || 'free';
-    const tierLabels = { free: 'Free', basic: 'Basic', premium: 'Premium', pro: 'Pro' };
+    const tierLabels = { free: 'Free', basic: 'Basic', premium: 'Premium', pro: 'Pro', admin: 'Admin' };
 
     function navLink(href, icon, label, view, badge) {
         const active = viewName === view ? 'active' : '';
-        return '<a href="' + href + '" class="sidebar-link ' + active + '">' +
+        return '<a href="' + href + '" class="sidebar-link ' + active + '" onclick="event.preventDefault(); window.navigate(\'' + href + '\')">' +
             '<span class="link-icon"><i class="fa-solid ' + icon + '"></i></span>' +
-            label +
+            '<span class="link-text">' + label + '</span>' +
             (badge || '') +
             '</a>';
     }
@@ -65,11 +65,11 @@ export function renderDashboardPage(app) {
         navLink('/dashboard/notifications', 'fa-bell', 'Notifications', 'notifications', getUnreadNotifBadge(dbUser.user_id)),
         navLink('/dashboard/saved', 'fa-heart', 'Saved Listings', 'saved'),
         navLink('/dashboard/searches', 'fa-magnifying-glass', 'Saved Searches', 'searches'),
-        '<div class="sidebar-nav-section" style="margin-top:4px;">Account</div>',
+        '<div class="sidebar-nav-section">Account</div>',
         navLink('/dashboard/verification', 'fa-shield-halved', 'Verification', 'verification'),
         navLink('/dashboard/subscription', 'fa-credit-card', 'Subscription', 'subscription'),
         navLink('/dashboard/settings', 'fa-gear', 'Settings', 'settings'),
-        (isAdmin() ? '<div class="sidebar-nav-section" style="margin-top:4px;">Admin</div>' + navLink('/admin', 'fa-lock', 'Admin Panel', '') : ''),
+        (isAdmin() ? '<div class="sidebar-nav-section">Admin</div>' + navLink('/admin', 'fa-lock', 'Admin Panel', '') : ''),
         '</nav>',
         '<div class="sidebar-footer">',
         '<button id="btn-signout" class="sidebar-link" style="color:#1a1a1a;"><span class="link-icon" style="color:#1a1a1a;"><i class="fa-solid fa-arrow-right-from-bracket"></i></span> Sign Out</button>',

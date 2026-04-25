@@ -1,4 +1,4 @@
-import { getCurrentUser, isAdmin } from '../services/auth.js';
+import { getCurrentUser, isAdmin, logout } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { getTotalUnread } from '../services/messaging.js';
 import { db, syncMessagesAndThreads } from '../services/db.js';
@@ -22,12 +22,35 @@ export function getNavAuthButtons() {
                 <i class="fa-solid fa-message"></i>
                 <span class="nav-msg-badge" id="nav-msg-badge" style="display:none;"></span>
             </a>
-            <a href="/dashboard" class="user-avatar-nav" style="background: linear-gradient(135deg, var(--primary), var(--primary-light)); display: flex; align-items: center; gap: 8px; padding-right: 12px; min-width: 68px;">
-                <div class="user-avatar-img-wrap" style="width:36px;height:36px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;">
-                    ${profilePhoto ? `<img src="${profilePhoto}" alt="${fullName}" style="width:100%;height:100%;object-fit:cover;" />` : initials}
+            <div class="nav-user-dropdown-container">
+                <button class="user-avatar-nav" id="user-menu-trigger" style="background: linear-gradient(135deg, var(--primary), var(--primary-light)); display: flex; align-items: center; gap: 10px; padding: 0 12px 0 4px; width: auto; min-width: 76px; border: none;">
+                    <div class="user-avatar-img-wrap" style="width:34px;height:34px;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;background: rgba(255,255,255,0.1); font-weight: 800; font-size: 0.8rem;">
+                        ${profilePhoto ? `<img src="${profilePhoto}" alt="${fullName}" style="width:100%;height:100%;object-fit:cover;" />` : initials}
+                    </div>
+                    <i class="fa-solid fa-chevron-down" id="user-menu-chevron" style="font-size:0.7rem;opacity:0.9;color:white;transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);"></i>
+                </button>
+                
+                <div class="nav-user-dropdown" id="user-menu-dropdown">
+                    <div class="nav-user-header">
+                        <div class="nav-user-info">
+                            <span class="nav-user-name">${fullName}</span>
+                            <span class="nav-user-email">${user.email}</span>
+                        </div>
+                    </div>
+                    <a href="/dashboard" class="nav-dropdown-item">
+                        <i class="fa-solid fa-house-user"></i>
+                        Go to Dashboard
+                    </a>
+                    <a href="/dashboard/settings" class="nav-dropdown-item">
+                        <i class="fa-solid fa-user-gear"></i>
+                        Profile Setting
+                    </a>
+                    <button id="nav-logout-btn" class="nav-dropdown-item logout">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        Logout
+                    </button>
                 </div>
-                <i class="fa-solid fa-chevron-down" style="font-size:0.75rem;opacity:0.8;color:white;"></i>
-            </a>
+            </div>
         `;
     }
     return `
@@ -128,7 +151,45 @@ export function initNavbar() {
 
     initNavbarBadge();
 
+    // User Dropdown Logic
+    const userTrigger = document.getElementById('user-menu-trigger');
+    const userDropdown = document.getElementById('user-menu-dropdown');
+    const userChevron = document.getElementById('user-menu-chevron');
+    const logoutBtn = document.getElementById('nav-logout-btn');
 
+    if (userTrigger && userDropdown) {
+        userTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isActive = userDropdown.classList.toggle('active');
+            if (userChevron) {
+                userChevron.style.transform = isActive ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+        });
+
+        // Close when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!userTrigger.contains(e.target) && !userDropdown.contains(e.target)) {
+                userDropdown.classList.remove('active');
+                if (userChevron) userChevron.style.transform = 'rotate(0deg)';
+            }
+        });
+
+        // Handle Logout
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                await logout();
+                window.location.href = '/';
+            });
+        }
+
+        // Close on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                userDropdown.classList.remove('active');
+                if (userChevron) userChevron.style.transform = 'rotate(0deg)';
+            }
+        });
+    }
     // Logo: always go home and scroll to top
     const logo = navbar.querySelector('.nav-logo');
     if (logo) {
