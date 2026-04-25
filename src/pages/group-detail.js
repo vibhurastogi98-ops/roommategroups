@@ -35,7 +35,8 @@ function renderListingCard(listing) {
     // images can be a JSON string (from D1) or an array (from localStorage)
     let imgs = listing.images || listing.photos || [];
     if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { imgs = []; } }
-    const photo = imgs[0] || fallback;
+    let photo = imgs[0] || fallback;
+    if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || fallback;
     // rent may come as 'rent' (schema) or legacy 'price'
     const price = listing.rent ?? listing.price ?? '?';
     return `

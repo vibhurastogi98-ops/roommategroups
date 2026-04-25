@@ -473,7 +473,8 @@ function renderListingCard(l) {
     // images can be a JSON string (from D1) or an array (from localStorage)
     let _imgs = l.images || l.photos || [];
     if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
-    const photo = _imgs[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
+    let photo = _imgs[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
+    if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
     const roomType = (l.room_type || l.category || 'room').replace(/_/g, ' ').toUpperCase();
 
     return `

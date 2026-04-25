@@ -6694,10 +6694,18 @@ input:checked+.slider:before {
 @media (max-width: 480px) {
   .city-hero-stats {
     gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
   }
 
   .hero-stat-pill {
-    padding: 8px 14px;
+    padding: 8px 10px;
+    justify-content: center;
+  }
+
+  .hero-stat-pill:last-child {
+    grid-column: span 2;
   }
 
   .hero-stat-text strong {
@@ -11597,9 +11605,26 @@ body:has(.search-layout) {
   }
 
   .fbg-hero-stats {
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 380px;
+    padding: 12px 10px;
     border-radius: var(--radius-lg);
+  }
+
+  .fbg-stat {
+    padding: 0;
+    flex: 1;
+  }
+
+  .fbg-stat strong {
+    font-size: 1.1rem;
+  }
+
+  .fbg-stat span {
+    font-size: 0.65rem;
+    text-align: center;
   }
 
   .fbg-filter-arrow {

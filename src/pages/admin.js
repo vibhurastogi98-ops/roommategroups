@@ -571,7 +571,8 @@ function renderAdminListings(container) {
                 const reportCount = db.reports.find(r => r.target_id === l.listing_id && r.status === 'pending').length;
                 let _imgs = l.images || l.photos || [];
                 if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
-                const thumb = (_imgs && _imgs[0]) ? _imgs[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
+                let thumb = (_imgs && _imgs[0]) ? _imgs[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
+                if (typeof thumb === 'object' && thumb !== null) thumb = thumb.thumb || thumb.medium || thumb.full || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
                 return [
                     '<div class="adm-listing-row' + (isSelected ? ' selected' : '') + '" data-id="' + l.listing_id + '">',
                     '<input type="checkbox" class="adm-row-check"' + (isSelected ? ' checked' : '') + ' data-id="' + l.listing_id + '">',

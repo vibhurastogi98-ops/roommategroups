@@ -24,7 +24,8 @@ function renderListingCard(listing, index) {
   // images can be a JSON string (from D1) or an array (from localStorage)
   let _imgs = listing.images || listing.photos || [];
   if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
-  const photo = _imgs[0] || '';
+  let photo = _imgs[0] || '';
+  if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || '';
   const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
 
   return `
