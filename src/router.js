@@ -43,9 +43,10 @@ export function getCurrentPath() {
 
 async function resolve() {
     const path = window.location.pathname || '/';
-    const cleanPath = path.split('?')[0];
+    const hash = window.location.hash;
+    const cleanPath = path.split('?')[0]; // Note: path from pathname doesn't include hash
 
-    console.log('[Router] Resolving:', cleanPath);
+    console.log('[Router] Resolving:', cleanPath, 'Hash:', hash);
     console.log('[Router] Available routes:', Object.keys(routes));
 
     // Exact match
@@ -59,11 +60,8 @@ async function resolve() {
                 const pathParts = routePath.split('/').filter(p => p !== '');
                 const targetParts = cleanPath.split('/').filter(p => p !== '');
 
-                console.log('[Router] Trying pattern:', routePath, 'parts:', pathParts.length, 'vs hash parts:', targetParts.length);
-
                 if (pathParts.length === targetParts.length) {
                     const match = pathParts.every((part, i) => part.startsWith(':') || part === targetParts[i]);
-                    console.log('[Router] Length match for', routePath, '- content match:', match);
                     if (match) {
                         route = routes[routePath];
                         pathParts.forEach((part, i) => {
@@ -71,7 +69,6 @@ async function resolve() {
                                 params[part.slice(1)] = targetParts[i];
                             }
                         });
-                        console.log('[Router] Matched route:', routePath, 'params:', params);
                         break;
                     }
                 }
@@ -79,10 +76,7 @@ async function resolve() {
         }
     }
 
-    // Scroll to top on route change
-    window.scrollTo(0, 0);
-
-    // Track every page view (admin routes are filtered inside trackPageView)
+    // Track every page view
     trackPageView(cleanPath);
 
     if (route) {
@@ -91,23 +85,51 @@ async function resolve() {
         // Run global middleware first
         for (const middlewareFn of middleware) {
             const result = await middlewareFn(cleanPath, params);
-            if (result === false) return; // Middleware blocked the route
+            if (result === false) return; 
         }
         
         // Run route-specific middleware
         for (const middlewareFn of route.middleware) {
             const result = await middlewareFn(cleanPath, params);
-            if (result === false) return; // Middleware blocked the route
+            if (result === false) return;
         }
         
         // Execute the handler
         route.handler(appElement, params);
+
+        // Ensure body/html are not locked (fixes mobile navigation sticking)
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+
+        // Handle scrolling with a small delay for mobile compatibility
+        requestAnimationFrame(() => {
+            if (hash) {
+                const id = hash.substring(1);
+                setTimeout(() => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else {
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                    }
+                }, 100);
+            } else if (cleanPath === '/fb-groups') {
+                // FB Groups page handles its own auto-scroll to results
+                // No need to scroll to top here to avoid jumpiness
+            } else {
+                // For all other pages, ensure we scroll to top after render
+                // Multiple attempts to ensure it works on all mobile browsers
+                window.scrollTo(0, 0);
+                setTimeout(() => window.scrollTo(0, 0), 50);
+                setTimeout(() => window.scrollTo(0, 0), 150);
+            }
+        });
     } else {
         console.log('[Router] No handler found! Falling back to home.');
         // Fallback to home
+        window.scrollTo(0, 0);
         const homeRoute = routes['/'];
         if (homeRoute) {
-            // Run middleware for home route too
             for (const middlewareFn of middleware) {
                 const result = await middlewareFn('/', {});
                 if (result === false) return;

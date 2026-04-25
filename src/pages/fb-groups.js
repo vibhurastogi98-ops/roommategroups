@@ -240,4 +240,16 @@ export function renderFBGroupsPage(app) {
 
     citySelect.addEventListener('change', applyFilters);
     clearBtn.addEventListener('click', clearFilters);
+
+    // Auto-scroll to results section on page load
+    const doScroll = () => {
+        const resultsSection = app.querySelector('#fb-groups');
+        if (resultsSection) {
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+    
+    // Multiple attempts for mobile reliability
+    setTimeout(doScroll, 100);
+    setTimeout(doScroll, 300);
 }

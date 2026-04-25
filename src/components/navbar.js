@@ -274,34 +274,34 @@ export function initNavbar() {
         });
     }
 
+    // Close mobile menu on ANY link click (including logo, Pricing, Blog, etc.)
+    // Using event delegation on the whole navbar for maximum reliability
+    navbar.addEventListener('click', (e) => {
+        if (e.target.closest('a')) {
+            if (window._closeMobileMenu) window._closeMobileMenu();
+        }
+    });
+
     // Smooth scroll for in-page anchors
     document.querySelectorAll('.nav-anchor').forEach(anchor => {
         anchor.addEventListener('click', (e) => {
-            e.stopPropagation();
             const href = anchor.getAttribute('href');
-            const targetId = href.substring(href.indexOf('#'));
+            const targetId = href.includes('#') ? href.substring(href.indexOf('#')) : null;
+            if (!targetId) return;
+            
             const isHome = window.location.pathname === '/' || window.location.pathname === '';
 
             if (isHome) {
                 e.preventDefault();
+                e.stopPropagation();
                 const target = document.querySelector(targetId);
                 if (target) {
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+                if (window._closeMobileMenu) window._closeMobileMenu();
             } else {
-                e.preventDefault();
-                navigate('/');
-                // Wait for the home page to render, then scroll
-                setTimeout(() => {
-                    const target = document.querySelector(targetId);
-                    if (target) {
-                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                }, 100);
+                // Let the global router listener handle it (it will navigate to /#targetId)
             }
-
-            // Close mobile menu and restore scroll
-            if (window._closeMobileMenu) window._closeMobileMenu();
         });
     });
 }
