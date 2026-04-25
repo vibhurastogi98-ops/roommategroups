@@ -1985,6 +1985,30 @@ ol {
     box-shadow: none;
   }
 
+  .nav-cta.active .nav-user-nav {
+    width: 100%;
+    position: relative;
+  }
+
+  .nav-cta.active .nav-user-dropdown {
+    position: static;
+    width: 100%;
+    opacity: 1;
+    visibility: visible;
+    display: none; /* Controlled by .active class */
+    transform: none;
+    box-shadow: none;
+    border: 1px solid var(--border-light);
+    margin-top: 10px;
+    border-radius: 12px;
+  }
+
+  .nav-cta.active .nav-user-dropdown.active {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+  }
+
   .nav-cta.active .user-avatar-nav {
     width: 100%;
     height: 44px;
