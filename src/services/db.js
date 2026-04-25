@@ -226,7 +226,7 @@ class Collection {
                 // For now, we just log it, but since it's awaited, the caller can catch it.
                 throw e;
             }
-        }
+        window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: this.name, action: 'create' } }));
         return item;
     }
     async update(id, data) {
@@ -246,7 +246,7 @@ class Collection {
                 console.error('[D1 sync update failed]', e);
                 throw e;
             }
-        }
+        window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: this.name, action: 'update' } }));
         return updated;
     }
     async delete(id) {
@@ -265,7 +265,7 @@ class Collection {
                 console.error('[D1 sync delete failed]', e);
                 throw e;
             }
-        }
+        window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: this.name, action: 'delete' } }));
         return true;
     }
 }

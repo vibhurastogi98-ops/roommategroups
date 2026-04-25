@@ -913,7 +913,12 @@ app.get('/notifications', async (c) => {
     }
     query += ' ORDER BY created_at DESC'
     const { results } = await c.env.DB.prepare(query).bind(...args).all()
-    const mapped = results.map((n: any) => ({ ...n, is_read: !!n.is_read }))
+    const mapped = results.map((n: any) => ({ 
+      ...n, 
+      is_read: !!n.is_read,
+      description: n.body,
+      website_url: n.link
+    }))
     return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)

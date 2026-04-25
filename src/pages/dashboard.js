@@ -1513,10 +1513,10 @@ function renderNotifications(container, user) {
                       <span style="font-weight:700;font-size:0.9rem;">${escapeHtml(n.title)}</span>
                       ${!n.is_read ? '<span style="width:8px;height:8px;border-radius:50%;background:var(--primary);display:inline-block;flex-shrink:0;"></span>' : ''}
                     </div>
-                    <p style="margin:4px 0 6px;font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">${escapeHtml(n.description)}</p>
+                    <p style="margin:4px 0 6px;font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">${escapeHtml(n.description || n.body || '')}</p>
                     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                       <span style="font-size:0.75rem;color:var(--text-secondary);">${time}</span>
-                      ${n.website_url ? `<a href="${escapeHtml(n.website_url)}" target="_blank" rel="noopener" style="font-size:0.78rem;color:var(--primary);font-weight:600;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation()"><i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i> Learn more</a>` : ''}
+                      ${(n.website_url || n.link) ? `<a href="${escapeHtml(n.website_url || n.link)}" target="_blank" rel="noopener" style="font-size:0.78rem;color:var(--primary);font-weight:600;display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation()"><i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i> Learn more</a>` : ''}
                     </div>
                   </div>
                   <button class="notif-delete-btn" data-nid="${n.notification_id}" title="Delete" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);padding:4px;flex-shrink:0;" onclick="event.stopPropagation()"><i class="fa-solid fa-xmark"></i></button>
@@ -1540,7 +1540,8 @@ function renderNotifications(container, user) {
                 const nid = card.dataset.nid;
                 db.notifications.update(nid, { is_read: true });
                 const notif = db.notifications.findById(nid);
-                if (notif?.website_url) window.open(notif.website_url, '_blank', 'noopener');
+                const url = notif?.website_url || notif?.link;
+                if (url) window.open(url, '_blank', 'noopener');
                 else render();
             });
         });

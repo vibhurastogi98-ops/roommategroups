@@ -910,16 +910,16 @@ async function handlePublish() {
                 user_id: user.id,
                 type: 'moderation_pending',
                 title: 'Listing Pending Review',
-                body: 'Your listing has been submitted and is pending admin approval. It will go live once approved.',
-                link: `/listing/${item.listing_id}`
+                description: 'Your listing has been submitted and is pending admin approval. It will go live once approved.',
+                website_url: `/listing/${item.listing_id}`
             });
         } else {
             await db.notifications.create({
                 user_id: user.id,
                 type: 'listing_approved',
                 title: 'Listing Published!',
-                body: 'Your premium listing is now live and visible to all users.',
-                link: `/listing/${item.listing_id}`
+                description: 'Your premium listing is now live and visible to all users.',
+                website_url: `/listing/${item.listing_id}`
             });
         }
 

@@ -3698,7 +3698,7 @@ function renderAdminQueries(container) {
             await db.notifications.create({
                 user_id: q.user_id,
                 title: 'New Support Reply',
-                description: `An admin has replied to your query regarding "${q.topic_label || q.topic}".`,
+                description: replyText,
                 type: 'support_reply',
                 is_read: false,
                 website_url: '/dashboard/notifications' // Or a specific query view if it existed
@@ -3707,8 +3707,8 @@ function renderAdminQueries(container) {
 
         // Simulate email send via mailto
         const subject = encodeURIComponent('Re: Your query – ' + (q?.topic_label || q?.topic || 'Support'));
-        const body = encodeURIComponent(replyText);
-        window.open('mailto:' + (q?.email || '') + '?subject=' + subject + '&body=' + body);
+        const emailBody = encodeURIComponent(replyText);
+        window.location.href = 'mailto:' + (q?.email || '') + '?subject=' + subject + '&body=' + emailBody;
 
         modal.style.display = 'none';
         applyFilters();
