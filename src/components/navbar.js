@@ -223,8 +223,13 @@ export function initNavbar() {
             if (navCta) {
                 navCta.classList.toggle('active', isOpen);
                 if (isOpen) {
-                    const linksBottom = navLinks.getBoundingClientRect().bottom;
-                    navCta.style.top = linksBottom + 'px';
+                    // Position nav-cta immediately below nav-links
+                    requestAnimationFrame(() => {
+                        const linksBottom = navLinks.getBoundingClientRect().bottom;
+                        navCta.style.top = linksBottom + 'px';
+                    });
+                } else {
+                    navCta.style.top = '';
                 }
             }
             const spans = hamburger.querySelectorAll('span');
