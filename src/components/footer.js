@@ -28,7 +28,10 @@ export function renderFooter() {
                 <div class="footer-groups-section">
                     <h4>Popular FB Groups</h4>
                     <div class="footer-cities-grid">
-                        ${db.fb_cities.find(c => c.is_footer).sort((a,b) => (a.priority || 0) - (b.priority || 0)).map(g => `<a href="${g.fb_group_link}" target="_blank" rel="noopener noreferrer">${g.city_name} Group</a>`).join('')}
+                        ${db.fb_cities.find(c => c.is_footer).sort((a,b) => (a.priority || 0) - (b.priority || 0)).map(g => {
+                            const slug = g.city_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                            return `<a href="/fb-groups/${slug}">${g.city_name} Group</a>`;
+                        }).join('')}
                     </div>
                 </div>
                 <div class="footer-links-section">
