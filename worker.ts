@@ -22,6 +22,16 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }))
 
+// ── Global Error Handler ──────────────────────────────────────
+app.onError((err, c) => {
+  console.error('[WORKER ERROR]', err)
+  return c.json({
+    success: false,
+    error: err.message,
+    stack: c.env.GEMINI_API_KEY ? undefined : err.stack // Only show stack if not in prod (heuristic)
+  }, 500)
+})
+
 // ── R2 Health Check ──────────────────────────────────────────
 app.get('/r2-check', async (c) => {
   try {
@@ -169,6 +179,14 @@ function dbJson(c: any, data: any, status = 200) {
 }
 
 // ── AI Assist: Description Generator ────────────────────────
+app.get('/api/ai-assist', (c) => {
+  return c.json({ 
+    success: true, 
+    message: 'AI Assist API is active and ready for POST requests.',
+    has_api_key: !!c.env.GEMINI_API_KEY
+  })
+})
+
 app.post('/api/ai-assist', async (c) => {
   try {
     const { category, title, amenities, lifestyleTags, draft } = await c.req.json()
@@ -179,7 +197,10 @@ app.post('/api/ai-assist', async (c) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" })
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash", // Use specific version for stability
+      generationConfig: { maxOutputTokens: 1000 }
+    })
     
     const prompt = `
       You are an expert real estate and roommate matching copywriter. 
@@ -198,13 +219,23 @@ app.post('/api/ai-assist', async (c) => {
     `;
 
     const result = await model.generateContent(prompt)
-    const response = await result.response
-    const text = response.text()
+    if (!result.response) {
+      throw new Error('No response from AI model')
+    }
+    const text = result.response.text()
+    
+    if (!text) {
+      throw new Error('AI generated an empty response')
+    }
     
     return c.json({ success: true, text: text.trim() })
   } catch (err) {
+    console.error('AI Assist error:', err)
     const error = err as Error
-    return c.json({ success: false, error: error.message }, 500)
+    return c.json({ 
+      success: false, 
+      error: error.message || 'An unexpected error occurred during AI generation' 
+    }, 500)
   }
 })
 

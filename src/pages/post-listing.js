@@ -778,7 +778,7 @@ function attachEventListeners(container) {
 
                 const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
                     ? 'http://127.0.0.1:3002' 
-                    : window.location.origin;
+                    : ''; // Use relative path on live for better compatibility
 
                 const response = await fetch(`${apiBase}/api/ai-assist`, {
                     method: 'POST',
@@ -795,6 +795,20 @@ function attachEventListeners(container) {
                     })
                 });
 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorData;
+                    try { errorData = JSON.parse(errorText); } catch (e) { }
+                    throw new Error(errorData?.error || errorData?.message || `Server responded with ${response.status}: ${errorText.slice(0, 100)}`);
+                }
+
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Expected JSON but got:', text.slice(0, 200));
+                    throw new Error('Server returned an invalid response format (expected JSON, got ' + (contentType || 'unknown') + '). This may happen if the API route is not correctly configured.');
+                }
+
                 const data = await response.json();
                 if (data.success) {
                     const aiText = data.text;
@@ -807,7 +821,7 @@ function attachEventListeners(container) {
                 }
             } catch (err) {
                 console.error('AI Assist error:', err);
-                alert('Could not connect to the AI service. Please make sure the backend server is running.');
+                alert('AI Assist Error: ' + err.message + '\n\nPlease ensure you have an active internet connection and the backend service is reachable.');
             } finally {
                 aiBtn.innerHTML = originalContent;
                 aiBtn.disabled = false;

@@ -108,7 +108,10 @@ app.post("/api/ai-assist", async (req, res) => {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: { maxOutputTokens: 1000 }
+    });
     
     const prompt = `
       You are an expert real estate and roommate matching copywriter. 
@@ -127,13 +130,15 @@ app.post("/api/ai-assist", async (req, res) => {
     `;
 
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    if (!result.response) throw new Error('No response from AI model');
+    const text = result.response.text();
+    
+    if (!text) throw new Error('AI generated an empty response');
     
     res.json({ success: true, text: text.trim() });
   } catch (err) {
     console.error("AI Assist error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message || "AI Generation failed" });
   }
 });
 
