@@ -1505,8 +1505,10 @@ function renderAdminCities(container) {
     let activeTab = 'countries';
     let editingCountry = null;
     let editingCity = null;
+    let editingNeighborhood = null;
     let showCountryForm = false;
     let showCityForm = false;
+    let showNeighborhoodForm = false;
 
     const admin = getCurrentUser();
 
@@ -1627,6 +1629,49 @@ function renderAdminCities(container) {
             ].join('');
         }).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:2rem;">No cities added yet.</td></tr>';
 
+        // ── Neighborhood form ──
+        const cityOptions = cities.map(ci =>
+            '<option value="' + ci.city_id + '"' + ((editingNeighborhood ? editingNeighborhood.city : '') === ci.city_id ? ' selected' : '') + '>' + escHtml(ci.name) + '</option>'
+        ).join('');
+
+        const neighborhoodForm = (editingNeighborhood || showNeighborhoodForm) ? (() => {
+            const n = editingNeighborhood || {};
+            return [
+                '<div class="adm-city-form-panel">',
+                '<div class="adm-panel-header"><h3>' + (editingNeighborhood ? 'Edit Neighborhood' : 'Add Neighborhood') + '</h3>',
+                '<button class="adm-close-btn" id="adm-neighborhood-form-close"><i class="fa-solid fa-xmark"></i></button></div>',
+                '<div class="adm-form-grid">',
+                '<div class="adm-form-group"><label>Neighborhood Name *</label><input id="f-nh-name" class="adm-input" value="' + escHtml(n.name || '') + '" placeholder="e.g. Mitte"></div>',
+                '<div class="adm-form-group"><label>URL Slug *</label><input id="f-nh-slug" class="adm-input" value="' + escHtml(n.slug || '') + '" placeholder="e.g. mitte"></div>',
+                '<div class="adm-form-group"><label>City *</label><select id="f-nh-city" class="adm-input"><option value="">Select City</option>' + cityOptions + '</select></div>',
+                '<div class="adm-form-group"><label>Avg Rent ($/mo)</label><input id="f-nh-rent" type="number" class="adm-input" value="' + (n.avg_rent || '') + '"></div>',
+                '<div class="adm-form-group adm-form-full"><label>Description</label><textarea id="f-nh-desc" class="adm-textarea" placeholder="Briefly describe this neighborhood...">' + escHtml(n.description || '') + '</textarea></div>',
+                '<div class="adm-form-group adm-form-full adm-form-actions">',
+                '<button class="btn btn-primary" id="adm-neighborhood-save"><i class="fa-solid fa-floppy-disk"></i> ' + (editingNeighborhood ? 'Save Changes' : 'Add Neighborhood') + '</button>',
+                '<button class="btn btn-outline" id="adm-neighborhood-cancel">Cancel</button>',
+                '</div>',
+                '</div>',
+                '</div>'
+            ].join('');
+        })() : '';
+
+        // ── Neighborhoods table ──
+        const neighborhoodsList = db.neighborhoods ? db.neighborhoods.findAll() : [];
+        const neighborhoodRows = neighborhoodsList.length ? neighborhoodsList.map(n => {
+            const city = cities.find(x => x.city_id === n.city);
+            return [
+                '<tr>',
+                '<td><strong>' + escHtml(n.name) + '</strong><br><small class="text-muted">' + escHtml(n.slug) + '</small></td>',
+                '<td>' + (city ? escHtml(city.name) : '—') + '</td>',
+                '<td>$' + (n.avg_rent || 0) + '</td>',
+                '<td style="display:flex;gap:8px;">',
+                '<button class="adm-btn adm-btn-sm" data-edit-neighborhood="' + n.neighborhood_id + '"><i class="fa-solid fa-pen"></i> Edit</button>',
+                '<button class="adm-btn adm-btn-sm adm-btn-danger" data-del-neighborhood="' + n.neighborhood_id + '"><i class="fa-solid fa-trash"></i> Delete</button>',
+                '</td>',
+                '</tr>'
+            ].join('');
+        }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:2rem;">No neighborhoods added yet.</td></tr>';
+
         container.innerHTML = [
             '<div class="adm-section-header"><h2>City Management</h2></div>',
 
@@ -1636,6 +1681,8 @@ function renderAdminCities(container) {
             '<i class="fas fa-globe" style="margin-right:6px;"></i>Countries</button>',
             '<button class="adm-tab' + (activeTab === 'cities' ? ' active' : '') + '" data-tab="cities" style="padding:.65rem 1.4rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid ' + (activeTab === 'cities' ? 'var(--primary)' : 'transparent') + ';color:' + (activeTab === 'cities' ? 'var(--primary)' : 'var(--text-muted)') + ';margin-bottom:-2px;">',
             '<i class="fas fa-city" style="margin-right:6px;"></i>Cities</button>',
+            '<button class="adm-tab' + (activeTab === 'neighborhoods' ? ' active' : '') + '" data-tab="neighborhoods" style="padding:.65rem 1.4rem;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid ' + (activeTab === 'neighborhoods' ? 'var(--primary)' : 'transparent') + ';color:' + (activeTab === 'neighborhoods' ? 'var(--primary)' : 'var(--text-muted)') + ';margin-bottom:-2px;">',
+            '<i class="fas fa-map-location" style="margin-right:6px;"></i>Neighborhoods</button>',
             '</div>',
 
             // Countries panel
@@ -1661,6 +1708,19 @@ function renderAdminCities(container) {
             '<table class="adm-table">',
             '<thead><tr><th>City</th><th>Country</th><th>Actions</th></tr></thead>',
             '<tbody>' + cityRows + '</tbody>',
+            '</table></div>',
+            '</div>',
+
+            // Neighborhoods panel
+            '<div id="adm-neighborhoods-panel" style="display:' + (activeTab === 'neighborhoods' ? 'block' : 'none') + ';">',
+            '<div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">',
+            '<button class="btn btn-primary" id="adm-add-neighborhood"><i class="fa-solid fa-plus"></i> Add Neighborhood</button>',
+            '</div>',
+            neighborhoodForm,
+            '<div class="adm-table-wrap">',
+            '<table class="adm-table">',
+            '<thead><tr><th>Neighborhood</th><th>City</th><th>Avg Rent</th><th>Actions</th></tr></thead>',
+            '<tbody>' + neighborhoodRows + '</tbody>',
             '</table></div>',
             '</div>',
         ].join('');
@@ -1959,6 +2019,73 @@ function renderAdminCities(container) {
             } catch (err) {
                 showToast(err.message || 'Failed to save city. The image may be too large.', 'error');
                 btn.innerHTML = originalText; btn.disabled = false;
+            }
+        });
+
+        // ── Neighborhood actions ──
+        container.querySelector('#adm-add-neighborhood')?.addEventListener('click', () => {
+            showNeighborhoodForm = true; editingNeighborhood = null; renderContent();
+        });
+        container.querySelector('#adm-neighborhood-form-close')?.addEventListener('click', () => {
+            showNeighborhoodForm = false; editingNeighborhood = null; renderContent();
+        });
+        container.querySelector('#adm-neighborhood-cancel')?.addEventListener('click', () => {
+            showNeighborhoodForm = false; editingNeighborhood = null; renderContent();
+        });
+
+        container.querySelectorAll('[data-edit-neighborhood]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                editingNeighborhood = db.neighborhoods.findById(btn.dataset.editNeighborhood);
+                showNeighborhoodForm = false; renderContent();
+            });
+        });
+
+        container.querySelectorAll('[data-del-neighborhood]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.dataset.delNeighborhood;
+                if (!confirm('Delete this neighborhood?')) return;
+                try {
+                    await db.neighborhoods.delete(id);
+                    logAdminAction(admin.user_id, 'Deleted neighborhood', id);
+                    showToast('Neighborhood deleted.');
+                    renderContent();
+                } catch (e) {
+                    showToast('Failed to delete neighborhood: ' + e.message, 'error');
+                }
+            });
+        });
+
+        // Auto-slug for neighborhoods
+        const nhNameInput = container.querySelector('#f-nh-name');
+        const nhSlugInput = container.querySelector('#f-nh-slug');
+        if (nhNameInput && nhSlugInput && !editingNeighborhood) {
+            nhNameInput.addEventListener('input', (e) => {
+                nhSlugInput.value = e.target.value.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+            });
+        }
+
+        container.querySelector('#adm-neighborhood-save')?.addEventListener('click', async () => {
+            const name = container.querySelector('#f-nh-name').value.trim();
+            const slug = container.querySelector('#f-nh-slug').value.trim();
+            const city = container.querySelector('#f-nh-city').value;
+            const rent = parseInt(container.querySelector('#f-nh-rent').value) || 0;
+            const desc = container.querySelector('#f-nh-desc').value.trim();
+
+            if (!name || !slug || !city) { showToast('Name, slug, and city are required.', 'error'); return; }
+
+            try {
+                if (editingNeighborhood) {
+                    await db.neighborhoods.update(editingNeighborhood.neighborhood_id, { name, slug, city, avg_rent: rent, description: desc });
+                    logAdminAction(admin.user_id, 'Updated neighborhood', name);
+                    showToast('Neighborhood updated.');
+                } else {
+                    await db.neighborhoods.create({ name, slug, city, avg_rent: rent, description: desc, listing_count: 0 });
+                    logAdminAction(admin.user_id, 'Added neighborhood', name);
+                    showToast('Neighborhood added!');
+                }
+                editingNeighborhood = null; showNeighborhoodForm = false; renderContent();
+            } catch (e) {
+                showToast('Failed to save: ' + e.message, 'error');
             }
         });
     }

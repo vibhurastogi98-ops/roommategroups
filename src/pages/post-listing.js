@@ -650,8 +650,52 @@ function attachEventListeners(container) {
             if (btnNext) btnNext.disabled = !draft.city;
             renderFullPage(container);
         });
-        container.querySelector('#btn-use-location').addEventListener('click', () => {
-            address.value = "Austonian Dr"; draft.address = address.value;
+
+        const nhSelect = container.querySelector('#pl-neighborhood');
+        nhSelect?.addEventListener('change', (e) => {
+            draft.neighborhood = e.target.value;
+            saveDraft();
+        });
+
+        container.querySelector('#btn-use-location').addEventListener('click', async () => {
+            const btn = container.querySelector('#btn-use-location');
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Locating...';
+            btn.disabled = true;
+
+            if (!navigator.geolocation) {
+                showToast('Geolocation is not supported by your browser.', 'error');
+                btn.innerHTML = originalIcon; btn.disabled = false;
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    // Reverse geocoding using OpenStreetMap (Nominatim)
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                    const data = await res.json();
+                    if (data && data.display_name) {
+                        // Extract a cleaner address (e.g., Road + House Number)
+                        const addr = data.address.road ? (data.address.house_number ? `${data.address.house_number} ${data.address.road}` : data.address.road) : data.display_name.split(',')[0];
+                        address.value = addr;
+                        draft.address = addr;
+                        saveDraft();
+                        showToast('Location updated!');
+                    } else {
+                        showToast('Could not find address.', 'error');
+                    }
+                } catch (e) {
+                    console.error('Reverse geocoding failed', e);
+                    address.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                    draft.address = address.value;
+                } finally {
+                    btn.innerHTML = originalIcon; btn.disabled = false;
+                }
+            }, (err) => {
+                showToast('Failed to get your location: ' + err.message, 'error');
+                btn.innerHTML = originalIcon; btn.disabled = false;
+            });
         });
     }
 
@@ -923,13 +967,7 @@ async function handlePublish() {
             });
         }
 
-        const toast = document.createElement('div');
-        toast.className = 'toast toast-success';
-        toast.textContent = 'Listing published successfully!';
-        document.body.appendChild(toast);
-        // Trigger CSS transition
-        requestAnimationFrame(() => { requestAnimationFrame(() => { toast.classList.add('visible'); }); });
-        setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 3000);
+        showToast('Listing published successfully!');
 
         navigate('/dashboard');
     } catch (err) {
@@ -977,4 +1015,41 @@ export function renderPostListingPage(container) {
     loadDraft();
     container.innerHTML = '<div id="post-listing-root"></div>';
     renderFullPage(container.querySelector('#post-listing-root'));
+}
+
+function showToast(msg, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    
+    // Position toast (if not fixed in CSS)
+    Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        zIndex: '10000',
+        padding: '12px 24px',
+        borderRadius: '8px',
+        background: type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#6366f1'),
+        color: '#fff',
+        fontWeight: '600',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        transform: 'translateY(100px)',
+        opacity: '0',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+    });
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            toast.style.transform = 'translateY(0)';
+            toast.style.opacity = '1';
+        });
+    });
+
+    setTimeout(() => {
+        toast.style.transform = 'translateY(100px)';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }

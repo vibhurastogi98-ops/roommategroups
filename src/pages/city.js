@@ -25,7 +25,14 @@ export function renderCityPage(app, params) {
         const heroImage = city.hero_image || FALLBACK_HERO;
         const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active');
         const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
-        const roommateProfiles = db.listings.find(l => l.city === city.city_id && (l.category === 'roommate_wanted' || l.category === 'room_wanted'));
+        const roommateProfiles = db.listings.find(l => 
+            l.city === city.city_id && 
+            (l.category === 'roommate_wanted' || l.category === 'room_wanted') &&
+            l.status === 'active'
+        ).map(r => ({
+            ...r,
+            user_details: db.users.findById(r.user_id)
+        }));
         const cityMemberCount = db.users.find(u => u.city === city.city_id && u.role !== 'admin').length;
         const avgRent = cityListings.length > 0
             ? Math.round(cityListings.reduce((sum, l) => sum + (l.rent ?? l.price ?? 0), 0) / cityListings.length)
@@ -239,7 +246,7 @@ export function renderCityPage(app, params) {
                         </div>
                     </div>
                     ${cityNeighborhoods.length > 0
-                ? `<div class="neighborhoods-grid">${cityNeighborhoods.map((n, i) => renderNeighborhoodCard(n, i)).join('')}</div>`
+                ? `<div class="neighborhoods-grid">${cityNeighborhoods.map((n, i) => renderNeighborhoodCard(n, i, city)).join('')}</div>`
                 : `<div class="city-empty-state">
                             <div class="empty-icon"><i class="fa-solid fa-map-location-dot"></i></div>
                             <h4>Neighborhood guides coming soon</h4>
@@ -510,7 +517,7 @@ const NH_PALETTES = [
     { bg: 'linear-gradient(135deg,#1a1a1a,#444444)', text: '#fff' },
 ];
 
-function renderNeighborhoodCard(n, index) {
+function renderNeighborhoodCard(n, index, city) {
     const palette = NH_PALETTES[index % NH_PALETTES.length];
     return `
         <div class="neighborhood-card">
@@ -524,7 +531,7 @@ function renderNeighborhoodCard(n, index) {
                     <span class="nh-rent-value">$${n.avg_rent}<em>/mo</em></span>
                 </div>
                 <p class="nh-description">${n.description}</p>
-                <a href="/cities/${n.slug}" class="nh-link">
+                <a href="/search/rooms?city=${city.slug}&neighborhood=${n.neighborhood_id}" class="nh-link">
                     Explore Guide <i class="fa-solid fa-arrow-right"></i>
                 </a>
             </div>
@@ -535,16 +542,17 @@ function renderNeighborhoodCard(n, index) {
 /* ─── Helper: Roommate Card ─── */
 function renderRoommateCard(r) {
     const user = r.user_details || { display_name: 'Roommate', profile_photo: 'https://i.pravatar.cc/150?u=unknown' };
+    const tags = r.roommate_prefs?.tags || r.lifestyle_tags || [];
     return `
         <div class="roommate-card">
-            <div class="roommate-card-img" style="background-image:url('${user.profile_photo}')">
-                <span class="roommate-budget">$${r.rent ?? r.price ?? '?'}/mo</span>
+            <div class="roommate-card-img" style="background-image:url('${user.profile_photo || 'https://i.pravatar.cc/150?u=unknown'}')">
+                <span class="roommate-budget">$${r.rent ?? r.budgetMax ?? '?'}/mo</span>
             </div>
             <div class="roommate-card-body">
-                <h3 class="roommate-name">${user.display_name} ${getVerificationBadge(user)}</h3>
+                <h3 class="roommate-name">${user.display_name || user.fullName || 'User'} ${getVerificationBadge(user)}</h3>
                 <p class="roommate-title">${r.title}</p>
                 <div class="roommate-tags">
-                    ${(r.lifestyle_tags || []).slice(0, 3).map(t => `<span class="roommate-tag">${t.replace('tag_', '')}</span>`).join('')}
+                    ${tags.slice(0, 3).map(t => `<span class="roommate-tag">${t.replace('tag_', '')}</span>`).join('')}
                 </div>
                 <div class="roommate-move-in">
                     <i class="fa-regular fa-calendar"></i> Moving: ${r.move_in_date}

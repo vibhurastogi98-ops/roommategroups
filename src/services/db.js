@@ -99,7 +99,12 @@ const SEED_DATA = {
         { country_id: 'country_de', name: 'Germany', slug: 'germany', code: 'DE', flag_emoji: '🇩🇪', is_active: true },
         { country_id: 'country_nl', name: 'Netherlands', slug: 'netherlands', code: 'NL', flag_emoji: '🇳🇱', is_active: true }
     ],
-    neighborhoods: [],
+    neighborhoods: [
+        { neighborhood_id: 'nb_austin_downtown', city: 'city_austin', name: 'Downtown', slug: 'downtown', avg_rent: 2200, description: 'The heart of Austin with luxury high-rises and vibrant nightlife.', listing_count: 45 },
+        { neighborhood_id: 'nb_austin_east', city: 'city_austin', name: 'East Austin', slug: 'east-austin', avg_rent: 1600, description: 'A trendy, walkable area with eclectic bars and local art.', listing_count: 32 },
+        { neighborhood_id: 'nb_austin_westcampus', city: 'city_austin', name: 'West Campus', slug: 'west-campus', avg_rent: 1200, description: 'Student-centric area near UT Austin with plenty of shared housing.', listing_count: 28 },
+        { neighborhood_id: 'nb_austin_domain', city: 'city_austin', name: 'The Domain', slug: 'the-domain', avg_rent: 1900, description: 'High-end shopping and residential district in North Austin.', listing_count: 15 }
+    ],
     threads: [],
     messages: [],
     reports: [],

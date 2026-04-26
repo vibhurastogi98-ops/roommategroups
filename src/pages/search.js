@@ -112,7 +112,8 @@ export function renderSearchPage(app) {
         dur: params.get('dur') || 'all',
         furn: params.get('furn') || 'all',
         verified: params.get('verified') === 'true',
-        amenities: params.get('amenities') ? params.get('amenities').split(',') : []
+        amenities: params.get('amenities') ? params.get('amenities').split(',') : [],
+        neighborhood: params.get('neighborhood') || 'all'
     };
 
     const cities = db.cities.findAll().filter(c => c.is_active);
@@ -404,6 +405,7 @@ export function renderSearchPage(app) {
         const minPrice = app.querySelector('#sf-min-price').value;
         const maxPrice = app.querySelector('#sf-max-price').value;
         const sort = app.querySelector('#sf-sort').value;
+        const neighborhood = state.neighborhood; // From URL state
 
         // Adv inputs
         const duration = app.querySelector('input[name="sf-dur"]:checked')?.value || 'all';
@@ -423,6 +425,7 @@ export function renderSearchPage(app) {
         if (furnished !== 'all') params.set('furn', furnished);
         if (isVerifiedOnly) params.set('verified', 'true');
         if (amenities.length > 0) params.set('amenities', amenities.join(','));
+        if (neighborhood !== 'all') params.set('neighborhood', neighborhood);
 
         const newSearch = params.toString() ? '?' + params.toString() : '';
         const newUrl = '/search/rooms' + newSearch;
@@ -444,6 +447,10 @@ export function renderSearchPage(app) {
         } else if (country !== 'all') {
             const countryCityIds = cities.filter(c => c.country === country).map(c => c.city_id);
             results = results.filter(l => countryCityIds.includes(l.city));
+        }
+
+        if (neighborhood !== 'all') {
+            results = results.filter(l => l.neighborhood === neighborhood);
         }
 
         if (type !== 'all') {
