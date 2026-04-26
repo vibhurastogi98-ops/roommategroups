@@ -1,5 +1,4 @@
-// Load .env file if dotenv is installed (optional dependency)
-try { const dotenv = await import("dotenv"); dotenv.default.config(); } catch {}
+// Native Node.js --env-file loading is used (Node v20.6+)
 
 import express from "express";
 import nodemailer from "nodemailer";
@@ -8,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import cors from "cors";
 import { fileURLToPath } from "url";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +15,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+// Initialize Gemini AI
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+
 
 // Ensure uploads directory exists (absolute path)
 const uploadDir = path.join(__dirname, "uploads");
@@ -87,6 +91,48 @@ app.post("/api/send-email", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Email error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/ai-assist - AI Description Generator
+app.post("/api/ai-assist", async (req, res) => {
+  console.log("[AI] Request received:", req.body.category, req.body.title);
+  const { category, title, amenities, lifestyleTags, draft } = req.body;
+  
+  if (!genAI) {
+    return res.status(500).json({ 
+      success: false, 
+      error: "GEMINI_API_KEY is not configured on the server. Please add it to your .env file." 
+    });
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    
+    const prompt = `
+      You are an expert real estate and roommate matching copywriter. 
+      Generate a compelling, friendly, and professional description for a listing with the following details:
+      - Listing Category: ${category || 'Room for Rent'}
+      - Title: ${title || 'Available Space'}
+      - Amenities: ${(amenities || []).join(', ')}
+      - Lifestyle/Preferences: ${(lifestyleTags || []).join(', ')}
+      - Additional context: ${JSON.stringify(draft || {})}
+      
+      The description should be between 100 and 300 words. 
+      Focus on making it sound attractive to potential roommates or tenants.
+      Include information about the atmosphere, neighborhood perks, and house rules if applicable.
+      Format it with clean paragraphs. Do not use markdown headers, just plain text with newlines.
+      Respond ONLY with the description text.
+    `;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    res.json({ success: true, text: text.trim() });
+  } catch (err) {
+    console.error("AI Assist error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

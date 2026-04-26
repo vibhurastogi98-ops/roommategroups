@@ -760,11 +760,58 @@ function attachEventListeners(container) {
             if (btnNext) btnNext.disabled = len < 50;
         });
 
-        aiBtn.addEventListener('click', () => {
-            const aiText = `Stunning ${draft.category ? draft.category.replace('_', ' ') : 'place'} located in a prime area. Features include ${draft.amenities.length} amenities, ready for move-in. Perfect for those looking for a comfortable living situation. Reach out to schedule a viewing!`;
-            desc.value = aiText; draft.description = aiText;
-            count.textContent = `${aiText.length} / 2000`;
-            if (btnNext) btnNext.disabled = false;
+        aiBtn.addEventListener('click', async () => {
+            const originalContent = aiBtn.innerHTML;
+            aiBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+            aiBtn.disabled = true;
+
+            try {
+                // Get human-readable names for amenities and tags
+                const amenitiesNames = draft.amenities.map(id => {
+                    const a = db.amenities.findById(id);
+                    return a ? a.name : id;
+                });
+                const tagNames = draft.lifestyleTags.map(id => {
+                    const t = db.tags.findById(id);
+                    return t ? t.name : id;
+                });
+
+                const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                    ? 'http://127.0.0.1:3002' 
+                    : window.location.origin;
+
+                const response = await fetch(`${apiBase}/api/ai-assist`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        category: draft.category,
+                        title: draft.title,
+                        amenities: amenitiesNames,
+                        lifestyleTags: tagNames,
+                        draft: {
+                            ...draft,
+                            photos: [] // Don't send heavy photo data
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const aiText = data.text;
+                    desc.value = aiText;
+                    draft.description = aiText;
+                    count.textContent = `${aiText.length} / 2000`;
+                    if (btnNext) btnNext.disabled = aiText.length < 50;
+                } else {
+                    alert('AI Assist failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error('AI Assist error:', err);
+                alert('Could not connect to the AI service. Please make sure the backend server is running.');
+            } finally {
+                aiBtn.innerHTML = originalContent;
+                aiBtn.disabled = false;
+            }
         });
 
         const minAge = container.querySelector('#pl-age-min');

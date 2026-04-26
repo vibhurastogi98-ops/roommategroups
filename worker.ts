@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 type Bindings = {
   DB: D1Database
   BUCKET: R2Bucket
+  GEMINI_API_KEY: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -165,6 +167,46 @@ app.get('/favicon.png', async (c) => {
 function dbJson(c: any, data: any, status = 200) {
   return c.json(data, status, { 'Cache-Control': 'no-store, no-cache, must-revalidate' })
 }
+
+// ── AI Assist: Description Generator ────────────────────────
+app.post('/api/ai-assist', async (c) => {
+  try {
+    const { category, title, amenities, lifestyleTags, draft } = await c.req.json()
+    const apiKey = c.env.GEMINI_API_KEY
+
+    if (!apiKey) {
+      return c.json({ success: false, error: 'GEMINI_API_KEY not configured in Worker environment' }, 500)
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" })
+    
+    const prompt = `
+      You are an expert real estate and roommate matching copywriter. 
+      Generate a compelling, friendly, and professional description for a listing with the following details:
+      - Listing Category: ${category || 'Room for Rent'}
+      - Title: ${title || 'Available Space'}
+      - Amenities: ${(amenities || []).join(', ')}
+      - Lifestyle/Preferences: ${(lifestyleTags || []).join(', ')}
+      - Additional context: ${JSON.stringify(draft || {})}
+      
+      The description should be between 100 and 300 words. 
+      Focus on making it sound attractive to potential roommates or tenants.
+      Include information about the atmosphere, neighborhood perks, and house rules if applicable.
+      Format it with clean paragraphs. Do not use markdown headers, just plain text with newlines.
+      Respond ONLY with the description text.
+    `;
+
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const text = response.text()
+    
+    return c.json({ success: true, text: text.trim() })
+  } catch (err) {
+    const error = err as Error
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
 
 // ── D1: Users ────────────────────────────────────────────────
 app.get('/users', async (c) => {
