@@ -1560,18 +1560,18 @@ function renderAdminCities(container) {
                 // URL input row
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">',
                 '<i class="fa-solid fa-link" style="color:#64748b;flex-shrink:0;"></i>',
-                '<input id="f-hero-url" class="adm-input" style="flex:1;" value="' + escHtml((c.hero_image && !c.hero_image.startsWith('data:')) ? c.hero_image : '') + '" placeholder="Paste image URL (e.g. https://images.unsplash.com/...)">',
+                '<input id="f-hero-url" class="adm-input" style="flex:1;" value="' + escHtml((c.hero_image && typeof c.hero_image === 'string' && !c.hero_image.startsWith('data:')) ? c.hero_image : '') + '" placeholder="Paste image URL (e.g. https://images.unsplash.com/...)">',
                 '</div>',
                 // Upload row
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">',
                 '<i class="fa-solid fa-upload" style="color:#64748b;flex-shrink:0;"></i>',
                 '<label class="adm-btn" style="cursor:pointer;margin:0;flex-shrink:0;"><i class="fa-solid fa-image"></i> Upload Image File',
                 '<input type="file" id="f-hero-file" accept="image/*" style="display:none;"></label>',
-                '<span id="f-hero-filename" style="font-size:0.8rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">' + (c.hero_image && c.hero_image.startsWith('data:') ? 'Uploaded image stored' : 'No file chosen') + '</span>',
+                '<span id="f-hero-filename" style="font-size:0.8rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">' + (c.hero_image && typeof c.hero_image === 'string' && c.hero_image.startsWith('data:') ? 'Uploaded image stored' : 'No file chosen') + '</span>',
                 '<button type="button" id="f-hero-clear" style="flex-shrink:0;background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.8rem;display:' + (c.hero_image ? 'inline' : 'none') + '"><i class="fa-solid fa-xmark"></i> Clear</button>',
                 '</div>',
                 // Hidden field to hold base64 upload data
-                '<input type="hidden" id="f-hero-data" value="' + (c.hero_image && c.hero_image.startsWith('data:') ? escHtml(c.hero_image) : '') + '">',
+                '<input type="hidden" id="f-hero-data" value="' + (c.hero_image && typeof c.hero_image === 'string' && c.hero_image.startsWith('data:') ? escHtml(c.hero_image) : '') + '">',
                 // Preview
                 (c.hero_image ? '<img id="f-hero-preview" src="' + escHtml(c.hero_image) + '" style="margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;display:block;">' : '<img id="f-hero-preview" style="display:none;margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;">'),
                 '</div>',
@@ -1959,7 +1959,7 @@ function renderAdminCities(container) {
             const heroData = (container.querySelector('#f-hero-data')?.value || '').trim();
             const heroImage = heroUrl || heroData;
             // Warn if uploaded image is too large (base64 strings > 200KB are risky for localStorage)
-            if (heroImage.startsWith('data:') && heroImage.length > 200000) {
+            if (heroImage && typeof heroImage === 'string' && heroImage.startsWith('data:') && heroImage.length > 200000) {
                 showToast('Image is too large to store. Please use a smaller image or paste an image URL instead.', 'error');
                 btn.innerHTML = originalText; btn.disabled = false;
                 return;
@@ -2530,13 +2530,13 @@ function renderAdminSettings(container) {
             const barColor = pct > 85 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#22c55e';
             let parsed;
             try { parsed = JSON.parse(raw); } catch(e) { parsed = {}; }
-            const cityImgKB = ((parsed.cities || []).reduce((s, c) => s + (c.hero_image && c.hero_image.startsWith('data:') ? c.hero_image.length : 0), 0) / 1024).toFixed(1);
+            const cityImgKB = ((parsed.cities || []).reduce((s, c) => s + (c.hero_image && typeof c.hero_image === 'string' && c.hero_image.startsWith('data:') ? c.hero_image.length : 0), 0) / 1024).toFixed(1);
             const logKB = (JSON.stringify(parsed.admin_logs || []).length / 1024).toFixed(1);
             const reportKB = (JSON.stringify(parsed.reports || []).length / 1024).toFixed(1);
             const listingImgKB = ((parsed.listings || []).reduce((s, l) => {
                 let _imgs = l.images || l.photos || [];
                 if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
-                return s + _imgs.filter(p => p && p.startsWith('data:')).reduce((a, p) => a + p.length, 0);
+                return s + _imgs.filter(p => p && typeof p === 'string' && p.startsWith('data:')).reduce((a, p) => a + p.length, 0);
             }, 0) / 1024).toFixed(1);
             return [
                 '<div class="adm-card" style="grid-column:1/-1">',
@@ -2587,7 +2587,7 @@ function renderAdminSettings(container) {
         if (!confirm('Remove all embedded (base64) city images? This cannot be undone. City image URLs will be cleared.')) return;
         const raw = JSON.parse(localStorage.getItem('rg_database') || '{}');
         let count = 0;
-        (raw.cities || []).forEach(c => { if (c.hero_image && c.hero_image.startsWith('data:')) { c.hero_image = ''; count++; } });
+        (raw.cities || []).forEach(c => { if (c.hero_image && typeof c.hero_image === 'string' && c.hero_image.startsWith('data:')) { c.hero_image = ''; count++; } });
         localStorage.setItem('rg_database', JSON.stringify(raw));
         showToast('Cleared base64 images from ' + count + ' cities. Refreshing…');
         setTimeout(() => renderAdminSettings(container), 800);
@@ -2602,7 +2602,7 @@ function renderAdminSettings(container) {
             if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
             if (Array.isArray(_imgs)) {
                 const before = _imgs.length;
-                _imgs = _imgs.filter(p => !p || !p.startsWith('data:'));
+                _imgs = _imgs.filter(p => !p || typeof p !== 'string' || !p.startsWith('data:'));
                 count += before - _imgs.length;
                 l.images = JSON.stringify(_imgs);
             }
@@ -3855,7 +3855,7 @@ function renderAdminImages(container) {
 
     function getImages() {
         return db.images.findAll().filter(img => {
-            return !filterType || (img.type && img.type.startsWith(filterType));
+            return !filterType || (img.type && typeof img.type === 'string' && img.type.startsWith(filterType));
         }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
