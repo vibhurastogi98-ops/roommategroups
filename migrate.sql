@@ -140,6 +140,7 @@ CREATE TABLE threads (
   listing_id      TEXT,
   last_message_at      TEXT,
   last_message_preview TEXT,
+  is_archived          INTEGER DEFAULT 0,
   created_at           TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (listing_id) REFERENCES listings(listing_id)
 );
@@ -151,6 +152,8 @@ CREATE TABLE messages (
   sender_id  TEXT NOT NULL,
   content    TEXT NOT NULL,
   is_read    INTEGER DEFAULT 0,
+  read_at    TEXT,
+  photo_url  TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (thread_id) REFERENCES threads(thread_id),
   FOREIGN KEY (sender_id) REFERENCES users(user_id)

@@ -815,14 +815,16 @@ app.post('/threads', async (c) => {
   try {
     const body = await c.req.json()
     const id = body.thread_id || `th_${Date.now()}`
-    const participants = typeof body.participants === 'string' ? body.participants : JSON.stringify(body.participants || [])
     
-    await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO threads (thread_id, participants, listing_id, last_message_at, created_at)
-       VALUES (?, ?, ?, ?, ?)`
+    await c.env.DB.prepare(`INSERT OR REPLACE INTO threads (thread_id, participants, listing_id, last_message_at, last_message_preview, is_archived, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).bind(
-      id, participants, body.listing_id || null, 
+      id, 
+      typeof body.participants === 'string' ? body.participants : JSON.stringify(body.participants || []),
+      body.listing_id,
       body.last_message_at || new Date().toISOString(),
+      body.last_message_preview || '',
+      body.is_archived ? 1 : 0,
       body.created_at || new Date().toISOString()
     ).run()
     
@@ -841,6 +843,8 @@ app.put('/threads/:id', async (c) => {
     for (const [k, v] of Object.entries(body)) {
       if (k === 'participants') {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
+      } else if (k === 'is_archived') {
+        mapped[k] = v ? 1 : 0
       } else {
         mapped[k] = v
       }
@@ -889,17 +893,26 @@ app.post('/messages', async (c) => {
     const id = body.message_id || `msg_${Date.now()}`
     
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO messages (message_id, thread_id, sender_id, content, is_read, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT OR REPLACE INTO messages (message_id, thread_id, sender_id, content, is_read, read_at, photo_url, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id, body.thread_id, body.sender_id, body.content,
       body.is_read ? 1 : 0,
+      body.read_at || null,
+      body.photo_url || null,
       body.created_at || new Date().toISOString()
     ).run()
     
-    // Also update thread last_message_at
-    await c.env.DB.prepare('UPDATE threads SET last_message_at = ? WHERE thread_id = ?')
-      .bind(body.created_at || new Date().toISOString(), body.thread_id)
+    // Also update thread last_message_at and preview
+    const sets: string[] = ['last_message_at = ?']
+    const vals: any[] = [body.created_at || new Date().toISOString()]
+    if (body.content) {
+      sets.push('last_message_preview = ?')
+      vals.push(body.content.trim().substring(0, 80))
+    }
+    vals.push(body.thread_id)
+    await c.env.DB.prepare(`UPDATE threads SET ${sets.join(', ')} WHERE thread_id = ?`)
+      .bind(...vals)
       .run()
 
     return dbJson(c, { success: true, message_id: id }, 201)
@@ -916,6 +929,8 @@ app.put('/messages/:id', async (c) => {
     const mapped: Record<string, any> = {}
     if ('is_read' in body) mapped['is_read'] = body.is_read ? 1 : 0
     if ('read_at' in body) mapped['read_at'] = body.read_at
+    if ('photo_url' in body) mapped['photo_url'] = body.photo_url
+    if ('content' in body) mapped['content'] = body.content
     
     if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
     const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')

@@ -29,6 +29,11 @@ ALTER TABLE users ADD COLUMN moveInTimeline TEXT;
 
 -- last_message_preview: snippet of the latest message in a thread
 ALTER TABLE threads ADD COLUMN last_message_preview TEXT;
+ALTER TABLE threads ADD COLUMN is_archived INTEGER DEFAULT 0;
+
+-- messages: photo_url and read_at
+ALTER TABLE messages ADD COLUMN photo_url TEXT;
+ALTER TABLE messages ADD COLUMN read_at TEXT;
 
 -- ── Update existing admin accounts to mark profileComplete=1 ──
 UPDATE users SET profileComplete = 1, emailVerified = 1 WHERE role = 'admin';
