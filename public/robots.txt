@@ -5,9 +5,25 @@ Disallow: /admin
 Disallow: /api/
 Disallow: /.wrangler/
 Disallow: /upload/
-Disallow: /admin-login
-Disallow: /auth/
-Disallow: /profile-setup
-Disallow: /post-listing
+
+# Explicitly allow major AI crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
 
 Sitemap: https://roommategroups.com/sitemap.xml
+Llms: https://roommategroups.com/llms.txt

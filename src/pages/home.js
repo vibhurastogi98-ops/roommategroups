@@ -79,12 +79,22 @@ export function renderHomePage(app) {
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
         mainEntity: [
-          { '@type': 'Question', name: 'How do I find a roommate on RoommateGroups?', acceptedAnswer: { '@type': 'Answer', text: 'Browse listings by city, filter by budget and lifestyle, and message potential roommates directly from their profile.' } },
-          { '@type': 'Question', name: 'Is RoommateGroups free to use?', acceptedAnswer: { '@type': 'Answer', text: 'Yes, creating a profile and browsing roommate groups is completely free.' } },
-          { '@type': 'Question', name: 'What cities does RoommateGroups cover?', acceptedAnswer: { '@type': 'Answer', text: 'RoommateGroups covers 30+ cities worldwide including Austin, San Francisco, Berlin, Paris, and more.' } },
-          { '@type': 'Question', name: 'How do I list my room for rent?', acceptedAnswer: { '@type': 'Answer', text: 'Sign up for a free account, click Post a Listing, fill in your room details and photos, and your listing goes live instantly.' } },
-          { '@type': 'Question', name: 'Can I search by roommate preferences?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Use the advanced search filters to find roommates by preferences including pets, schedule, cleanliness, and more.' } },
+          { '@type': 'Question', name: 'What is RoommateGroups?', acceptedAnswer: { '@type': 'Answer', text: 'RoommateGroups is a free US-based platform that helps people find compatible roommates, join local housing communities, and list rooms for rent across 65+ cities.' } },
+          { '@type': 'Question', name: 'How do I find a roommate in my city?', acceptedAnswer: { '@type': 'Answer', text: 'Visit roommategroups.com, select your city from the directory, and browse verified roommate listings. You can filter by budget, lifestyle, and move-in date.' } },
+          { '@type': 'Question', name: 'Is RoommateGroups free?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Browsing listings, creating a profile, and contacting roommates is completely free on RoommateGroups.' } },
+          { '@type': 'Question', name: 'What cities does RoommateGroups cover?', acceptedAnswer: { '@type': 'Answer', text: 'RoommateGroups covers 65+ US cities including New York, Los Angeles, Chicago, Austin, Miami, Seattle, Boston, Denver, and more.' } },
+          { '@type': 'Question', name: 'How is RoommateGroups different from Craigslist or Facebook?', acceptedAnswer: { '@type': 'Answer', text: 'RoommateGroups is purpose-built for roommate matching. It offers lifestyle compatibility filters, verified profiles, AI-assisted listing descriptions, and city-based roommate communities — features not available on general classifieds sites.' } },
         ],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: 'Find Roommate Groups Near You | RoommateGroups',
+        url: 'https://roommategroups.com/',
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', '.hero-subtitle', '.home-faq-section']
+        }
       },
     ],
   });
@@ -125,9 +135,7 @@ export function renderHomePage(app) {
           Find Roommate Groups Near You
         </h1>
         <p class="hero-subtitle animate-fade-in-up delay-2">
-          Search verified rooms, apartments, sublets, co-living spaces and more. 
-          Whether you need a roommate or a place to stay — we've got you covered. 
-          No bots. No spam. Just real listings.
+          RoommateGroups is a free platform for finding roommates across 65+ US cities. Browse local listings, filter by lifestyle and budget, and connect with compatible roommates — no signup required to search.
         </p>
         <div class="hero-search animate-fade-in-up delay-3" id="hero-search">
           <div class="search-field">
@@ -491,17 +499,19 @@ export function renderHomePage(app) {
         </div>
         <div class="home-faq-list">
           ${[
-      { q: 'How do I join a group?', a: 'Click on the city you\'re interested in, then click the link to join the corresponding Facebook group.' },
-      { q: 'Can I find roommates for short-term stays?', a: 'Yes, many groups cater to both short-term and long-term housing needs.' },
-      { q: 'How does Roommate Groups help me find roommates?', a: 'Roommate Groups is a membership platform that connects you with potential roommates through dedicated Facebook groups. Once you join, you\'ll gain access to these groups where you can interact with other members, post about your roommate search, and browse listings from others looking for roommates in your area.' },
-      { q: 'Is there a fee to use Roommate Groups?', a: 'Yes, Roommate Groups operates on a membership model. By paying a fee, you gain access to our curated Facebook groups where you can connect with potential roommates. This membership helps ensure that all users are serious about finding roommates and maintains the quality of our community.' },
-      { q: 'How do I make a payment for subscription services?', a: 'Follow the call-to-action link for payment on each group\'s page, and the information will be processed accordingly.' },
+      { q: 'What is RoommateGroups?', a: 'RoommateGroups is a free US-based platform that helps people find compatible roommates, join local housing communities, and list rooms for rent across 65+ cities.' },
+      { q: 'How do I find a roommate in my city?', a: 'Visit roommategroups.com, select your city from the directory, and browse verified roommate listings. You can filter by budget, lifestyle, and move-in date.' },
+      { q: 'Is RoommateGroups free?', a: 'Yes. Browsing listings, creating a profile, and contacting roommates is completely free on RoommateGroups.' },
+      { q: 'What cities does RoommateGroups cover?', a: 'RoommateGroups covers 65+ US cities including New York, Los Angeles, Chicago, Austin, Miami, Seattle, Boston, Denver, and more.' },
+      { q: 'How is RoommateGroups different from Craigslist or Facebook?', a: 'RoommateGroups is purpose-built for roommate matching. It offers lifestyle compatibility filters, verified profiles, AI-assisted listing descriptions, and city-based roommate communities — features not available on general classifieds sites.' },
     ].map(item => `
-            <div class="home-faq-item animate-on-scroll">
+            <div class="home-faq-item animate-on-scroll" itemscope itemtype="https://schema.org/Question">
               <div class="home-faq-icon"><i class="fas fa-question-circle"></i></div>
               <div class="home-faq-content">
-                <div class="home-faq-q">${item.q}</div>
-                <div class="home-faq-a">${item.a}</div>
+                <h3 class="home-faq-q" itemprop="name" style="margin:0;font-size:inherit;">${item.q}</h3>
+                <div class="home-faq-a" itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
+                  <p itemprop="text" style="margin:0;">${item.a}</p>
+                </div>
               </div>
             </div>
           `).join('')}

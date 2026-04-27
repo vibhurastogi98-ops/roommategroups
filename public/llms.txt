@@ -1,0 +1,23 @@
+# RoommateGroups — llms.txt
+
+> RoommateGroups is a free US roommate-finding platform covering 65+ cities.
+
+## What this site does
+- Helps people find compatible roommates and housing communities
+- Allows users to post and browse room listings by city
+- Provides lifestyle-based matching filters (budget, schedule, pets, etc.)
+
+## Key pages
+- Homepage: https://roommategroups.com/
+- Search listings: https://roommategroups.com/search
+- City directory: https://roommategroups.com/cities
+- Post a listing: https://roommategroups.com/dashboard
+
+## Contact
+- Email: hello@roommategroups.com
+- Social: facebook.com/Roommategroups | instagram.com/roommategroups
+
+## Do not crawl
+- /dashboard (requires login)
+- /admin
+- /api/
