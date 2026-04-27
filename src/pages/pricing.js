@@ -319,46 +319,14 @@ export function renderPricingPage(app) {
             .pricing-table tr:nth-child(even) { background: #f8fafc; }
             .pricing-table tr:nth-child(odd) { background: white; }
             
-            .faq-section {
-                max-width: 800px;
-                margin: 80px auto;
-                padding: 0 20px;
-            }
-            .faq-section h2 {
-                text-align: center;
-                font-size: 2rem;
+            /* FAQ Section updated to match other pages */
+            .pricing-page .section-header {
                 margin-bottom: 40px;
             }
-            .faq-item {
-                background: white;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                margin-bottom: 16px;
-                overflow: hidden;
+            .pricing-page .home-faq-list {
+                margin-top: 20px;
             }
-            .faq-q {
-                padding: 20px;
-                font-weight: 600;
-                color: #1e293b;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                cursor: pointer;
-            }
-            .faq-q i {
-                transition: transform 0.3s ease;
-                color: #64748b;
-            }
-            .faq-a {
-                padding: 0 20px;
-                max-height: 0;
-                overflow: hidden;
-                transition: max-height 0.3s ease, padding 0.3s ease;
-                color: #475569;
-                line-height: 1.6;
-            }
-            .faq-item.open .faq-q i { transform: rotate(180deg); }
-            .faq-item.open .faq-a { padding: 0 20px 20px; max-height: 500px; }
+            
             
             .cta-banner {
                 max-width: 1100px;
@@ -425,31 +393,34 @@ export function renderPricingPage(app) {
                 </div>
             </div>
             
-            <div class="faq-section">
-                <h2>Frequently Asked Questions</h2>
-                <div class="faq-list">
-                    <div class="faq-item">
-                        <div class="faq-q">Can I switch plans anytime? <i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="faq-a">Yes! You can upgrade, downgrade, or cancel your subscription at any time from your dashboard settings. Upgrades are prorated.</div>
+            <section class="section home-faq-section" id="faq" style="padding: 80px 20px;">
+                <div class="container" style="max-width: 1100px; margin: 0 auto;">
+                    <div class="section-header">
+                        <h2 style="text-align: center; font-size: 2rem; color: #1e293b; margin-bottom: 12px;">Frequently Asked Questions</h2>
+                        <p style="text-align: center; color: #64748b; margin-bottom: 40px;">Everything you need to know about RoommateGroups plans</p>
                     </div>
-                    <div class="faq-item">
-                        <div class="faq-q">Is there a free trial for paid plans? <i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="faq-a">We occasionally offer promotional trials for our Premium plan. Even without a trial, you can start on the Free plan for 1 month and upgrade when you need more power or time.</div>
-                    </div>
-                    <div class="faq-item">
-                        <div class="faq-q">What payment methods do you accept? <i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="faq-a">We accept all major credit cards (Visa, MasterCard, American Express) as well as PayPal and Apple Pay.</div>
-                    </div>
-                    <div class="faq-item">
-                        <div class="faq-q">What happens to my listings if I downgrade? <i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="faq-a">If you downgrade to a plan with a lower listing limit, your most recent active listings will remain active up to the new limit. The excess listings will be automatically paused until you either remove some or upgrade again.</div>
-                    </div>
-                    <div class="faq-item">
-                        <div class="faq-q">Do you offer refunds? <i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="faq-a">We offer a 7-day money-back guarantee on all new subscriptions if you are not completely satisfied with the service.</div>
+                    <div class="home-faq-list">
+                        ${[
+                            { q: 'Can I switch plans anytime?', a: 'Yes! You can upgrade, downgrade, or cancel your subscription at any time from your dashboard settings. Upgrades are prorated.' },
+                            { q: 'Is there a free trial for paid plans?', a: 'We occasionally offer promotional trials for our Premium plan. Even without a trial, you can start on the Free plan for 1 month and upgrade when you need more power or time.' },
+                            { q: 'What payment methods do you accept?', a: 'We accept all major credit cards (Visa, MasterCard, American Express) as well as PayPal and Apple Pay.' },
+                            { q: 'What happens to my listings if I downgrade?', a: 'If you downgrade to a plan with a lower listing limit, your most recent active listings will remain active up to the new limit. The excess listings will be automatically paused until you either remove some or upgrade again.' },
+                            { q: 'Do you offer refunds?', a: 'We offer a 7-day money-back guarantee on all new subscriptions if you are not completely satisfied with the service.' },
+                        ].map(item => `
+                            <div class="home-faq-item">
+                                <div class="home-faq-icon"><i class="fas fa-question-circle"></i></div>
+                                <div class="home-faq-content">
+                                    <h3 class="home-faq-q" style="margin:0; font-size:1.1rem; font-weight:700;">${item.q}</h3>
+                                    <div class="home-faq-a" style="margin-top:8px; color:#64748b; line-height:1.6;">
+                                        <p style="margin:0;">${item.a}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
-            </div>
+            </section>
+
             
             <div class="cta-banner">
                 <h2>Still not sure?</h2>
@@ -537,14 +508,7 @@ export function renderPricingPage(app) {
         });
     });
 
-    // FAQ Accordion
-    document.querySelectorAll('.faq-item').forEach(item => {
-        item.querySelector('.faq-q').addEventListener('click', () => {
-            const isOpen = item.classList.contains('open');
-            document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
-            if (!isOpen) item.classList.add('open');
-        });
-    });
+
 
     // Footer CTA
     document.getElementById('footer-cta-btn').addEventListener('click', () => {
