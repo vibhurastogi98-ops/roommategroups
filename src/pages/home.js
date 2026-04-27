@@ -132,10 +132,13 @@ export function renderHomePage(app) {
           ✅ Verified Listings · 🚫 No Bots · 🚫 No Spam · 🛡️ 1,500,000+ Trusted Members
         </div>
         <h1 class="hero-title animate-fade-in-up delay-1">
-          Find Roommate Groups Near You
+          Easily Find Rooms, Rentals & <span class="gradient-text">Roommates</span><br>
+          — All in One Place
         </h1>
         <p class="hero-subtitle animate-fade-in-up delay-2">
-          RoommateGroups is a free platform for finding roommates across 65+ US cities. Browse local listings, filter by lifestyle and budget, and connect with compatible roommates — no signup required to search.
+          Search verified rooms, apartments, sublets, co-living spaces and more. 
+          Whether you need a roommate or a place to stay — we've got you covered. 
+          No bots. No spam. Just real listings.
         </p>
         <div class="hero-search animate-fade-in-up delay-3" id="hero-search">
           <div class="search-field">
