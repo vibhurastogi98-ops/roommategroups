@@ -138,8 +138,9 @@ CREATE TABLE threads (
   thread_id       TEXT PRIMARY KEY,
   participants    TEXT NOT NULL,
   listing_id      TEXT,
-  last_message_at TEXT,
-  created_at      TEXT DEFAULT (datetime('now')),
+  last_message_at      TEXT,
+  last_message_preview TEXT,
+  created_at           TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (listing_id) REFERENCES listings(listing_id)
 );
 

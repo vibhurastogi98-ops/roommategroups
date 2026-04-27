@@ -27,6 +27,9 @@ ALTER TABLE users ADD COLUMN budgetMax INTEGER;
 -- moveInTimeline: when the user plans to move in
 ALTER TABLE users ADD COLUMN moveInTimeline TEXT;
 
+-- last_message_preview: snippet of the latest message in a thread
+ALTER TABLE threads ADD COLUMN last_message_preview TEXT;
+
 -- ── Update existing admin accounts to mark profileComplete=1 ──
 UPDATE users SET profileComplete = 1, emailVerified = 1 WHERE role = 'admin';
 

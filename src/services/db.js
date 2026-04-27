@@ -189,7 +189,7 @@ const D1_SYNC_MAP = {
     fb_countries: { save: (item) => api.saveFbCountry(item), update: (id,d) => api.updateFbCountry(id,d), del: (id) => api.deleteFbCountry(id) },
     fb_cities:    { save: (item) => api.saveFbCity(item), update: (id,d) => api.updateFbCity(id,d), del: (id) => api.deleteFbCity(id) },
     threads:      { save: (item) => api.saveThread(item), update: (id,d) => api.updateThread(id,d), del: (id) => api.deleteThread(id) },
-    messages:     { save: (item) => api.saveMessage(item), update: (id,d) => null, del: (id) => api.deleteMessage(id) },
+    messages:     { save: (item) => api.saveMessage(item), update: (id,d) => api.updateMessage(id,d), del: (id) => api.deleteMessage(id) },
     reports:      { save: (item) => api.saveReport(item), update: (id,d) => api.updateReport(id,d), del: (id) => api.deleteReport(id) },
     notifications:{ save: (item) => api.saveNotification(item), update: (id,d) => api.updateNotification(id,d), del: (id) => api.deleteNotification(id) },
     user_queries: { save: (item) => api.post('/user_queries', item), update: (id,d) => api.put(`/user_queries/${id}`, d), del: (id) => api.delete(`/user_queries/${id}`) },

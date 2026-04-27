@@ -91,11 +91,9 @@ export function sendMessage(threadId, senderId, content, photoUrl = null) {
     });
 
     // 6. Update thread metadata
-    const otherUserId = thread.participants.find(id => id !== senderId);
     db.threads.update(threadId, {
         last_message_at: new Date().toISOString(),
         last_message_preview: content.trim().substring(0, 80),
-        [`unread_count_${otherUserId}`]: (thread[`unread_count_${otherUserId}`] || 0) + 1,
     });
 
     // 7. Increment rate limit counter
@@ -184,9 +182,18 @@ export function getMessagesForThread(threadId) {
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 }
 
+export function getUnreadCountForThread(threadId, userId) {
+    return db.messages.find(m => m.thread_id === threadId && m.sender_id !== userId && !m.is_read).length;
+}
+
 export function getTotalUnread(userId) {
-    const threads = db.threads.find(t => t.participants.includes(userId) && !t.is_archived);
-    return threads.reduce((sum, t) => sum + (t[`unread_count_${userId}`] || 0), 0);
+    const archivedThreads = new Set(db.threads.find(t => t.is_archived).map(t => t.thread_id));
+    const unreadMessages = db.messages.find(m => 
+        m.sender_id !== userId && 
+        !m.is_read && 
+        !archivedThreads.has(m.thread_id)
+    );
+    return unreadMessages.length;
 }
 
 // ── Safety ───────────────────────────────────────────────────

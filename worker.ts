@@ -909,6 +909,25 @@ app.post('/messages', async (c) => {
   }
 })
 
+app.put('/messages/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    const mapped: Record<string, any> = {}
+    if ('is_read' in body) mapped['is_read'] = body.is_read ? 1 : 0
+    if ('read_at' in body) mapped['read_at'] = body.read_at
+    
+    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
+    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(mapped), id]
+    await c.env.DB.prepare(`UPDATE messages SET ${sets} WHERE message_id = ?`).bind(...vals).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
 app.delete('/messages/:id', async (c) => {
   try {
     const id = c.req.param('id')

@@ -1,6 +1,7 @@
 import { getCurrentUser, logout, getVerificationBadge, isAdmin } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db, syncMessagesAndThreads } from '../services/db.js';
+import { getTotalUnread, getUnreadCountForThread } from '../services/messaging.js';
 
 // Module-level timer so it survives re-renders and can be cleared on navigation
 let _msgPollingTimer = null;
@@ -86,7 +87,7 @@ export function renderDashboardPage(app) {
         '<div style="display:flex;align-items:center;gap:8px;">',
         '<a href="/dashboard/notifications" class="nav-msg-btn" style="position:relative;" title="Notifications">',
         '<i class="fa-solid fa-bell" style="font-size:1rem;color:var(--text-secondary);"></i>',
-        (() => { const c = db.notifications.find(n => n.user_id === dbUser.user_id && !n.is_read).length; return c > 0 ? '<span class="nav-msg-badge" style="display:flex;">' + (c > 99 ? '99+' : c) + '</span>' : ''; })(),
+        (() => { const c = db.notifications.find(n => n.user_id === dbUser.user_id && !n.is_read).length; return '<span class="nav-msg-badge" id="mobile-notif-badge" style="' + (c > 0 ? 'display:flex;' : 'display:none;') + '">' + (c > 99 ? '99+' : c) + '</span>'; })(),
         '</a>',
         '<div class="topbar-user-pill"><img src="' + avatarSrc + '" class="topbar-avatar" alt="User Avatar" loading="lazy"><span>' + escapeHtml(dbUser.display_name.split(' ')[0]) + '</span></div>',
         '</div>',
@@ -132,11 +133,7 @@ export function renderDashboardPage(app) {
         const listBadge = app.querySelector('#dash-sidebar-list-badge');
 
         if (msgBadge) {
-            const threads = db.threads.find(t => {
-                const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
-                return parts.includes(dbUser.user_id);
-            });
-            const unread = threads.reduce((sum, t) => sum + (t['unread_count_' + dbUser.user_id] || 0), 0);
+            const unread = getTotalUnread(dbUser.user_id);
             msgBadge.textContent = unread;
             msgBadge.style.display = unread > 0 ? 'flex' : 'none';
         }
@@ -144,6 +141,12 @@ export function renderDashboardPage(app) {
             const count = db.notifications.find(n => n.user_id === dbUser.user_id && !n.is_read).length;
             notifBadge.textContent = count;
             notifBadge.style.display = count > 0 ? 'flex' : 'none';
+            // Also update mobile topbar if it exists
+            const mobileNotifBadge = app.querySelector('#mobile-notif-badge');
+            if (mobileNotifBadge) {
+                mobileNotifBadge.textContent = count > 99 ? '99+' : count;
+                mobileNotifBadge.style.display = count > 0 ? 'flex' : 'none';
+            }
         }
         if (listBadge) {
             const pending = db.listings.find(l => l.user_id === dbUser.user_id && l.moderation_status === 'pending').length;
@@ -155,16 +158,27 @@ export function renderDashboardPage(app) {
     }
 
     window.addEventListener('db-synced', updateSidebarBadges);
+    
+    // Global dashboard polling (every 10s) to keep sidebar badges in sync
+    // if the navbar is not present.
+    const _dashGlobalTimer = setInterval(async () => {
+        const changed = await syncMessagesAndThreads();
+        if (changed) updateSidebarBadges();
+    }, 10000);
+
+    // Clean up timer when user navigates away
+    const _oldNavigate = window.navigate;
+    window.navigate = (...args) => {
+        clearInterval(_dashGlobalTimer);
+        window.navigate = _oldNavigate;
+        return _oldNavigate(...args);
+    };
 }
 
 // ── Helpers ──────────────────────────────────────────────────
 
 function getUnreadCountBadge(userId) {
-    const threads = db.threads.find(t => {
-        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
-        return parts.includes(userId);
-    });
-    const unread = threads.reduce((sum, t) => sum + (t['unread_count_' + userId] || 0), 0);
+    const unread = getTotalUnread(userId);
     return '<span class="badge badge-primary badge-sm" id="dash-sidebar-msg-badge" style="margin-left:auto;background:#ef4444;' + (unread > 0 ? '' : 'display:none;') + '">' + unread + '</span>';
 }
 
@@ -232,7 +246,7 @@ function renderOverview(container, user) {
         const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
         return parts.includes(user.user_id);
     });
-    const unreadMessages = threads.reduce((sum, t) => sum + (t['unread_count_' + user.user_id] || 0), 0);
+    const unreadMessages = getTotalUnread(user.user_id);
 
     // ── Build activity from real data ──
     const activityItems = [];
@@ -247,7 +261,7 @@ function renderOverview(container, user) {
         const senderId = t.participants.find(id => id !== user.user_id);
         const sender = senderId ? db.users.findById(senderId) : null;
         const listing = db.listings.findById(t.listing_id);
-        const unread = t['unread_count_' + user.user_id] || 0;
+        const unread = getUnreadCountForThread(t.thread_id, user.user_id);
         const senderName = sender ? sender.display_name : 'Someone';
         const listingTitle = listing ? listing.title : 'a listing';
         activityItems.push({
@@ -609,7 +623,7 @@ function renderMessages(container, user) {
         });
         return all
             .filter(t => {
-                if (activeTab === 'unread') return (t['unread_count_' + user.user_id] || 0) > 0 && !t.is_archived;
+                if (activeTab === 'unread') return getUnreadCountForThread(t.thread_id, user.user_id) > 0 && !t.is_archived;
                 if (activeTab === 'archived') return t.is_archived;
                 return !t.is_archived;
             })
@@ -637,7 +651,7 @@ function renderMessages(container, user) {
             const ouId = t.participants.find(id => id !== user.user_id);
             const ou = db.users.findById(ouId) || { display_name: 'User', profile_photo: '', verification_level: 'basic' };
             const li = db.listings.findById(t.listing_id);
-            const unread = t['unread_count_' + user.user_id] || 0;
+            const unread = getUnreadCountForThread(t.thread_id, user.user_id);
             const isActive = t.thread_id === activeThreadId;
             const src = ou.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(ou.display_name) + '&background=6366f1&color=fff&size=80');
             return [
@@ -687,7 +701,9 @@ function renderMessages(container, user) {
         db.messages.find(m => m.thread_id === activeThreadId && m.sender_id !== user.user_id && !m.is_read).forEach(m => {
             db.messages.update(m.message_id, { is_read: true, read_at: new Date().toISOString() });
         });
-        db.threads.update(activeThreadId, { ['unread_count_' + user.user_id]: 0 });
+        
+        // Update sidebar badges immediately
+        updateSidebarBadges();
 
         const msgs = db.messages.find(m => m.thread_id === activeThreadId).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
@@ -993,9 +1009,7 @@ function renderMessages(container, user) {
             }
 
             // Update sidebar badge
-            const badgeEl = document.querySelector('a[href="/dashboard/messages"] .badge-primary');
-            const newUnread = db.threads.find(t => t.participants.includes(user.user_id)).reduce((s, t) => s + (t['unread_count_' + user.user_id] || 0), 0);
-            if (badgeEl) badgeEl.textContent = newUnread > 0 ? newUnread : '';
+            updateSidebarBadges();
         }
     }, 3000);
 
@@ -1032,9 +1046,6 @@ function renderMessages(container, user) {
 
         historyEl.innerHTML = bubbles;
         scrollToBottom();
-        
-        // Reset unread count for the thread
-        db.threads.update(activeThreadId, { ['unread_count_' + user.user_id]: 0 });
     }
 }
 

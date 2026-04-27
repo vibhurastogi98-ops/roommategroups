@@ -78,6 +78,7 @@ export const api = {
     // ── Messages ─────────────────────────────────────────────
     getMessages:      (tid)  => req('GET',    tid ? `/messages?thread_id=${tid}` : '/messages'),
     saveMessage:      (item) => req('POST',   '/messages', item),
+    updateMessage:    (id, d)  => req('PUT',    `/messages/${id}`, d),
     deleteMessage:    (id)   => req('DELETE', `/messages/${id}`),
 
     // ── Reports ──────────────────────────────────────────────
