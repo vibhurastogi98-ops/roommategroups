@@ -173,6 +173,22 @@ app.get('/favicon.png', async (c) => {
   return new Response(object.body, { headers })
 })
 
+app.get('/favicon.svg', async (c) => {
+  const object = await c.env.BUCKET.get('favicon.svg')
+  if (!object) return fetch(c.req.raw)
+  const headers = new Headers()
+  object.writeHttpMetadata(headers)
+  return new Response(object.body, { headers })
+})
+
+app.get('/favicon.ico', async (c) => {
+  const object = await c.env.BUCKET.get('favicon.ico')
+  if (!object) return fetch(c.req.raw)
+  const headers = new Headers()
+  object.writeHttpMetadata(headers)
+  return new Response(object.body, { headers })
+})
+
 // Helper: no-store JSON response for all dynamic DB data
 function dbJson(c: any, data: any, status = 200) {
   return c.json(data, status, { 'Cache-Control': 'no-store, no-cache, must-revalidate' })
