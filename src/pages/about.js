@@ -1,7 +1,14 @@
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 export function renderAboutPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'About RoommateGroups — Our Story, Mission & Values',
+        description: 'Learn about RoommateGroups — founded in 2018 to make finding a roommate simple, safe, and human. 1.5M+ members, 30+ cities, 98% scam-free listings.',
+        canonical: 'https://roommategroups.com/about',
+    });
     app.innerHTML = `
     ${renderNavbar()}
     <style>

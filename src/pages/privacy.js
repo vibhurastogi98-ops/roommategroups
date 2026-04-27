@@ -1,7 +1,14 @@
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 export function renderPrivacyPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Privacy Policy | RoommateGroups',
+        description: 'Learn how RoommateGroups collects, uses, and protects your personal data. We never sell your data. Your address and phone number stay private until you choose to share.',
+        canonical: 'https://roommategroups.com/privacy',
+    });
     app.innerHTML = `
     <style>
         .legal-hero { background: linear-gradient(135deg, #1a1a1a 0%, #0f172a 100%); color: white; padding: 80px 24px; text-align: center; }

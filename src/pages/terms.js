@@ -1,7 +1,14 @@
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 export function renderTermsPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Terms of Service | RoommateGroups',
+        description: 'Read the RoommateGroups Terms of Service. Learn about your rights and responsibilities when using our roommate-finding platform.',
+        canonical: 'https://roommategroups.com/terms',
+    });
     app.innerHTML = `
     <style>
         .legal-hero { background: linear-gradient(135deg, #1a1a1a 0%, #0f172a 100%); color: white; padding: 80px 24px; text-align: center; }

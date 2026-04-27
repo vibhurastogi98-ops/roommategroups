@@ -1,5 +1,6 @@
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 const SAFETY_TIPS = [
     {
@@ -77,6 +78,12 @@ const SAFETY_TIPS = [
 ];
 
 export function renderSafetyPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Safety Tips & Scam Prevention for Renters | RoommateGroups',
+        description: 'Protect yourself when searching for a roommate. Learn how to spot scams, communicate safely, and move in with confidence using our safety guidelines.',
+        canonical: 'https://roommategroups.com/safety',
+    });
     app.innerHTML = `
     <style>
         .safety-hero { background: #f2f2f2; color: #1a1a1a; border-bottom: 1px solid #e2e8f0; padding: 100px 24px 80px; text-align: center; }

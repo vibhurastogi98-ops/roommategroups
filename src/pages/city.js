@@ -2,6 +2,7 @@ import { db } from '../services/db.js';
 import { navigate } from '../router.js';
 import { getVerificationBadge, getCurrentUser } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 const FALLBACK_HERO = 'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=1600&h=700&fit=crop';
 const FALLBACK_CITY_IMG = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&h=400&fit=crop';
@@ -159,7 +160,7 @@ export function renderCityPage(app, params) {
                             <i class="fa-solid fa-chevron-right"></i>
                             <span>${city.name}</span>
                         </nav>
-                        <h1 class="city-hero-title">Rooms &amp; Roommates<br>in ${city.name}</h1>
+                        <h1 class="city-hero-title">Roommate Groups in ${city.name}</h1>
                         <p class="city-hero-sub">Find your perfect room or roommate in ${city.name}'s most vibrant neighborhoods</p>
                         <div class="city-hero-stats">
                             <div class="hero-stat-pill">
@@ -295,7 +296,7 @@ export function renderCityPage(app, params) {
                             </ul>
                         </div>
                         <div class="gd-feature-img-wrapper">
-                            <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=600&fit=crop" class="gd-feature-img" alt="Verified Community">
+                            <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=600&fit=crop" class="gd-feature-img" alt="Verified Community Members in ${city.name}" loading="lazy">
                         </div>
                     </div>
                 </div>
@@ -316,7 +317,7 @@ export function renderCityPage(app, params) {
                             </ul>
                         </div>
                         <div class="gd-feature-img-wrapper">
-                            <img src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&h=600&fit=crop" class="gd-feature-img" alt="Local Expertise">
+                            <img src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&h=600&fit=crop" class="gd-feature-img" alt="Local Housing Expertise in ${city.name}" loading="lazy">
                         </div>
                     </div>
                 </div>
@@ -351,7 +352,7 @@ export function renderCityPage(app, params) {
                         ${latestPosts.map(post => `
                             <a href="/blog/${post.slug}" class="gd-blog-card">
                                 <div class="gd-blog-img">
-                                    <img src="${post.featured_image || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=250&fit=crop'}" alt="${post.title}">
+                                    <img src="${post.featured_image || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=250&fit=crop'}" alt="${post.title}" loading="lazy">
                                     <span class="gd-blog-cat">${post.category || 'Lifestyle'}</span>
                                 </div>
                                 <div class="gd-blog-body">
@@ -413,7 +414,22 @@ export function renderCityPage(app, params) {
     `;
 
         updateBreadcrumbs(city);
-        updateMetaTags(city);
+        // SEO Update — per-city title, description, canonical, OG image, FAQ schema
+        setSEO({
+            title: (city.meta_title || `Find Roommates in ${city.name} | RoommateGroups`).substring(0, 60),
+            description: (city.meta_description || `Join roommate groups in ${city.name}. Browse verified listings, connect with locals, and find your ideal roommate on RoommateGroups.`).substring(0, 160),
+            canonical: `https://roommategroups.com/cities/${city.slug}`,
+            ogImage: city.hero_image || FALLBACK_HERO,
+            schema: {
+                '@context': 'https://schema.org',
+                '@type': 'FAQPage',
+                mainEntity: faqs.map(f => ({
+                    '@type': 'Question',
+                    name: f.q,
+                    acceptedAnswer: { '@type': 'Answer', text: f.a },
+                })),
+            },
+        });
 
         setTimeout(() => {
             const pageContainer = app.querySelector('.city-page');
@@ -570,7 +586,7 @@ function renderReviewCard(review) {
             <div class="gd-review-stars">${stars}</div>
             <p class="gd-review-text">"${review.text}"</p>
             <div class="gd-review-user">
-                <img src="https://i.pravatar.cc/100?u=${encodeURIComponent(review.name)}" alt="${review.name}" class="gd-review-avatar">
+                <img src="https://i.pravatar.cc/100?u=${encodeURIComponent(review.name)}" alt="${review.name} Review Avatar" class="gd-review-avatar" loading="lazy">
                 <div class="gd-review-info">
                     <span class="gd-review-name">${review.name}</span>
                     <span class="gd-review-date">${review.date}</span>

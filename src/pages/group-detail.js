@@ -1,6 +1,7 @@
 import { db } from '../services/db.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 function formatMembers(n) {
     if (!n) return '0';
@@ -82,7 +83,7 @@ function renderReviewCard(review) {
             <div class="gd-review-stars">${stars}</div>
             <p class="gd-review-text">"${review.text}"</p>
             <div class="gd-review-user">
-                <img src="https://i.pravatar.cc/100?u=${encodeURIComponent(review.name)}" alt="${review.name}" class="gd-review-avatar">
+                <img src="https://i.pravatar.cc/100?u=${encodeURIComponent(review.name)}" alt="${review.name} Review Avatar" class="gd-review-avatar" loading="lazy">
                 <div class="gd-review-info">
                     <span class="gd-review-name">${review.name}</span>
                     <span class="gd-review-date">${review.date}</span>
@@ -161,6 +162,23 @@ export function renderGroupDetailPage(app, params) {
     const fallback = 'https://images.unsplash.com/photo-1449844908441-8829872d2607?w=1600&h=600&fit=crop';
     const description = group.description || getDescription(slug);
     const foundedYear = 2018 + (group.priority || 0) % 4;
+
+    // SEO Update — per-group dynamic meta + FAQPage schema
+    setSEO({
+        title: `Find Roommates in ${group.city_name} | RoommateGroups`.substring(0, 60),
+        description: `Join roommate groups in ${group.city_name}. Browse verified listings, connect with locals, and find your ideal roommate on RoommateGroups.`.substring(0, 160),
+        canonical: `https://roommategroups.com/fb-groups/${slug}`,
+        ogImage: group.city_image || fallback,
+        schema: {
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: faqs.map(f => ({
+                '@type': 'Question',
+                name: f.q,
+                acceptedAnswer: { '@type': 'Answer', text: f.a },
+            })),
+        },
+    });
 
     app.innerHTML = `
         ${renderNavbar()}
@@ -469,7 +487,7 @@ export function renderGroupDetailPage(app, params) {
         <div class="gd-page">
             <!-- Hero -->
             <div class="gd-hero">
-                <img class="gd-hero-img" src="${group.city_image || fallback}" alt="${group.city_name}" onerror="this.onerror=null;this.src='${fallback}';">
+                <img class="gd-hero-img" src="${group.city_image || fallback}" alt="${group.city_name} Roommate Group" loading="eager" fetchpriority="high" onerror="this.onerror=null;this.src='${fallback}';">
                 <div class="gd-hero-overlay"></div>
                 <div class="gd-hero-content">
                     <div class="container">
@@ -531,7 +549,7 @@ export function renderGroupDetailPage(app, params) {
                 <div class="container">
                     <div class="gd-feature-row reverse">
                         <div class="gd-feature-img-wrapper">
-                            <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop" alt="Community Interaction" class="gd-feature-img">
+                            <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop" alt="Community Interaction" class="gd-feature-img" loading="lazy">
                         </div>
                         <div class="gd-feature-content">
                             <div class="gd-about-label">Verified Community</div>
@@ -566,7 +584,7 @@ export function renderGroupDetailPage(app, params) {
                             <a href="/blog" class="gd-section-link" style="font-size: 1rem; margin-top: 8px;">Read our ${group.city_name} Rental Guide →</a>
                         </div>
                         <div class="gd-feature-img-wrapper">
-                            <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=600&fit=crop" alt="Local Market" class="gd-feature-img">
+                            <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&h=600&fit=crop" alt="Local Market" class="gd-feature-img" loading="lazy">
                         </div>
                     </div>
                 </div>

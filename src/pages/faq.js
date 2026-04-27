@@ -1,5 +1,6 @@
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 const FAQ_DATA = [
     {
@@ -45,6 +46,21 @@ const FAQ_DATA = [
 ];
 
 export function renderFAQPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'FAQ — Roommate Groups & Rental Questions | RoommateGroups',
+        description: 'Answers to the most common questions about finding a roommate, listing a room, safety, pricing, and payments on RoommateGroups.',
+        canonical: 'https://roommategroups.com/faq',
+        schema: {
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: FAQ_DATA.flatMap(cat => cat.faqs.slice(0, 2).map(item => ({
+                '@type': 'Question',
+                name: item.q,
+                acceptedAnswer: { '@type': 'Answer', text: item.a },
+            }))),
+        },
+    });
     app.innerHTML = `
     <style>
         .faq-hero { background: #fff; color: #1a2740; border-bottom: 1px solid #eef2f6; padding: 100px 24px 80px; text-align: center; }

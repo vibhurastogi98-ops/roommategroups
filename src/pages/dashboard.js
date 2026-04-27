@@ -42,6 +42,7 @@ export function renderDashboardPage(app) {
 
     app.innerHTML = [
         '<div class="dashboard-layout">',
+        '<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">My Dashboard</h1>',
         // ── Sidebar ──
         '<aside class="dashboard-sidebar" id="dashboard-sidebar">',
         '<div class="sidebar-header">',
@@ -50,7 +51,7 @@ export function renderDashboardPage(app) {
         '</div>',
         '<div class="sidebar-user">',
         '<div class="sidebar-user-wrap">',
-        '<img src="' + avatarSrc + '" alt="Avatar" class="sidebar-avatar">',
+        '<img src="' + avatarSrc + '" alt="User Avatar" class="sidebar-avatar" loading="lazy">',
         '<div>',
         '<div class="sidebar-user-name">' + escapeHtml(dbUser.display_name) + '</div>',
         '<div class="sidebar-user-tier tier-' + tierKey + '">' + (tierKey !== 'free' ? '<i class="fa-solid fa-bolt" style="font-size:0.6rem;"></i> ' : '') + tierLabels[tierKey] + ' Plan</div>',
@@ -87,7 +88,7 @@ export function renderDashboardPage(app) {
         '<i class="fa-solid fa-bell" style="font-size:1rem;color:var(--text-secondary);"></i>',
         (() => { const c = db.notifications.find(n => n.user_id === dbUser.user_id && !n.is_read).length; return c > 0 ? '<span class="nav-msg-badge" style="display:flex;">' + (c > 99 ? '99+' : c) + '</span>' : ''; })(),
         '</a>',
-        '<div class="topbar-user-pill"><img src="' + avatarSrc + '" class="topbar-avatar" alt=""><span>' + escapeHtml(dbUser.display_name.split(' ')[0]) + '</span></div>',
+        '<div class="topbar-user-pill"><img src="' + avatarSrc + '" class="topbar-avatar" alt="User Avatar" loading="lazy"><span>' + escapeHtml(dbUser.display_name.split(' ')[0]) + '</span></div>',
         '</div>',
         '</div>',
         '<div class="dashboard-content fade-in' + (viewName === 'messages' ? ' msg-view-active' : '') + '" id="dashboard-content"></div>',
@@ -298,7 +299,7 @@ function renderOverview(container, user) {
 
     container.innerHTML = [
         '<div class="dashboard-header-bar">',
-        '<h1>Overview</h1>',
+        '<h2>Overview</h2>',
         '<a href="/post-listing" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Post Listing</a>',
         '</div>',
 
@@ -490,7 +491,7 @@ function renderMyListings(container, user) {
     const pausedCount = allListings.filter(l => l.status === 'paused').length;
 
     container.innerHTML = [
-        '<div class="dashboard-header-bar"><h1>My Listings</h1><a href="/post-listing" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Post New</a></div>',
+        '<div class="dashboard-header-bar"><h2>My Listings</h2><a href="/post-listing" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Post New</a></div>',
         '<div class="dashboard-tabs">',
         '<button class="db-tab active" data-filter="all">All (' + allListings.length + ')</button>',
         '<button class="db-tab" data-filter="active">Active (' + activeCount + ')</button>',
@@ -642,7 +643,7 @@ function renderMessages(container, user) {
             return [
                 '<div class="msg-thread-card ' + (isActive ? 'active' : '') + ' ' + (unread > 0 ? 'has-unread' : '') + '" data-tid="' + t.thread_id + '">',
                 '<div class="msg-tc-avatar-wrap">',
-                '<a href="/profile/' + ouId + '" class="msg-tc-avatar-link" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-tc-avatar" alt="' + escapeHtml(ou.display_name) + '"></a>',
+                '<a href="/profile/' + ouId + '" class="msg-tc-avatar-link" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-tc-avatar" alt="' + escapeHtml(ou.display_name) + ' Avatar" loading="lazy"></a>',
                 getVerificationBadge(ou.verification_level),
                 '</div>',
                 '<div class="msg-tc-body">',
@@ -694,11 +695,11 @@ function renderMessages(container, user) {
             const isMe = m.sender_id === user.user_id;
             const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const receipt = isMe ? '<span class="msg-receipt ' + (m.is_read ? 'read' : '') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
-            const photo = m.photo_url ? '<div class="msg-photo-wrap"><img src="' + m.photo_url + '" class="msg-photo-thumb" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + m.photo_url + '\'"></div>' : '';
+            const photo = m.photo_url ? '<div class="msg-photo-wrap"><img src="' + m.photo_url + '" class="msg-photo-thumb" alt="Message Attachment" loading="lazy" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + m.photo_url + '\'"></div>' : '';
             const text = m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '';
             return [
                 '<div class="msg-bubble-row ' + (isMe ? 'msg-out' : 'msg-in') + '" data-mid="' + m.message_id + '">',
-                !isMe ? '<a href="/profile/' + ouId + '" class="msg-bubble-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-bubble-avatar"></a>' : '',
+                !isMe ? '<a href="/profile/' + ouId + '" class="msg-bubble-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-bubble-avatar" alt="Sender Avatar" loading="lazy"></a>' : '',
                 '<div class="msg-bubble-group">',
                 photo,
                 text,
@@ -711,7 +712,7 @@ function renderMessages(container, user) {
         const header = [
             '<div class="msg-chat-header">',
             '<div class="msg-header-left">',
-            '<a href="/profile/' + ouId + '" class="msg-hdr-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-hdr-avatar" alt="' + escapeHtml(ou.display_name) + '"></a>',
+            '<a href="/profile/' + ouId + '" class="msg-hdr-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-hdr-avatar" alt="' + escapeHtml(ou.display_name) + ' Avatar" loading="lazy"></a>',
             '<div class="msg-header-info">',
             '<div class="msg-header-name"><a href="/profile/' + ouId + '" class="msg-hdr-name-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou.verification_level) + '</div>',
             li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing" onclick="event.preventDefault(); window.navigate(\'/listing/' + li.listing_id + '\')"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; $' + (li.rent ?? li.price ?? '?') + '/mo</a>' : '',
@@ -753,7 +754,7 @@ function renderMessages(container, user) {
             '</div>'
         ].join('');
 
-        const lightbox = '<div class="msg-lightbox" id="msg-lb" style="display:none" onclick="if(event.target===this)this.style.display=\'none\'"><button class="lightbox-close" onclick="document.getElementById(\'msg-lb\').style.display=\'none\'"><i class="fa-solid fa-xmark"></i></button><img id="msg-lb-img" src="" alt="Full size"></div>';
+        const lightbox = '<div class="msg-lightbox" id="msg-lb" style="display:none" onclick="if(event.target===this)this.style.display=\'none\'"><button class="lightbox-close" onclick="document.getElementById(\'msg-lb\').style.display=\'none\'"><i class="fa-solid fa-xmark"></i></button><img id="msg-lb-img" src="" alt="Full size" loading="lazy"></div>';
 
         panel.innerHTML = [
             header,
@@ -1009,7 +1010,7 @@ function renderMessages(container, user) {
             const isMe = m.sender_id === user.user_id;
             const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const receipt = isMe ? '<span class="msg-receipt ' + (m.is_read ? 'read' : '') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
-            const photo = m.photo_url ? '<div class="msg-photo-wrap"><img src="' + m.photo_url + '" class="msg-photo-thumb" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + m.photo_url + '\'"></div>' : '';
+            const photo = m.photo_url ? '<div class="msg-photo-wrap"><img src="' + m.photo_url + '" class="msg-photo-thumb" alt="Message Attachment" loading="lazy" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + m.photo_url + '\'"></div>' : '';
             const text = m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '';
             
             // Mark as read while we are at it
@@ -1019,7 +1020,7 @@ function renderMessages(container, user) {
 
             return [
                 '<div class="msg-bubble-row ' + (isMe ? 'msg-out' : 'msg-in') + '" data-mid="' + m.message_id + '">',
-                !isMe ? '<img src="' + (db.users.findById(m.sender_id)?.profile_photo || 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff') + '" class="msg-bubble-avatar">' : '',
+                !isMe ? '<img src="' + (db.users.findById(m.sender_id)?.profile_photo || 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff') + '" class="msg-bubble-avatar" alt="Sender Avatar" loading="lazy">' : '',
                 '<div class="msg-bubble-group">',
                 photo,
                 text,
@@ -1070,7 +1071,7 @@ function renderSaved(container, user) {
     }).join('');
 
     container.innerHTML = [
-        '<div class="dashboard-header-bar"><h1>Saved Listings</h1><span style="font-size:0.9rem;color:var(--text-muted);font-weight:500;">' + savedListings.length + ' saved</span></div>',
+        '<div class="dashboard-header-bar"><h2>Saved Listings</h2><span style="font-size:0.9rem;color:var(--text-muted);font-weight:500;">' + savedListings.length + ' saved</span></div>',
         savedListings.length === 0
             ? '<div class="empty-state"><i class="fa-regular fa-heart"></i><h3>No saved listings</h3><p>Click the heart icon on any listing to save it here.</p><a href="/search/rooms" class="btn btn-primary">Browse Listings</a></div>'
             : '<div class="saved-grid">' + cards + '</div>'
@@ -1148,7 +1149,7 @@ function renderSavedSearches(container, user) {
     }
 
     container.innerHTML = [
-        '<div class="dashboard-header-bar"><h1>Saved Searches</h1><span style="font-size:0.9rem;color:var(--text-muted);font-weight:500;">' + searches.length + ' saved</span></div>',
+        '<div class="dashboard-header-bar"><h2>Saved Searches</h2><span style="font-size:0.9rem;color:var(--text-muted);font-weight:500;">' + searches.length + ' saved</span></div>',
         '<div id="ss-list">' + renderCards() + '</div>',
     ].join('');
 
@@ -1186,7 +1187,7 @@ function renderSettings(container, user) {
 
     container.innerHTML = [
         '<div class="dashboard-header-bar">',
-        '<h1>Settings</h1>',
+        '<h2>Settings</h2>',
         '<button class="btn btn-primary" id="btn-save-settings"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>',
         '</div>',
         '<div class="settings-grid">',
@@ -1228,7 +1229,7 @@ function renderSettings(container, user) {
 
               <div class="settings-avatar-row">
                 <div style="position:relative;flex-shrink:0;">
-                  <img id="settings-avatar-img" src="${avatarSrc}" alt="" class="settings-avatar">
+                  <img id="settings-avatar-img" src="${avatarSrc}" alt="Settings User Avatar" class="settings-avatar" loading="lazy">
                 </div>
                 <div style="flex:1;">
                   <div class="settings-avatar-name">${escapeHtml(user.display_name)}</div>
@@ -1507,7 +1508,7 @@ function renderNotifications(container, user) {
                 const time = new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 return `
                 <div class="notif-card${n.is_read ? '' : ' notif-card-unread'}" data-nid="${n.notification_id}" style="display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:12px;border:1px solid var(--border);background:${n.is_read ? 'var(--surface)' : '#f0f4ff'};margin-bottom:10px;cursor:pointer;transition:box-shadow 0.15s;">
-                  ${n.image_url ? `<img src="${n.image_url}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0;">` : `<div style="width:42px;height:42px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-bell" style="color:#fff;font-size:1rem;"></i></div>`}
+                  ${n.image_url ? `<img src="${n.image_url}" alt="Notification Attachment" style="width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0;" loading="lazy">` : `<div style="width:42px;height:42px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-bell" style="color:#fff;font-size:1rem;"></i></div>`}
                   <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                       <span style="font-weight:700;font-size:0.9rem;">${escapeHtml(n.title)}</span>
@@ -1525,7 +1526,7 @@ function renderNotifications(container, user) {
 
         container.innerHTML = `
             <div class="dashboard-header-bar">
-                <h1>Notifications</h1>
+                <h2>Notifications</h2>
                 ${unreadCount > 0 ? `<button class="btn btn-outline btn-sm" id="notif-mark-all-read"><i class="fa-solid fa-check-double"></i> Mark all as read</button>` : ''}
             </div>
             <div style="max-width:680px;">${cards}</div>`;
@@ -1577,7 +1578,7 @@ function renderSubscription(container, user) {
 
     container.innerHTML = `
         <div class="dashboard-header-bar">
-            <h1>Subscription</h1>
+            <h2>Subscription</h2>
             ${isPaid
             ? `<button class="btn btn-outline" onclick="navigate('/pricing')"><i class="fas fa-arrow-up-right-from-square"></i> Change Plan</button>`
             : `<button class="btn btn-primary" onclick="navigate('/pricing')"><i class="fas fa-star"></i> Upgrade Plan</button>`
@@ -1777,7 +1778,7 @@ function renderVerification(container, user) {
 
     container.innerHTML = `
         <div class="dashboard-header-bar">
-            <h1>Trust &amp; Verification</h1>
+            <h2>Trust &amp; Verification</h2>
         </div>
         <p class="text-muted mb-lg">Build trust in the RoommateGroups community by completing your verification levels.</p>
 
@@ -1908,7 +1909,7 @@ function renderVerification(container, user) {
                                             <input type="file" accept="image/*" id="id-photo-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;">
                                         </label>
                                         <div id="id-photo-preview" style="display:none;margin-top:12px;text-align:center;position:relative;">
-                                            <img src="" alt="ID Preview" style="max-width:100%;max-height:160px;border-radius:10px;object-fit:cover;border:2px solid #333333;">
+                                            <img src="" alt="ID Preview" style="max-width:100%;max-height:160px;border-radius:10px;object-fit:cover;border:2px solid #333333;" loading="lazy">
                                             <span class="id-preview-check"><i class="fas fa-check"></i></span>
                                         </div>
                                     </div>
@@ -1939,7 +1940,7 @@ function renderVerification(container, user) {
                                         </div>
 
                                         <div id="selfie-preview" style="display:none;margin-top:12px;text-align:center;position:relative;">
-                                            <img src="" id="selfie-img" alt="Selfie" style="max-width:100%;max-height:160px;border-radius:10px;object-fit:cover;border:2px solid #333333;">
+                                            <img src="" id="selfie-img" alt="Selfie Preview" style="max-width:100%;max-height:160px;border-radius:10px;object-fit:cover;border:2px solid #333333;" loading="lazy">
                                             <span class="id-preview-check"><i class="fas fa-check"></i></span>
                                             <div style="margin-top:8px;">
                                                 <button class="btn btn-outline btn-sm" id="btn-retake-selfie"><i class="fas fa-redo"></i> Retake</button>
@@ -2300,7 +2301,7 @@ function renderVerification(container, user) {
 
 function renderPlaceholder(container, title, icon) {
     container.innerHTML = [
-        '<div class="dashboard-header-bar"><h1>' + title + '</h1></div>',
+        '<div class="dashboard-header-bar"><h2>' + title + '</h2></div>',
         '<div class="empty-state">',
         '<i class="fa-solid ' + icon + '"></i>',
         '<h3>' + title + ' section coming soon</h3>',

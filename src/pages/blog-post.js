@@ -2,6 +2,7 @@ import { navigate } from '../router.js';
 import { getPostBySlug, getRelatedPosts, getBlogPosts } from '../services/blog-data.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 // ── Field normalizer ─────────────────────────────────────────
 // Works with both legacy blog-data.js shape and new CMS db.js shape
@@ -64,7 +65,40 @@ export function renderBlogPostPage(app, params) {
     }
 
     const post = norm(raw);
-    setSEO(post);
+    // SEO Update: injects Organization schema, robots, canonical, OG/Twitter tags via setSEO
+    let isoDate;
+    try { isoDate = post._date ? new Date(post._date).toISOString() : new Date().toISOString(); }
+    catch { isoDate = new Date().toISOString(); }
+
+    setSEO({
+        title: (post.seoTitle || post.meta_title || `${post.title} | RoommateGroups Blog`).substring(0, 60),
+        description: (post.seoDescription || post.meta_description || post.excerpt || '').substring(0, 160),
+        canonical: `https://roommategroups.com/blog/${raw.slug}`,
+        ogImage: post._image || 'https://roommategroups.com/logo.png',
+        schema: {
+            '@context': 'https://schema.org',
+            '@graph': [
+                {
+                    '@type': 'Article',
+                    headline: (post.seoTitle || post.meta_title || `${post.title} | RoommateGroups Blog`).substring(0, 60),
+                    description: (post.seoDescription || post.meta_description || post.excerpt || '').substring(0, 160),
+                    image: post._image || 'https://roommategroups.com/logo.png',
+                    url: `https://roommategroups.com/blog/${raw.slug}`,
+                    datePublished: isoDate,
+                    author: { '@type': 'Person', name: post._authorName },
+                    publisher: { '@type': 'Organization', name: 'RoommateGroups', logo: { '@type': 'ImageObject', url: 'https://roommategroups.com/logo.png' } }
+                },
+                {
+                    '@type': 'BreadcrumbList',
+                    itemListElement: [
+                        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://roommategroups.com/' },
+                        { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://roommategroups.com/blog' },
+                        { '@type': 'ListItem', position: 3, name: post.title, item: `https://roommategroups.com/blog/${raw.slug}` }
+                    ]
+                }
+            ]
+        }
+    });
 
     const relatedPosts = getRelated(raw, getBlogPosts());
 
@@ -83,7 +117,7 @@ export function renderBlogPostPage(app, params) {
             <!-- ① Featured Image Hero -->
             <section class="post-hero">
                 <div class="post-hero-img-wrap">
-                    <img src="${post._image}" alt="${post.title}" class="post-hero-img" />
+                    <img src="${post._image}" alt="${post.title}" class="post-hero-img" loading="eager" fetchpriority="high" />
                     <div class="post-hero-overlay"></div>
                 </div>
                 <div class="container post-hero-content">
@@ -98,7 +132,7 @@ export function renderBlogPostPage(app, params) {
                     <!-- ② Meta: Author, Date, Read Time -->
                     <div class="post-meta-hero">
                         <div class="author-info">
-                            <img src="${post._authorAvatar}" alt="${post._authorName}" class="author-avatar" />
+                            <img src="${post._authorAvatar}" alt="${post._authorName} Avatar" class="author-avatar" loading="lazy" />
                             <span class="author-name">${post._authorName}</span>
                         </div>
                         <div class="post-stats-hero">
@@ -158,7 +192,7 @@ export function renderBlogPostPage(app, params) {
                         <!-- ⑤ Author Bio Card -->
                         <div class="author-bio-card">
                             <div class="bio-avatar-wrap">
-                                <img src="${post._authorAvatar}" alt="${post._authorName}" class="bio-avatar" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(post._authorName)}&background=6366f1&color=fff&size=200'" />
+                                <img src="${post._authorAvatar}" alt="${post._authorName} Profile Photo" class="bio-avatar" loading="lazy" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(post._authorName)}&background=6366f1&color=fff&size=200'" />
                             </div>
                             <div class="bio-content">
                                 <h4>About ${post._authorName}</h4>
@@ -940,76 +974,5 @@ function setupShareButtons(post) {
                 setTimeout(() => { copyBtn.innerHTML = orig; }, 2000);
             });
         });
-    }
-}
-
-// ── SEO Injection ─────────────────────────────────────────────
-function setSEO(post) {
-    const seoTitle     = post.seoTitle      || post.meta_title      || `${post.title} | RoommateGroups Blog`;
-    const seoDesc      = post.seoDescription || post.meta_description || post.excerpt;
-    const ogImage      = post.ogImage       || post.og_image       || post.featured_image || post.image;
-    const canonicalUrl = post.canonicalUrl  || post.canonical_url  || window.location.href;
-    const authorName   = post.author?.name  || post.author_name    || 'RoommateGroups';
-    const rawDate      = post.published_date || post.date;
-
-    document.title = seoTitle;
-
-    const setMeta = (name, content, attr = 'name') => {
-        if (!content) return;
-        let m = document.querySelector(`meta[${attr}="${name}"]`);
-        if (!m) { m = document.createElement('meta'); m.setAttribute(attr, name); m.setAttribute('data-dynamic-seo', 'true'); document.head.appendChild(m); }
-        m.setAttribute('content', content);
-    };
-
-    setMeta('description', seoDesc);
-    setMeta('og:title',       seoTitle,    'property');
-    setMeta('og:description', seoDesc,     'property');
-    setMeta('og:image',       ogImage,     'property');
-    setMeta('og:type',        'article',   'property');
-    setMeta('og:url',         canonicalUrl,'property');
-    setMeta('twitter:card',        'summary_large_image');
-    setMeta('twitter:title',       seoTitle);
-    setMeta('twitter:description', seoDesc);
-    setMeta('twitter:image',       ogImage);
-
-    let canonical = document.querySelector('link[rel="canonical"]');
-    if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; canonical.setAttribute('data-dynamic-seo','true'); document.head.appendChild(canonical); }
-    canonical.href = canonicalUrl;
-
-    let schema = document.getElementById('seo-schema');
-    if (!schema) { schema = document.createElement('script'); schema.id = 'seo-schema'; schema.type = 'application/ld+json'; document.head.appendChild(schema); }
-
-    let isoDate;
-    try { isoDate = rawDate ? new Date(rawDate).toISOString() : new Date().toISOString(); }
-    catch { isoDate = new Date().toISOString(); }
-
-    if (post.schemaText) {
-        // Use custom schema if provided
-        schema.textContent = post.schemaText;
-    } else {
-        // Auto-generate schema
-        schema.textContent = JSON.stringify({
-            '@context': 'https://schema.org',
-            '@graph': [
-                {
-                    '@type': 'Article',
-                    headline:      seoTitle,
-                    description:   seoDesc,
-                    image:         ogImage,
-                    url:           canonicalUrl,
-                    datePublished: isoDate,
-                    author:    { '@type': 'Person',       name: authorName },
-                    publisher: { '@type': 'Organization', name: 'RoommateGroups', logo: { '@type': 'ImageObject', url: 'https://roommategroups.com/logo.png' } }
-                },
-                {
-                    '@type': 'BreadcrumbList',
-                    itemListElement: [
-                        { '@type': 'ListItem', position: 1, name: 'Home',  item: 'https://roommategroups.com/' },
-                        { '@type': 'ListItem', position: 2, name: 'Blog',  item: 'https://roommategroups.com/#/blog' },
-                        { '@type': 'ListItem', position: 3, name: post.title, item: canonicalUrl }
-                    ]
-                }
-            ]
-        }, null, 2);
     }
 }

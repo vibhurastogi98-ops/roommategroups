@@ -65,9 +65,11 @@ export function renderNavbar() {
     const isHome = path === '/' || path === '';
 
     return `
-    <nav class="navbar" id="navbar">
+    <!-- SEO Update: semantic HTML -->
+    <header role="banner">
+    <nav class="navbar" id="navbar" aria-label="Main navigation">
       <div class="nav-container">
-        <a href="/" class="nav-logo">
+        <a href="/" class="nav-logo" aria-label="RoommateGroups home">
           <span class="logo-badge">
             <span class="logo-badge-left">Roommate</span><span class="logo-badge-right">Groups</span>
           </span>
@@ -83,13 +85,14 @@ export function renderNavbar() {
         <div class="nav-cta" id="nav-cta">
           ${getNavAuthButtons()}
         </div>
-        <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+        <button class="hamburger" id="hamburger" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-links">
           <span></span>
           <span></span>
           <span></span>
         </button>
       </div>
     </nav>
+    </header>
     `;
 }
 

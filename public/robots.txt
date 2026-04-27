@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /api/
+Disallow: /.wrangler/
+Disallow: /upload/
+Disallow: /admin-login
+Disallow: /auth/
+Disallow: /profile-setup
+Disallow: /post-listing
+
+Sitemap: https://roommategroups.com/sitemap.xml

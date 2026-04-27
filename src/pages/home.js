@@ -2,6 +2,7 @@ import { db, getLiveListingCount } from '../services/db.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { navigate } from '../router.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 // ── Data ───────────────────────────────────────────
 
@@ -52,6 +53,42 @@ function renderListingCard(listing, index) {
 // ── Render ──────────────────────────────────────────
 
 export function renderHomePage(app) {
+  // SEO Update — unique title, description, canonical, schemas
+  setSEO({
+    title: 'Find Roommate Groups Near You | RoommateGroups',
+    description: 'Browse roommate groups in your city. Find compatible roommates, join housing communities, and list your room for free on RoommateGroups.',
+    canonical: 'https://roommategroups.com/',
+    schema: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'RoommateGroups',
+        url: 'https://roommategroups.com',
+        logo: 'https://roommategroups.com/logo.png',
+        contactPoint: { '@type': 'ContactPoint', email: 'hello@roommategroups.com', contactType: 'Customer Support' },
+        sameAs: ['https://www.facebook.com/Roommategroups', 'https://www.instagram.com/roommategroups', 'https://www.youtube.com/@Roommategroups'],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'RoommateGroups',
+        url: 'https://roommategroups.com',
+        potentialAction: { '@type': 'SearchAction', target: 'https://roommategroups.com/search?q={search_term_string}', 'query-input': 'required name=search_term_string' },
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: [
+          { '@type': 'Question', name: 'How do I find a roommate on RoommateGroups?', acceptedAnswer: { '@type': 'Answer', text: 'Browse listings by city, filter by budget and lifestyle, and message potential roommates directly from their profile.' } },
+          { '@type': 'Question', name: 'Is RoommateGroups free to use?', acceptedAnswer: { '@type': 'Answer', text: 'Yes, creating a profile and browsing roommate groups is completely free.' } },
+          { '@type': 'Question', name: 'What cities does RoommateGroups cover?', acceptedAnswer: { '@type': 'Answer', text: 'RoommateGroups covers 30+ cities worldwide including Austin, San Francisco, Berlin, Paris, and more.' } },
+          { '@type': 'Question', name: 'How do I list my room for rent?', acceptedAnswer: { '@type': 'Answer', text: 'Sign up for a free account, click Post a Listing, fill in your room details and photos, and your listing goes live instantly.' } },
+          { '@type': 'Question', name: 'Can I search by roommate preferences?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Use the advanced search filters to find roommates by preferences including pets, schedule, cleanliness, and more.' } },
+        ],
+      },
+    ],
+  });
+
   const dbCities = db.cities.findAll().filter(c => c.is_active);
   const mapCity = c => ({
     name: c.name,
@@ -85,8 +122,7 @@ export function renderHomePage(app) {
           ✅ Verified Listings · 🚫 No Bots · 🚫 No Spam · 🛡️ 1,500,000+ Trusted Members
         </div>
         <h1 class="hero-title animate-fade-in-up delay-1">
-          Easily Find Rooms, Rentals & <span class="gradient-text">Roommates</span><br>
-          — All in One Place
+          Find Roommate Groups Near You
         </h1>
         <p class="hero-subtitle animate-fade-in-up delay-2">
           Search verified rooms, apartments, sublets, co-living spaces and more. 

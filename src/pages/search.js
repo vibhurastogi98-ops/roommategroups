@@ -3,6 +3,7 @@ import { navigate } from '../router.js';
 import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { trackSearch } from '../services/analytics.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 function escHtml(str) {
     if (!str) return '';
@@ -88,7 +89,7 @@ function renderSearchCard(listing) {
                 </div>
                 <div class="s-card-footer">
                     <div class="s-card-poster">
-                        <img src="${avatar}" alt="">
+                        <img src="${avatar}" alt="Avatar for ${escHtml(posterName)}" loading="lazy">
                         <span>${escHtml(posterName)} ${verifiedIcon}</span>
                     </div>
                     <div class="s-card-time">${relTime(listing.created_at)}</div>
@@ -99,6 +100,12 @@ function renderSearchCard(listing) {
 }
 
 export function renderSearchPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Search Rooms & Find a Roommate | RoommateGroups',
+        description: 'Search thousands of verified rooms, apartments, sublets, and co-living spaces. Filter by city, price, and room type to find your perfect roommate match.',
+        canonical: 'https://roommategroups.com/search/rooms',
+    });
     // 1. Build initial state from URL
     const qs = window.location.search.slice(1);
     const params = new URLSearchParams(qs);
@@ -207,7 +214,7 @@ export function renderSearchPage(app) {
                     <div class="s-results-header">
                         <div class="s-results-header-inner">
                             <div>
-                                <h2 id="s-city-title">Search Results</h2>
+                                <h1 id="s-city-title" style="font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text-primary);">Search Roommate Listings</h1>
                                 <span class="s-results-count" id="s-results-count">Loading results...</span>
                             </div>
                             <select id="sf-sort" class="sf-sort-dropdown">

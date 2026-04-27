@@ -17,6 +17,7 @@
     "@cloudflare/vite-plugin": "^1.33.1",
     "@cloudflare/workers-types": "^4.20260422.1",
     "vite": "^7.3.1",
+    "vite-plugin-sitemap": "^0.8.2",
     "wrangler": "^4.84.1"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import { db } from '../services/db.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 // ── Helpers ──────────────────────────────────────────
 
@@ -100,6 +101,12 @@ function renderResults(allCountries, allCities, filterCountry, filterCity) {
 // ── Page Render ────────────────────────────────────────
 
 export function renderFBGroupsPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Facebook Roommate Groups by City & Country | RoommateGroups',
+        description: 'Browse curated Facebook roommate groups organized by country and city. Join thousands of locals to find rooms and roommates through trusted community groups.',
+        canonical: 'https://roommategroups.com/fb-groups',
+    });
     const allCountries = db.fb_countries.findAll();
     const allCities    = db.fb_cities.findAll();
 
@@ -117,7 +124,7 @@ export function renderFBGroupsPage(app) {
                     <i class="fab fa-facebook"></i>
                     Facebook Community Groups
                 </div>
-                <h1 class="fbg-hero-title">Find Your City's<br>Facebook Roommate Group</h1>
+                <h1 class="fbg-hero-title">Browse Roommate Groups by City</h1>
                 <p class="fbg-hero-sub">
                     Join thousands of locals finding roommates &amp; rooms through our curated
                     Facebook groups — organized by country and city.

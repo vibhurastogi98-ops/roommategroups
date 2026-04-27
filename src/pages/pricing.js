@@ -2,8 +2,15 @@ import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { navigate } from '../router.js';
 import { getCurrentUser } from '../services/auth.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 export function renderPricingPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Pricing Plans — Free, Premium & Pro | RoommateGroups',
+        description: 'Choose the plan that fits your roommate search. Start free and upgrade to Premium ($4.99/mo) or Pro ($8.99/mo) for boosted listings, AI matching, and unlimited messaging.',
+        canonical: 'https://roommategroups.com/pricing',
+    });
     let isAnnual = false; // Toggle state
 
     function getPlanData() {

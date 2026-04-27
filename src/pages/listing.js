@@ -5,6 +5,7 @@ import { renderFooter } from '../components/footer.js';
 import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { navigate } from '../router.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 function escHtml(str) {
     if (!str) return '';
@@ -62,6 +63,30 @@ export function renderListingDetailPage(app, params) {
         `;
         return;
     }
+
+    // SEO Update — dynamic per-listing meta, OG image, and RealEstateListing schema
+    const _listingPhotos = (() => { let p = listing.images || listing.photos || []; if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) { p = []; } } return p; })();
+    const _firstPhoto = (typeof _listingPhotos[0] === 'object' ? (_listingPhotos[0]?.medium || _listingPhotos[0]?.full) : _listingPhotos[0]) || 'https://roommategroups.com/logo.png';
+    const _cityName = db.cities.findById(listing.city)?.name || listing.city || '';
+    setSEO({
+        title: `${listing.title} | RoommateGroups`.substring(0, 60),
+        description: (listing.description || `Room for rent in ${_cityName}. $${listing.rent ?? listing.price}/mo.`).slice(0, 150),
+        canonical: `https://roommategroups.com/listing/${listing.listing_id}`,
+        ogImage: _firstPhoto,
+        schema: {
+            '@context': 'https://schema.org',
+            '@type': 'RealEstateListing',
+            name: listing.title,
+            url: `https://roommategroups.com/listing/${listing.listing_id}`,
+            description: listing.description || '',
+            image: _firstPhoto,
+            offers: {
+                '@type': 'Offer',
+                price: listing.rent ?? listing.price ?? 0,
+                priceCurrency: 'USD',
+            },
+        },
+    });
 
     // Increment view count (skip for listing owner)
     const viewingUser = getCurrentUser();
@@ -211,7 +236,7 @@ export function renderListingDetailPage(app, params) {
                     <div class="ld-img-overlay"><i class="fa-solid fa-magnifying-glass-plus"></i></div>
                     <div class="ld-img-skeleton"></div>
                 </div>
-                ${photos.length > 1 ? `<div class="ld-gallery-thumbs">${[1,2,3,4].map(i=>{const p=photos[i];if(!p)return '<div class="ld-gallery-slot ld-gallery-thumb ld-thumb-empty"></div>';const showMore=i===4&&photos.length>5;return `<div class="ld-gallery-slot ld-gallery-thumb" data-lb-idx="${i}"><img src="${getPhotoSrc(p,'thumb')}" class="ld-img" alt="" loading="lazy" onload="var s=this.parentElement.querySelector('.ld-img-skeleton');if(s)s.style.opacity='0'"><div class="ld-img-overlay"><i class="fa-solid fa-magnifying-glass-plus"></i></div><div class="ld-img-skeleton"></div>${showMore?`<div class="ld-gallery-more-overlay">+${photos.length-5} more</div>`:''}</div>`;}).join('')}</div>` : ''}
+                ${photos.length > 1 ? `<div class="ld-gallery-thumbs">${[1,2,3,4].map(i=>{const p=photos[i];if(!p)return '<div class="ld-gallery-slot ld-gallery-thumb ld-thumb-empty"></div>';const showMore=i===4&&photos.length>5;return `<div class="ld-gallery-slot ld-gallery-thumb" data-lb-idx="${i}"><img src="${getPhotoSrc(p,'thumb')}" class="ld-img" alt="${escHtml(listing.title)} Thumbnail" loading="lazy" onload="var s=this.parentElement.querySelector('.ld-img-skeleton');if(s)s.style.opacity='0'"><div class="ld-img-overlay"><i class="fa-solid fa-magnifying-glass-plus"></i></div><div class="ld-img-skeleton"></div>${showMore?`<div class="ld-gallery-more-overlay">+${photos.length-5} more</div>`:''}</div>`;}).join('')}</div>` : ''}
             </div>
             ${photos.length > 1 ? `<button class="ld-view-all-btn" id="ld-view-all-btn"><i class="fa-regular fa-images"></i> All ${photos.length} photos</button>` : ''}
         </div>
@@ -314,7 +339,7 @@ export function renderListingDetailPage(app, params) {
                 </div>
 
                 <div class="ld-host-card" id="view-profile-card" data-uid="${user ? user.user_id : ''}">
-                    <img src="${avatar}" class="ld-host-avatar" alt="${escHtml(posterName)}">
+                    <img src="${avatar}" class="ld-host-avatar" alt="Avatar for ${escHtml(posterName)}" loading="lazy">
                     <div class="ld-host-info">
                         <h4>${escHtml(posterName)} ${verifiedIcon}</h4>
                         <p>Listed ${formatDate(listing.created_at)}</p>
@@ -336,7 +361,7 @@ export function renderListingDetailPage(app, params) {
     <div class="ld-lightbox" id="ld-lightbox">
         <button class="ld-lb-close" id="ld-lb-close"><i class="fa-solid fa-xmark"></i></button>
         <button class="ld-lb-prev" id="ld-lb-prev"><i class="fa-solid fa-chevron-left"></i></button>
-        <div class="ld-lb-img-wrap"><img id="ld-lb-img" src="" alt="Full size photo"></div>
+        <div class="ld-lb-img-wrap"><img id="ld-lb-img" src="" alt="Full size photo" loading="lazy"></div>
         <button class="ld-lb-next" id="ld-lb-next"><i class="fa-solid fa-chevron-right"></i></button>
         <div class="ld-lb-counter" id="ld-lb-counter">1 / ${photos.length}</div>
     </div>

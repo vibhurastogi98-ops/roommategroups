@@ -2,6 +2,7 @@ import { navigate } from '../router.js';
 import { getBlogPosts, getCategories } from '../services/blog-data.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 function norm(post) {
     const author = post.author || {};
@@ -17,6 +18,12 @@ function norm(post) {
 }
 
 export function renderBlogPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Roommate & Rental Tips Blog | RoommateGroups',
+        description: 'Tips, guides, and housing market insights to help you find a roommate, negotiate rent, and settle into your new home. Updated weekly by the RoommateGroups team.',
+        canonical: 'https://roommategroups.com/blog',
+    });
     const ALL_POSTS = getBlogPosts().filter(p => p.is_published !== false && p.status !== 'draft').map(norm);
     const CATEGORIES = getCategories();
     let activeCategory = "All";

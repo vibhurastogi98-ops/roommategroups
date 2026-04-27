@@ -2,8 +2,15 @@ import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { db } from '../services/db.js';
 import { getCurrentUser } from '../services/auth.js';
+import { setSEO } from '../seo.js'; // SEO Update
 
 export function renderContactPage(app) {
+    // SEO Update
+    setSEO({
+        title: 'Contact RoommateGroups — Support, Safety & Partnerships',
+        description: 'Get in touch with the RoommateGroups support team. We are available 7 days a week for account help, scam reports, billing questions, and partnership inquiries.',
+        canonical: 'https://roommategroups.com/contact',
+    });
     app.innerHTML = `
     <style>
         .contact-hero { background: #f2f2f2; color: #1a1a1a; border-bottom: 1px solid #e2e8f0; padding: 90px 24px 70px; text-align: center; }

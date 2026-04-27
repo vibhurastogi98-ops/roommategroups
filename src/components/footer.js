@@ -3,7 +3,8 @@ import { db } from '../services/db.js';
 export function renderFooter() {
     const footerCities = db.cities.findAll().filter(c => c.is_active && c.show_in_footer !== false);
     return `
-    <footer class="footer" id="footer">
+    <!-- SEO Update: semantic HTML -->
+    <footer class="footer" id="footer" role="contentinfo" aria-label="Site footer">
         <div class="container">
             <div class="footer-grid">
                 <div class="footer-brand">
