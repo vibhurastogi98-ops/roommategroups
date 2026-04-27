@@ -43,7 +43,8 @@ export function renderPricingPage(app) {
                 priceMonthly: 4.99,
                 priceAnnual: 0.99,
                 ctaOutline: false,
-                ctaText: 'Get Premium',
+                ctaText: 'Subscribe Premium',
+                monthlyUrl: 'https://buy.stripe.com/14A28s8Aa7615NefSn3ZK1A',
                 features: [
                     { name: 'Active Listings', value: '3 Listings' },
                     { name: 'Profile Setup', value: 'Enhanced + Photo Verification' },
@@ -487,7 +488,16 @@ export function renderPricingPage(app) {
         // Bind CTA clicks
         document.querySelectorAll('.plan-cta-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                navigate(getCTARoute(btn.dataset.plan));
+                const planId = btn.dataset.plan;
+                const plan = plans[planId];
+                
+                // Redirect to Stripe for Premium monthly
+                if (planId === 'premium' && !isAnnual && plan.monthlyUrl) {
+                    window.location.href = plan.monthlyUrl;
+                    return;
+                }
+
+                navigate(getCTARoute(planId));
             });
         });
     }
