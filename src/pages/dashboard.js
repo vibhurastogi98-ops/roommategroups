@@ -3,8 +3,40 @@ import { navigate } from '../router.js';
 import { db, syncMessagesAndThreads } from '../services/db.js';
 import { getTotalUnread, getUnreadCountForThread } from '../services/messaging.js';
 
-// Module-level timer so it survives re-renders and can be cleared on navigation
+// Module-level timers so they survive re-renders and can be cleared properly
 let _msgPollingTimer = null;
+let _dashGlobalTimer = null;
+
+export function updateSidebarBadges(app, userId) {
+    if (!app || !userId) return;
+    const msgBadge = app.querySelector('#dash-sidebar-msg-badge');
+    const notifBadge = app.querySelector('#dash-sidebar-notif-badge');
+    const listBadge = app.querySelector('#dash-sidebar-list-badge');
+
+    if (msgBadge) {
+        const unread = getTotalUnread(userId);
+        msgBadge.textContent = unread;
+        msgBadge.style.display = unread > 0 ? 'flex' : 'none';
+    }
+    if (notifBadge) {
+        const count = db.notifications.find(n => n.user_id === userId && !n.is_read).length;
+        notifBadge.textContent = count;
+        notifBadge.style.display = count > 0 ? 'flex' : 'none';
+        // Also update mobile topbar if it exists
+        const mobileNotifBadge = app.querySelector('#mobile-notif-badge');
+        if (mobileNotifBadge) {
+            mobileNotifBadge.textContent = count > 99 ? '99+' : count;
+            mobileNotifBadge.style.display = count > 0 ? 'flex' : 'none';
+        }
+    }
+    if (listBadge) {
+        const pending = db.listings.find(l => l.user_id === userId && l.moderation_status === 'pending').length;
+        const rejected = db.listings.find(l => l.user_id === userId && l.moderation_status === 'rejected').length;
+        const total = pending + rejected;
+        listBadge.textContent = total;
+        listBadge.style.display = total > 0 ? 'flex' : 'none';
+    }
+}
 
 export function renderDashboardPage(app) {
     // Clear any stale polling timer from a previous messages view
@@ -102,7 +134,7 @@ export function renderDashboardPage(app) {
     switch (viewName) {
         case 'overview': renderOverview(contentArea, dbUser); break;
         case 'listings': renderMyListings(contentArea, dbUser); break;
-        case 'messages': renderMessages(contentArea, dbUser); break;
+        case 'messages': renderMessages(contentArea, dbUser, app); break;
         case 'saved': renderSaved(contentArea, dbUser); break;
         case 'searches': renderSavedSearches(contentArea, dbUser); break;
         case 'verification': renderVerification(contentArea, dbUser); break;
@@ -126,53 +158,22 @@ export function renderDashboardPage(app) {
     if (closeBtn)  closeBtn.addEventListener('click', closeSidebar);
     if (backdrop)  backdrop.addEventListener('click', closeSidebar);
 
-    // ── Real-time Badge Updates ──
-    function updateSidebarBadges() {
-        const msgBadge = app.querySelector('#dash-sidebar-msg-badge');
-        const notifBadge = app.querySelector('#dash-sidebar-notif-badge');
-        const listBadge = app.querySelector('#dash-sidebar-list-badge');
+    const updateBadges = () => updateSidebarBadges(app, dbUser.user_id);
 
-        if (msgBadge) {
-            const unread = getTotalUnread(dbUser.user_id);
-            msgBadge.textContent = unread;
-            msgBadge.style.display = unread > 0 ? 'flex' : 'none';
-        }
-        if (notifBadge) {
-            const count = db.notifications.find(n => n.user_id === dbUser.user_id && !n.is_read).length;
-            notifBadge.textContent = count;
-            notifBadge.style.display = count > 0 ? 'flex' : 'none';
-            // Also update mobile topbar if it exists
-            const mobileNotifBadge = app.querySelector('#mobile-notif-badge');
-            if (mobileNotifBadge) {
-                mobileNotifBadge.textContent = count > 99 ? '99+' : count;
-                mobileNotifBadge.style.display = count > 0 ? 'flex' : 'none';
-            }
-        }
-        if (listBadge) {
-            const pending = db.listings.find(l => l.user_id === dbUser.user_id && l.moderation_status === 'pending').length;
-            const rejected = db.listings.find(l => l.user_id === dbUser.user_id && l.moderation_status === 'rejected').length;
-            const total = pending + rejected;
-            listBadge.textContent = total;
-            listBadge.style.display = total > 0 ? 'flex' : 'none';
-        }
-    }
-
-    window.addEventListener('db-synced', updateSidebarBadges);
+    window.addEventListener('db-synced', updateBadges);
     
-    // Global dashboard polling (every 10s) to keep sidebar badges in sync
-    // if the navbar is not present.
-    const _dashGlobalTimer = setInterval(async () => {
+    // Global dashboard polling (every 15s) to keep sidebar badges in sync
+    if (_dashGlobalTimer) clearInterval(_dashGlobalTimer);
+    _dashGlobalTimer = setInterval(async () => {
+        // Only run if we are still on a dashboard page
+        if (!window.location.pathname.startsWith('/dashboard')) {
+            clearInterval(_dashGlobalTimer);
+            _dashGlobalTimer = null;
+            return;
+        }
         const changed = await syncMessagesAndThreads();
-        if (changed) updateSidebarBadges();
-    }, 10000);
-
-    // Clean up timer when user navigates away
-    const _oldNavigate = window.navigate;
-    window.navigate = (...args) => {
-        clearInterval(_dashGlobalTimer);
-        window.navigate = _oldNavigate;
-        return _oldNavigate(...args);
-    };
+        if (changed) updateBadges();
+    }, 15000);
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -606,7 +607,7 @@ function renderMyListings(container, user) {
 
 // ── Messages ──────────────────────────────────────────────────
 
-function renderMessages(container, user) {
+function renderMessages(container, user, app) {
     const urlParams = new URLSearchParams(window.location.search);
     const requestedThreadId = urlParams.get('threadId');
 
@@ -703,7 +704,7 @@ function renderMessages(container, user) {
         });
         
         // Update sidebar badges immediately
-        updateSidebarBadges();
+        updateSidebarBadges(app, user.user_id);
 
         const msgs = db.messages.find(m => m.thread_id === activeThreadId).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
@@ -1009,7 +1010,7 @@ function renderMessages(container, user) {
             }
 
             // Update sidebar badge
-            updateSidebarBadges();
+            updateSidebarBadges(app, user.user_id);
         }
     }, 3000);
 
@@ -1046,6 +1047,7 @@ function renderMessages(container, user) {
 
         historyEl.innerHTML = bubbles;
         scrollToBottom();
+        updateSidebarBadges(app, user.user_id);
     }
 }
 
