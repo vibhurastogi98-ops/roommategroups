@@ -43,7 +43,7 @@ export function renderPricingPage(app) {
                 priceMonthly: 4.99,
                 priceAnnual: 0.99,
                 ctaOutline: false,
-                ctaText: 'Subscribe Premium',
+                ctaText: 'Subscribe to Premium',
                 monthlyUrl: 'https://buy.stripe.com/14A28s8Aa7615NefSn3ZK1A',
                 features: [
                     { name: 'Active Listings', value: '3 Listings' },
@@ -402,12 +402,12 @@ export function renderPricingPage(app) {
                     </div>
                     <div class="home-faq-list">
                         ${[
-                            { q: 'Can I switch plans anytime?', a: 'Yes! You can upgrade, downgrade, or cancel your subscription at any time from your dashboard settings. Upgrades are prorated.' },
-                            { q: 'Is there a free trial for paid plans?', a: 'We occasionally offer promotional trials for our Premium plan. Even without a trial, you can start on the Free plan for 1 month and upgrade when you need more power or time.' },
-                            { q: 'What payment methods do you accept?', a: 'We accept all major credit cards (Visa, MasterCard, American Express) as well as PayPal and Apple Pay.' },
-                            { q: 'What happens to my listings if I downgrade?', a: 'If you downgrade to a plan with a lower listing limit, your most recent active listings will remain active up to the new limit. The excess listings will be automatically paused until you either remove some or upgrade again.' },
-                            { q: 'Do you offer refunds?', a: 'We offer a 7-day money-back guarantee on all new subscriptions if you are not completely satisfied with the service.' },
-                        ].map(item => `
+                { q: 'Can I switch plans anytime?', a: 'Yes! You can upgrade, downgrade, or cancel your subscription at any time from your dashboard settings. Upgrades are prorated.' },
+                { q: 'Is there a free trial for paid plans?', a: 'We occasionally offer promotional trials for our Premium plan. Even without a trial, you can start on the Free plan for 1 month and upgrade when you need more power or time.' },
+                { q: 'What payment methods do you accept?', a: 'We accept all major credit cards (Visa, MasterCard, American Express) as well as PayPal and Apple Pay.' },
+                { q: 'What happens to my listings if I downgrade?', a: 'If you downgrade to a plan with a lower listing limit, your most recent active listings will remain active up to the new limit. The excess listings will be automatically paused until you either remove some or upgrade again.' },
+                { q: 'Do you offer refunds?', a: 'We offer a 7-day money-back guarantee on all new subscriptions if you are not completely satisfied with the service.' },
+            ].map(item => `
                             <div class="home-faq-item">
                                 <div class="home-faq-icon"><i class="fas fa-question-circle"></i></div>
                                 <div class="home-faq-content">
@@ -458,7 +458,7 @@ export function renderPricingPage(app) {
             }
             const btnClass = p.ctaSuccess ? 'btn-success' : (p.ctaOutline ? 'btn-outline' : 'btn-primary');
             const badge = p.isPopular ? '<div class="plan-popular-badge">🔥 Most Popular</div>' : '';
-            
+
             return `
             <div class="plan-card ${key}">
                 ${badge}
@@ -470,27 +470,27 @@ export function renderPricingPage(app) {
                 <div class="plan-body">
                     <ul class="plan-features">
                         ${p.features.map(f => {
-                            let icon = '<i class="fa-solid fa-check"></i>';
-                            if (f.included === false) icon = '<i class="fa-solid fa-xmark"></i>';
-                            let text = f.value || f.name;
-                            if (f.included === true && !f.value) text = f.name;
-                            return `<li>${icon} <span>${text}</span></li>`;
-                        }).slice(0, 8).join('')}
+                let icon = '<i class="fa-solid fa-check"></i>';
+                if (f.included === false) icon = '<i class="fa-solid fa-xmark"></i>';
+                let text = f.value || f.name;
+                if (f.included === true && !f.value) text = f.name;
+                return `<li>${icon} <span>${text}</span></li>`;
+            }).slice(0, 8).join('')}
                     </ul>
                     <button class="btn ${btnClass} plan-cta-btn" data-plan="${key}" style="width:100%;">${p.ctaText}</button>
                 </div>
             </div>
             `;
         }).join('');
-        
+
         document.getElementById('pricing-cards').innerHTML = cardsHtml;
-        
+
         // Bind CTA clicks
         document.querySelectorAll('.plan-cta-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const planId = btn.dataset.plan;
                 const plan = plans[planId];
-                
+
                 // Redirect to Stripe for Premium monthly
                 if (planId === 'premium' && !isAnnual && plan.monthlyUrl) {
                     window.location.href = plan.monthlyUrl;
@@ -507,7 +507,7 @@ export function renderPricingPage(app) {
     // Toggle Logic
     const toggleOpts = document.querySelectorAll('.billing-toggle-option');
     const indicator = document.getElementById('billing-indicator');
-    
+
     toggleOpts.forEach((opt, idx) => {
         opt.addEventListener('click', () => {
             toggleOpts.forEach(o => o.classList.remove('active'));
