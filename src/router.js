@@ -113,9 +113,6 @@ async function resolve() {
                         window.scrollTo({ top: 0, behavior: 'instant' });
                     }
                 }, 100);
-            } else if (cleanPath === '/fb-groups') {
-                // FB Groups page handles its own auto-scroll to results
-                // No need to scroll to top here to avoid jumpiness
             } else {
                 // For all other pages, ensure we scroll to top after render
                 // Multiple attempts to ensure it works on all mobile browsers

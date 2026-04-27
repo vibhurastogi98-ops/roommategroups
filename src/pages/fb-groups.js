@@ -140,7 +140,7 @@ export function renderFBGroupsPage(app) {
         </section>
 
         <!-- ── FILTER BAR ── -->
-        <div class="fbg-filter-wrap">
+        <div class="fbg-filter-wrap" id="fbg-filter-section" style="scroll-margin-top: 72px;">
             <div class="container">
                 <div class="fbg-filter-bar">
                     <div class="fbg-filter-label">
@@ -247,16 +247,4 @@ export function renderFBGroupsPage(app) {
 
     citySelect.addEventListener('change', applyFilters);
     clearBtn.addEventListener('click', clearFilters);
-
-    // Auto-scroll to results section on page load
-    const doScroll = () => {
-        const resultsSection = app.querySelector('#fb-groups');
-        if (resultsSection) {
-            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    };
-    
-    // Multiple attempts for mobile reliability
-    setTimeout(doScroll, 100);
-    setTimeout(doScroll, 300);
 }
