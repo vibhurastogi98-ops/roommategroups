@@ -26,11 +26,10 @@ export function getOrCreateThread(senderId, recipientId, listingId) {
     const allThreads = db.threads.findAll();
 
     // Look for existing thread with same listing + same participants
-    const existing = allThreads.find(t =>
-        t.listing_id === listingId &&
-        t.participants.includes(senderId) &&
-        t.participants.includes(recipientId)
-    );
+    const existing = allThreads.find(t => {
+        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        return t.listing_id === listingId && parts.includes(senderId) && parts.includes(recipientId);
+    });
 
     if (existing) return existing;
 
@@ -166,7 +165,10 @@ export function reportThread(threadId, reporterId, reason = 'inappropriate') {
 // ── Thread Queries ────────────────────────────────────────────
 
 export function getThreadsForUser(userId, filter = 'all') {
-    const allThreads = db.threads.find(t => t.participants.includes(userId));
+    const allThreads = db.threads.find(t => {
+        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        return parts.includes(userId);
+    });
 
     return allThreads
         .filter(t => {
@@ -187,11 +189,21 @@ export function getUnreadCountForThread(threadId, userId) {
 }
 
 export function getTotalUnread(userId) {
-    const archivedThreads = new Set(db.threads.find(t => t.is_archived).map(t => t.thread_id));
+    // 1. Get IDs of threads the user is a participant in
+    const myThreads = db.threads.find(t => {
+        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        return parts.includes(userId);
+    });
+
+    const myActiveThreadIds = new Set(
+        myThreads.filter(t => !t.is_archived).map(t => t.thread_id)
+    );
+
+    // 2. Count unread messages in those active threads
     const unreadMessages = db.messages.find(m => 
         m.sender_id !== userId && 
         !m.is_read && 
-        !archivedThreads.has(m.thread_id)
+        myActiveThreadIds.has(m.thread_id)
     );
     return unreadMessages.length;
 }

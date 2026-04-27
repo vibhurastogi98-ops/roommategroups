@@ -246,7 +246,10 @@ function renderOverview(container, user) {
     const threads = db.threads.find(t => {
         const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
         return parts.includes(user.user_id);
-    });
+    }).map(t => ({
+        ...t,
+        participants: typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || [])
+    }));
     const unreadMessages = getTotalUnread(user.user_id);
 
     // ── Build activity from real data ──
@@ -389,7 +392,10 @@ function renderMyListings(container, user) {
         const rows = listings.map(l => {
             const cityObj = db.cities.findById(l.city);
             const location = cityObj ? cityObj.name : (l.city || '');
-            const msgCount = db.threads.find(t => t.listing_id === l.listing_id && t.participants.includes(user.user_id)).length;
+            const msgCount = db.threads.find(t => {
+                const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+                return t.listing_id === l.listing_id && parts.includes(user.user_id);
+            }).length;
             const isActive = l.status === 'active';
             const _imgs = l.images || l.photos || [];
             const parsedImgs = typeof _imgs === 'string' ? JSON.parse(_imgs || '[]') : _imgs;
@@ -621,7 +627,10 @@ function renderMessages(container, user, app) {
         const all = db.threads.find(t => {
             const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
             return parts.includes(user.user_id);
-        });
+        }).map(t => ({
+            ...t,
+            participants: typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || [])
+        }));
         return all
             .filter(t => {
                 if (activeTab === 'unread') return getUnreadCountForThread(t.thread_id, user.user_id) > 0 && !t.is_archived;
@@ -690,8 +699,12 @@ function renderMessages(container, user, app) {
             return;
         }
 
-        const thread = db.threads.findById(activeThreadId);
-        if (!thread) return;
+        const threadRaw = db.threads.findById(activeThreadId);
+        if (!threadRaw) return;
+        const thread = {
+            ...threadRaw,
+            participants: typeof threadRaw.participants === 'string' ? JSON.parse(threadRaw.participants || '[]') : (threadRaw.participants || [])
+        };
 
         const ouId = thread.participants.find(id => id !== user.user_id);
         const ou = db.users.findById(ouId) || { display_name: 'User', profile_photo: '', verification_level: 'basic' };
@@ -950,8 +963,7 @@ function renderMessages(container, user, app) {
         else if (t && (t['unread_count_' + user.user_id] || 0) > 0) activeTab = 'unread';
     }
 
-    const totalUnread = db.threads.find(t => t.participants.includes(user.user_id))
-        .reduce((sum, t) => sum + (t['unread_count_' + user.user_id] || 0), 0);
+    const totalUnread = getTotalUnread(user.user_id);
 
     container.innerHTML = [
         '<div class="messages-layout">',

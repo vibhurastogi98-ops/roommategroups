@@ -698,7 +698,10 @@ function renderAdminUsers(container) {
                 await db.listings.delete(l.listing_id);
             }
             // Remove threads they are in + associated messages
-            const userThreads = db.threads.find(t => t.participants && t.participants.includes(userId));
+            const userThreads = db.threads.find(t => {
+                const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+                return parts.includes(userId);
+            });
             for (const t of userThreads) {
                 const threadMsgs = db.messages.find(m => m.thread_id === t.thread_id);
                 for (const m of threadMsgs) {

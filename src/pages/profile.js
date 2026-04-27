@@ -135,11 +135,12 @@ export function renderProfilePage(app, params) {
                 // but let's see if they have any listing or just start a generic thread
                 const listingId = listings.length > 0 ? listings[0].listing_id : null;
 
-                let thread = db.threads.findOne(t => 
-                    t.participants.includes(currentUser.id) && 
-                    t.participants.includes(user.user_id) &&
-                    (listingId ? t.listing_id === listingId : true)
-                );
+                let thread = db.threads.findOne(t => {
+                    const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+                    return parts.includes(currentUser.id) && 
+                           parts.includes(user.user_id) &&
+                           (listingId ? t.listing_id === listingId : true);
+                });
 
                 if (!thread) {
                     thread = await db.threads.create({

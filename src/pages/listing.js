@@ -381,11 +381,12 @@ export function renderListingDetailPage(app, params) {
                 if (!user) return; // No host info
 
                 // Start thread logic
-                let thread = db.threads.findOne(t => 
-                    t.listing_id === listing.listing_id && 
-                    t.participants.includes(currentUser.id) && 
-                    t.participants.includes(user.user_id)
-                );
+                let thread = db.threads.findOne(t => {
+                    const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+                    return parts.includes(currentUser.id) && 
+                           parts.includes(user.user_id) &&
+                           (listing.listing_id ? t.listing_id === listing.listing_id : true);
+                });
 
                 if (!thread) {
                     thread = await db.threads.create({
