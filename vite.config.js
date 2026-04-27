@@ -22,13 +22,16 @@ export default defineConfig(async () => {
     let allRoutes = [...staticRoutes];
     
     // SEO Update: Fetch dynamic slugs for sitemap expansion during build
+    // We use the direct worker URL to ensure we get JSON data instead of HTML fallbacks
+    const API_BASE = 'https://roommategroups.vibhurastogi98.workers.dev';
+
     try {
         const [citiesRes, listingsRes] = await Promise.all([
-            fetch('https://roommategroups.com/api/cities').catch(() => null),
-            fetch('https://roommategroups.com/api/listings').catch(() => null)
+            fetch(`${API_BASE}/cities`).catch(() => null),
+            fetch(`${API_BASE}/listings`).catch(() => null)
         ]);
         
-        if (citiesRes && citiesRes.ok) {
+        if (citiesRes && citiesRes.ok && citiesRes.headers.get('content-type')?.includes('application/json')) {
             const cities = await citiesRes.json();
             cities.forEach(c => {
                 if (c.slug) {
@@ -38,7 +41,7 @@ export default defineConfig(async () => {
             });
         }
         
-        if (listingsRes && listingsRes.ok) {
+        if (listingsRes && listingsRes.ok && listingsRes.headers.get('content-type')?.includes('application/json')) {
             const listings = await listingsRes.json();
             listings.forEach(l => {
                 if (l.listing_id && l.status === 'active') {
