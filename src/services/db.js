@@ -302,7 +302,7 @@ export const db = {
 export async function initDB() {
     // ── Step 1: Seed localStorage if this is a brand-new device ──
     if (!localStorage.getItem(DB_KEY)) {
-        console.log('[DB] First load — seeding localStorage with initial data.');
+        // console.log('[DB] First load — seeding localStorage with initial data.');
         localStorage.setItem(DB_KEY, JSON.stringify(SEED_DATA));
     }
 

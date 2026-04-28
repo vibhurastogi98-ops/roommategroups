@@ -13,7 +13,7 @@ export function renderAdminPage(app) {
     // Middleware already handles authentication and admin role check
     const user = getCurrentUser();
     
-    console.log('[ADMIN PAGE] Rendering admin page for user:', user?.email, 'role:', user?.role);
+    // console.log('[ADMIN PAGE] Rendering admin page for user:', user?.email, 'role:', user?.role);
 
     const path = window.location.pathname || '/admin';
     let view = 'overview';
@@ -29,7 +29,7 @@ export function renderAdminPage(app) {
     if (path === '/admin/queries') view = 'queries';
     if (path === '/admin/images') view = 'images';
 
-    console.log('[ADMIN PAGE] Current view:', view, 'path:', path);
+    // console.log('[ADMIN PAGE] Current view:', view, 'path:', path);
 
     const pendingCount = db.listings.find(l => l.moderation_status === 'pending').length + db.listings.find(l => l.moderation_status === 'flagged').length;
     const openReports = db.reports.find(r => r.status === 'pending').length;

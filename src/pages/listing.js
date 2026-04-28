@@ -47,7 +47,7 @@ let _lbKeyCleanup = null;
 
 export function renderListingDetailPage(app, params) {
     const listingId = params.id;
-    console.log('[Listing] Rendering ID:', listingId);
+    // console.log('[Listing] Rendering ID:', listingId);
     const listing = db.listings.findById(listingId);
 
     if (!listing) {
