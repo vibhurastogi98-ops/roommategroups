@@ -89,7 +89,7 @@ app.innerHTML = `
 // Initialize database first (fetch live data from D1), THEN start the router.
 // This ensures admin/auth middleware always has the latest D1 data when it runs.
 initDB().then(() => {
-    console.log('[Main] D1 sync complete — starting router.');
+    // console.log('[Main] D1 sync complete — starting router.');
     initRouter(app);
 }).catch((err) => {
     console.warn('[Main] D1 sync failed, starting router with cached data.', err);

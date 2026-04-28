@@ -359,7 +359,7 @@ export async function initDB() {
         
         if (liveUpdated) {
             saveDB(live);
-            console.log('[DB] ✅ Loaded live data from D1 — all devices in sync.');
+            // console.log('[DB] ✅ Loaded live data from D1 — all devices in sync.');
             return true;
         }
     } catch (err) {
