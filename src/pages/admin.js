@@ -3,6 +3,7 @@ import { navigate } from '../router.js';
 import { db, getLiveListingCount } from '../services/db.js';
 import { getTotalVisits, getTopSearchQueries, getZeroResultQueries } from '../services/analytics.js';
 import { uploadImage } from '../services/upload.js';
+import { parseMarkdown } from '../services/blog-data.js';
 
 // ─────────────────────────────────────────────────────────────
 // Admin Dashboard Entry Point
@@ -2719,12 +2720,19 @@ async function renderAdminContent(container) {
         }
 
         function captureFormState() {
+            // Problem 4 fix: flush contenteditable → hidden field before reading
+            const editorDiv = container.querySelector('#cms-content-editor');
+            const hiddenField = container.querySelector('#cms-content-hidden');
+            if (editorDiv && hiddenField) {
+                hiddenField.value = editorDiv.innerHTML;
+            }
+
             const map = {
                 title: '#cms-title', slug: '#cms-slug', author: '#cms-author',
                 category: '#cms-cat', tags: '#cms-tags', publishDate: '#cms-publish-date',
                 status: '#cms-status', excerpt: '#cms-excerpt',
                 imgAlt: '#cms-img-alt', imgTitle: '#cms-img-title', imgCaption: '#cms-img-caption',
-                content: '#cms-content',
+                content: '#cms-content-hidden',
                 seoTitle: '#cms-seo-title', seoDesc: '#cms-seo-desc',
                 focusKeyword: '#cms-focus-keyword', canonicalUrl: '#cms-canonical',
                 metaRobots: '#cms-meta-robots',
@@ -2879,13 +2887,28 @@ async function renderAdminContent(container) {
                 '</div>',
                 '<div style="' + mb + '"><label style="' + lbl + '">Caption</label>',
                 '<input type="text" id="cms-img-caption" style="' + inp + '" value="' + escHtml(formState.imgCaption) + '" placeholder="Displayed below image"></div>',
-                '<h4 style="' + sectionHead + 'margin-top:24px;">Blog Content</h4>',
+                '<h4 style="' + sectionHead + 'margin-top:24px;">Blog Content (Visual Editor)</h4>',
                 '<div style="' + mb + '">',
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">',
-                '<label style="' + lbl + 'margin:0;">Content <span style="color:#ef4444;">*</span></label>',
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">',
+                '<div style="display:flex;align-items:center;gap:12px;">',
+                '<label style="' + lbl + 'margin:0;">Write or Paste Content <span style="color:#ef4444;">*</span></label>',
+                '<div style="display:flex;gap:6px;background:#f1f5f9;padding:4px;border-radius:8px;">',
+                '<button type="button" class="rte-btn" data-cmd="bold" title="Bold" style="width:32px;height:32px;border:none;background:white;border-radius:6px;cursor:pointer;font-weight:900;box-shadow:0 1px 2px rgba(0,0,0,0.05);">B</button>',
+                '<button type="button" class="rte-btn" data-cmd="formatBlock" data-val="h2" title="H2 Heading" style="width:32px;height:32px;border:none;background:white;border-radius:6px;cursor:pointer;font-weight:800;box-shadow:0 1px 2px rgba(0,0,0,0.05);">H2</button>',
+                '<button type="button" class="rte-btn" data-cmd="formatBlock" data-val="h3" title="H3 Heading" style="width:32px;height:32px;border:none;background:white;border-radius:6px;cursor:pointer;font-weight:800;box-shadow:0 1px 2px rgba(0,0,0,0.05);">H3</button>',
+                '<button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="List" style="width:32px;height:32px;border:none;background:white;border-radius:6px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.05);"><i class="fa-solid fa-list-ul"></i></button>',
+                '</div>',
+                '</div>',
                 '<span id="cms-readtime" style="font-size:0.78rem;color:#6366f1;background:#ede9fe;padding:3px 10px;border-radius:20px;font-weight:600;">' + escHtml(calcReadTime(formState.content)) + '</span>',
                 '</div>',
-                '<textarea id="cms-content" style="' + ta + 'min-height:300px;font-family:monospace;font-size:0.85rem;" placeholder="<p>Write your blog post content here... HTML supported.</p>">' + escHtml(formState.content) + '</textarea>',
+                '<div id="cms-content-editor" contenteditable="true" class="prose" style="background:#ffffff !important;color:#1e293b !important;border:2px solid #e2e8f0;border-radius:12px;padding:40px;min-height:600px;max-height:900px;overflow-y:auto;outline:none;box-shadow:0 4px 12px rgba(0,0,0,0.03);font-size:1.1rem;" placeholder="Paste your content here...">',
+                parseMarkdown(formState.content || ''),
+                '</div>',
+                '<textarea id="cms-content-hidden" style="display:none;">' + escHtml(formState.content || '') + '</textarea>',
+                '</div>',
+                '<div style="margin-top:12px;font-size:0.8rem;color:#64748b;display:flex;align-items:center;gap:6px;">',
+                '<i class="fa-solid fa-circle-info"></i>',
+                '<span><b>Tip:</b> Copy and paste directly from your source. Formatting, headings, and bolding will be preserved automatically.</span>',
                 '</div>',
                 '<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;margin-bottom:20px;">',
                 '<input type="checkbox" id="cms-toc" style="width:16px;height:16px;accent-color:#6366f1;" ' + (formState.tocEnabled ? 'checked' : '') + '>',
@@ -3038,6 +3061,7 @@ async function renderAdminContent(container) {
                 !isLast
                     ? '<button type="button" data-action="tab_next" style="display:flex;align-items:center;gap:6px;padding:9px 18px;background:#6366f1;border:none;color:#fff;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">Next: ' + escHtml(nextLabel) + ' <i class="fa-solid fa-arrow-right"></i></button>'
                     : [
+                        '<button type="button" data-action="open_preview" style="padding:9px 16px;background:transparent;border:1px solid #818cf8;color:#818cf8;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;"><i class="fa-solid fa-eye"></i> Preview</button>',
                         '<button type="button" data-action="save_draft_post" style="padding:9px 16px;background:#334155;border:1px solid #475569;color:#cbd5e1;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;"><i class="fa-regular fa-floppy-disk"></i> Save Draft</button>',
                         '<button type="button" data-action="publish_post" style="padding:9px 18px;background:#22c55e;border:none;color:#fff;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:700;"><i class="fa-solid fa-rocket"></i> Publish</button>',
                     ].join(''),
@@ -3057,6 +3081,7 @@ async function renderAdminContent(container) {
                 '</div>',
                 '<div style="display:flex;align-items:center;gap:8px;">',
                 '<span id="cms-autosave-badge" style="font-size:0.73rem;color:#94a3b8;margin-right:8px;"></span>',
+                '<button type="button" data-action="open_preview" style="display:flex;align-items:center;gap:6px;padding:7px 16px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.4);color:#a5b4fc;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.2s;"><i class="fa-solid fa-eye"></i> Preview</button>',
                 '<button type="button" data-action="close_modal" style="background:none;border:none;color:#94a3b8;cursor:pointer;padding:6px;font-size:1.1rem;margin-left:4px;line-height:1;"><i class="fa-solid fa-xmark"></i></button>',
                 '</div></div>',
                 // Tab bar
@@ -3071,6 +3096,217 @@ async function renderAdminContent(container) {
                 bottomNav,
                 '</div></div>',
             ].join('');
+        }
+
+        // ── Live Preview Modal ────────────────────────────────────
+        function openPreviewModal() {
+            captureFormState();
+            document.getElementById('cms-preview-modal')?.remove();
+
+            function rcPreview(content) {
+                const t = (content || '').trim();
+                return /^<[a-zA-Z]/.test(t) ? t : parseMarkdown(t);
+            }
+
+            const displayDate = (() => {
+                try {
+                    const d = formState.publishDate ? new Date(formState.publishDate) : new Date();
+                    return d.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+                } catch { return ''; }
+            })();
+
+            const authorName   = formState.author || 'Admin';
+            const authorAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(authorName) + '&background=6366f1&color=fff&size=80';
+            const heroImg      = formState.image || '';
+            const tags         = (formState.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+            const wordCount    = (formState.content || '').replace(/<[^>]*>/g,'').trim().split(/\s+/).filter(Boolean).length;
+            const readTime     = Math.max(1, Math.round(wordCount / 200)) + ' min read';
+
+            function buildTOC(content) {
+                const div = document.createElement('div');
+                div.innerHTML = rcPreview(content);
+                const hs = div.querySelectorAll('h2,h3');
+                if (!hs.length) return '';
+                let li = '';
+                hs.forEach((h, i) => {
+                    const is3 = h.tagName === 'H3';
+                    li += '<li style="margin-bottom:3px;"><a href="#ph-' + i + '" style="display:block;padding:' + (is3?'4px 10px 4px 22px':'5px 10px') + ';font-size:' + (is3?'0.8rem':'0.88rem') + ';color:#475569;text-decoration:none;border-radius:6px;border-left:2px solid transparent;" onmouseover="this.style.color=\'#6366f1\';this.style.background=\'#f5f3ff\';this.style.borderLeftColor=\'#6366f1\'" onmouseout="this.style.color=\'#475569\';this.style.background=\'transparent\';this.style.borderLeftColor=\'transparent\'">' + h.textContent.trim() + '</a></li>';
+                });
+                return '<ul style="list-style:none;padding:0;margin:0;">' + li + '</ul>';
+            }
+
+            function bodyWithIDs(content) {
+                const div = document.createElement('div');
+                div.innerHTML = rcPreview(content);
+                div.querySelectorAll('h2,h3').forEach((h,i) => { h.id = 'ph-' + i; });
+                return div.innerHTML;
+            }
+
+            const tocHTML  = buildTOC(formState.content || '');
+            const bodyHTML = bodyWithIDs(formState.content || '');
+
+            const tagsHTML = tags.length
+                ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:32px 0 10px;padding-top:20px;border-top:1px solid #e2e8f0;"><i class="fas fa-tags" style="color:#94a3b8;"></i>' + tags.map(t => '<span style="background:#f1f5f9;border:1px solid #e2e8f0;padding:4px 14px;border-radius:30px;font-size:0.8rem;color:#64748b;">' + escHtml(t) + '</span>').join('') + '</div>'
+                : '';
+
+            const ctaHTML = (formState.ctaHeading || formState.ctaBtnText)
+                ? '<div style="background:linear-gradient(135deg,#6366f1 0%,#1e1b4b 100%);border-radius:16px;padding:40px 44px;margin:48px 0;color:white;"><div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;"><div><h3 style="font-size:1.5rem;font-weight:800;margin:0 0 8px;color:white;">' + escHtml(formState.ctaHeading || 'Ready to Find Your Next Room?') + '</h3><p style="font-size:0.9rem;opacity:0.9;margin:0;color:white;">' + escHtml(formState.ctaText || '') + '</p></div>' + (formState.ctaBtnText ? '<span style="background:white;color:#6366f1;font-weight:700;padding:12px 24px;border-radius:30px;white-space:nowrap;">' + escHtml(formState.ctaBtnText) + ' →</span>' : '') + '</div></div>'
+                : '';
+
+            const iframeDoc = `<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,sans-serif;background:#f8fafc;color:#1e293b;line-height:1.7;}
+.hero{position:relative;height:55vh;min-height:420px;max-height:640px;display:flex;align-items:flex-end;color:white;background:#0f172a;}
+.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8;}
+.hero-ov{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.05),rgba(0,0,0,.82));}
+.hero-c{position:relative;z-index:2;padding:0 20px 52px;width:100%;max-width:1200px;margin:0 auto;}
+.badge{background:#6366f1;color:white;font-size:.82rem;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:6px 16px;border-radius:30px;display:inline-block;margin-bottom:16px;}
+.bc{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.75);font-size:.85rem;margin-bottom:16px;}
+h1.pt{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;line-height:1.15;margin-bottom:24px;max-width:900px;text-shadow:0 2px 12px rgba(0,0,0,.5);}
+.meta{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.meta .ai{display:flex;align-items:center;gap:10px;}
+.meta img{width:44px!important;height:44px!important;border-radius:50%!important;border:2px solid rgba(255,255,255,.7)!important;object-fit:cover!important;position:static!important;opacity:1!important;inset:auto!important;}
+.meta .st{font-size:.9rem;opacity:.85;display:flex;align-items:center;gap:10px;}
+.layout{max-width:1100px;margin:0 auto;padding:36px 24px;display:grid;grid-template-columns:1fr 300px;gap:36px;align-items:start;}
+@media(max-width:900px){.layout{grid-template-columns:1fr;}.sb{display:none;}}
+.prose{background:white;padding:52px;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #e2e8f0;line-height:1.85;font-size:1.1rem;color:#1e293b;}
+@media(max-width:640px){.prose{padding:24px;}}
+.prose p{margin-bottom:1.75em;color:#334155;}
+.prose h2{font-size:2rem;font-weight:800;color:#0f172a;margin:3rem 0 1.25rem;line-height:1.15;letter-spacing:-.04em;}
+.prose h3{font-size:1.5rem;font-weight:700;color:#1e293b;margin:2.25rem 0 1rem;line-height:1.2;}
+.prose h4{font-size:1.15rem;font-weight:700;color:#334155;margin:1.75rem 0 .5rem;}
+.prose ul,.prose ol{margin:1.75em 0;padding-left:1.5em;}
+.prose li{margin-bottom:.75em;line-height:1.7;}
+.prose strong{color:#0f172a;font-weight:700;}
+.prose a{color:#6366f1;text-decoration:underline;}
+.prose blockquote{border-left:4px solid #6366f1;padding:1em 1.5em;margin:1.5em 0;background:#f5f3ff;border-radius:0 10px 10px 0;font-style:italic;color:#475569;}
+.prose img{width:100%;border-radius:10px;margin:1.75em 0;display:block;}
+.prose table{width:100%;border-collapse:collapse;margin:1.75em 0;font-size:.9rem;overflow:hidden;}
+.prose thead{background:#6366f1;color:white;}
+.prose th{padding:12px 16px;text-align:left;font-weight:700;font-size:.82rem;text-transform:uppercase;}
+.prose td{padding:10px 16px;color:#1a1a1a;border-bottom:1px solid #e2e8f0;}
+.prose tr:hover{background:#f8fafc;}
+.prose code{background:#1e293b;color:#e2e8f0;padding:2px 7px;border-radius:4px;font-family:monospace;font-size:.87em;}
+.prose pre{background:#0f172a;color:#e2e8f0;padding:24px;border-radius:10px;overflow-x:auto;margin:1.75em 0;font-family:monospace;font-size:.88rem;line-height:1.7;}
+.prose hr{border:none;border-top:2px solid #e2e8f0;margin:2.5em 0;}
+.share{margin-top:36px;padding-top:24px;border-top:1px solid #e2e8f0;}
+.share h4{font-size:.9rem;margin-bottom:12px;color:#1e293b;}
+.sbtns{display:flex;gap:10px;flex-wrap:wrap;}
+.sbtn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:30px;border:none;font-weight:600;font-size:.85rem;cursor:pointer;color:white;background:#1a1a1a;}
+.sbtn.cp{background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;}
+.bio{display:flex;gap:20px;background:white;padding:28px;border-radius:14px;border:1px solid #e2e8f0;margin-top:32px;}
+.bio img{width:80px;height:80px;border-radius:50%;object-fit:cover;flex-shrink:0;border:3px solid #f1f5f9;}
+.bio h4{font-size:1rem;margin-bottom:6px;font-weight:700;}
+.bio p{font-size:.88rem;color:#64748b;line-height:1.6;}
+.sb{position:sticky;top:20px;display:flex;flex-direction:column;gap:20px;}
+.w{background:white;border-radius:14px;padding:20px;border:1px solid #e2e8f0;}
+.w h3{font-size:.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:6px;}
+.cta-w{background:linear-gradient(135deg,#f5f3ff,white);border-top:3px solid #6366f1;}
+.cta-w h3{color:#6366f1;border:none;padding:0;}
+.cta-w p{font-size:.85rem;color:#64748b;margin-bottom:14px;line-height:1.5;}
+.cta-b{display:block;width:100%;padding:10px;border-radius:8px;background:#6366f1;color:white;text-align:center;font-weight:700;font-size:.88rem;border:none;cursor:pointer;}
+</style></head><body>
+<div class="hero">
+  ${heroImg ? '<img class="hero-bg" src="' + escHtml(heroImg) + '" alt="">' : '<div style="position:absolute;inset:0;background:linear-gradient(135deg,#1e293b,#334155);"></div>'}
+  <div class="hero-ov"></div>
+  <div class="hero-c">
+    <div class="bc"><span>Home</span><span>/</span><span>Blog</span>${formState.category ? '<span>/</span><span>' + escHtml(formState.category) + '</span>' : ''}</div>
+    ${formState.category ? '<span class="badge">' + escHtml(formState.category) + '</span>' : ''}
+    <h1 class="pt">${escHtml(formState.title || 'Untitled Post')}</h1>
+    <div class="meta">
+      <div class="ai"><img src="${authorAvatar}" alt="${escHtml(authorName)}"><span style="font-weight:600;">${escHtml(authorName)}</span></div>
+      <div class="st">${displayDate ? '<span><i class="far fa-calendar"></i> ' + displayDate + '</span><span>•</span>' : ''}<span><i class="far fa-clock"></i> ${readTime}</span></div>
+    </div>
+  </div>
+</div>
+<div class="layout">
+  <article>
+    <div class="prose">
+      ${bodyHTML || '<p style="color:#94a3b8;font-style:italic;">No content yet. Go to the Content tab to write your post.</p>'}
+      ${tagsHTML}
+      ${ctaHTML}
+      <div class="share"><h4>Share this article</h4><div class="sbtns"><button class="sbtn"><i class="fab fa-twitter"></i> Twitter</button><button class="sbtn"><i class="fab fa-facebook-f"></i> Facebook</button><button class="sbtn"><i class="fab fa-linkedin-in"></i> LinkedIn</button><button class="sbtn cp"><i class="fas fa-link"></i> Copy Link</button></div></div>
+    </div>
+    <div class="bio"><img src="${authorAvatar}" alt="${escHtml(authorName)}"><div><h4>About ${escHtml(authorName)}</h4><p>Contributing writer at RoommateGroups.</p></div></div>
+  </article>
+  <aside class="sb">
+    ${tocHTML ? '<div class="w"><h3><i class="fas fa-list-ul"></i> Table of Contents</h3>' + tocHTML + '</div>' : ''}
+    <div class="w cta-w"><h3>Looking for a Roommate?</h3><p>Join thousands of people finding their perfect match.</p><button class="cta-b">Browse Roommates</button></div>
+  </aside>
+</div>
+</body></html>`;
+
+            // Build overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'cms-preview-modal';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(2,6,23,0.97);display:flex;flex-direction:column;';
+
+            const statusColor = formState.status === 'published' ? {bg:'#166534',fg:'#bbf7d0'} : {bg:'#92400e',fg:'#fde68a'};
+            const seoDescLen  = (formState.seoDesc || '').length;
+
+            overlay.innerHTML = `
+<style>
+@keyframes cmsPvFade{from{opacity:0}to{opacity:1}}
+#cms-preview-modal{animation:cmsPvFade .2s ease;}
+#cms-preview-modal .dv{display:flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:transparent;color:rgba(255,255,255,.55);cursor:pointer;font-size:.8rem;font-weight:600;transition:all .15s;}
+#cms-preview-modal .dv:hover,#cms-preview-modal .dv.on{background:rgba(99,102,241,.25);border-color:rgba(99,102,241,.6);color:#a5b4fc;}
+#cms-preview-modal .dv.on{background:rgba(99,102,241,.35);}
+</style>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <i class="fa-solid fa-eye" style="color:#818cf8;font-size:1rem;"></i>
+    <div>
+      <div style="color:white;font-weight:700;font-size:.9rem;">Live Preview</div>
+      <div style="color:#64748b;font-size:.72rem;">${escHtml(formState.title||'Untitled Post')} <span style="margin-left:6px;padding:1px 7px;border-radius:10px;font-size:.68rem;font-weight:700;background:${statusColor.bg};color:${statusColor.fg};">${(formState.status||'draft').toUpperCase()}</span></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;">
+    <button class="dv on" data-dv="desktop"><i class="fa-solid fa-desktop"></i> Desktop</button>
+    <button class="dv" data-dv="tablet"><i class="fa-solid fa-tablet-screen-button"></i> Tablet</button>
+    <button class="dv" data-dv="mobile"><i class="fa-solid fa-mobile-screen"></i> Mobile</button>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button id="pv-refresh" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:transparent;color:rgba(255,255,255,.55);cursor:pointer;font-size:.8rem;font-weight:600;display:flex;align-items:center;gap:5px;"><i class="fa-solid fa-rotate"></i> Refresh</button>
+    <button id="pv-close" style="padding:7px 14px;border-radius:8px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#fca5a5;cursor:pointer;font-size:.8rem;font-weight:600;display:flex;align-items:center;gap:5px;"><i class="fa-solid fa-xmark"></i> Close Preview</button>
+  </div>
+</div>
+<div style="padding:8px 20px;background:rgba(99,102,241,.08);border-bottom:1px solid rgba(99,102,241,.15);display:flex;align-items:center;gap:20px;font-size:.75rem;flex-shrink:0;flex-wrap:wrap;">
+  <span style="color:#94a3b8;"><i class="fa-solid fa-magnifying-glass" style="color:#818cf8;"></i> <strong style="color:#a5b4fc;">SEO Title:</strong> ${escHtml((formState.seoTitle||formState.title||'—').slice(0,60))}</span>
+  <span style="color:#94a3b8;"><i class="fa-solid fa-link" style="color:#818cf8;"></i> <strong style="color:#a5b4fc;">Slug:</strong> /blog/${escHtml(formState.slug||'—')}</span>
+  <span style="color:#94a3b8;"><i class="fa-solid fa-clock" style="color:#818cf8;"></i> <strong style="color:#a5b4fc;">Read Time:</strong> ${readTime}</span>
+  <span style="color:${seoDescLen>160?'#fca5a5':'#94a3b8'};"><i class="fa-solid fa-align-left" style="color:#818cf8;"></i> <strong style="color:#a5b4fc;">Meta Desc:</strong> ${seoDescLen}/160 chars</span>
+</div>
+<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:16px;overflow:hidden;">
+  <iframe id="pv-frame" style="width:100%;height:100%;border:none;background:white;box-shadow:0 30px 80px rgba(0,0,0,.7);transition:all .35s cubic-bezier(.4,0,.2,1);"></iframe>
+</div>`;
+
+            document.body.appendChild(overlay);
+
+            // Write iframe content
+            const fr = overlay.querySelector('#pv-frame');
+            fr.contentDocument.open();
+            fr.contentDocument.write(iframeDoc);
+            fr.contentDocument.close();
+
+            // Device toggle
+            const dvMap = {desktop:'width:100%;height:100%;border-radius:0', tablet:'width:768px;height:90%;border-radius:12px', mobile:'width:390px;height:90%;border-radius:24px'};
+            overlay.querySelectorAll('.dv[data-dv]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    overlay.querySelectorAll('.dv[data-dv]').forEach(b => b.classList.remove('on'));
+                    btn.classList.add('on');
+                    fr.style.cssText = 'border:none;background:white;box-shadow:0 30px 80px rgba(0,0,0,.7);transition:all .35s cubic-bezier(.4,0,.2,1);' + dvMap[btn.dataset.dv];
+                });
+            });
+
+            overlay.querySelector('#pv-close').addEventListener('click', () => overlay.remove());
+            overlay.querySelector('#pv-refresh').addEventListener('click', () => { overlay.remove(); openPreviewModal(); });
+
+            const onKey = e => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); } };
+            document.addEventListener('keydown', onKey);
         }
 
         function renderCMS() {
@@ -3332,14 +3568,36 @@ async function renderAdminContent(container) {
             container.querySelector('#cms-seo-title')?.addEventListener('input', () => updateSeoPreview());
             container.querySelector('#cms-seo-desc')?.addEventListener('input',  () => updateSeoPreview());
 
-            // Reading time
-            const contentEl = container.querySelector('#cms-content');
-            const rtBadge   = container.querySelector('#cms-readtime');
-            if (contentEl && rtBadge) {
-                contentEl.addEventListener('input', e => {
-                    formState.content = e.target.value;
-                    rtBadge.textContent = calcReadTime(e.target.value);
+            // Visual Editor Logic
+            const editorEl = container.querySelector('#cms-content-editor');
+            const hiddenEl = container.querySelector('#cms-content-hidden');
+            const rtBadge  = container.querySelector('#cms-readtime');
+
+            if (editorEl && hiddenEl) {
+                editorEl.addEventListener('input', () => {
+                    const html = editorEl.innerHTML;
+                    formState.content = html;
+                    hiddenEl.value = html;
+                    if (rtBadge) rtBadge.textContent = calcReadTime(editorEl.innerText);
                     triggerAutoSave();
+                });
+
+                // Handle toolbar buttons
+                container.querySelectorAll('.rte-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const cmd = btn.dataset.cmd;
+                        const val = btn.dataset.val || null;
+                        
+                        if (cmd === 'formatBlock' && val) {
+                            document.execCommand(cmd, false, val);
+                        } else {
+                            document.execCommand(cmd, false, val);
+                        }
+                        
+                        editorEl.focus();
+                        editorEl.dispatchEvent(new Event('input'));
+                    });
                 });
             }
 
@@ -3362,6 +3620,14 @@ async function renderAdminContent(container) {
             // Publish
             container.querySelectorAll('[data-action="publish_post"]').forEach(btn => {
                 btn.addEventListener('click', () => { captureFormState(); savePost('published'); });
+            });
+
+            // Preview
+            container.querySelectorAll('[data-action="open_preview"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    captureFormState();
+                    openPreviewModal();
+                });
             });
         }
 

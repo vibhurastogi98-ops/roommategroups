@@ -1,5 +1,5 @@
 import { navigate } from '../router.js';
-import { getPostBySlug, getRelatedPosts, getBlogPosts } from '../services/blog-data.js';
+import { getPostBySlug, getRelatedPosts, getBlogPosts, parseMarkdown } from '../services/blog-data.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { setSEO } from '../seo.js'; // SEO Update
@@ -109,6 +109,13 @@ export function renderBlogPostPage(app, params) {
         catch { return post._date; }
     })();
 
+    // ── Problem 1 fix: detect HTML vs legacy markdown ─────────────
+    function renderContent(content) {
+        const trimmed = (content || '').trim();
+        const isHTML = /^<[a-zA-Z]/.test(trimmed);
+        return isHTML ? trimmed : parseMarkdown(trimmed);
+    }
+
     app.innerHTML = `
         ${renderNavbar()}
 
@@ -148,7 +155,7 @@ export function renderBlogPostPage(app, params) {
                 <div class="post-layout-grid">
                     <article class="post-content-area prose" id="post-article">
                         <!-- ③ Rich Text Content -->
-                        ${post.content || ''}
+                        ${renderContent(post.content)}
 
                         <!-- Tags -->
                         ${post._tags.length > 0 ? `
@@ -377,52 +384,60 @@ export function renderBlogPostPage(app, params) {
     ═══════════════════════════════════════ */
     .prose {
         background: white;
-        padding: 50px;
+        padding: 60px;
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow);
         border: 1px solid var(--border);
-        line-height: 1.7;
-        font-size: 1.05rem;
+        line-height: 1.85;
+        font-size: 1.2rem;
+        font-family: 'Inter', system-ui, sans-serif;
+        color: #1e293b;
     }
-    @media (max-width: 768px) { .prose { padding: 22px; } }
+    @media (max-width: 768px) { .prose { padding: 30px 24px; font-size: 1.1rem; } }
 
-            .prose p { margin-bottom: 1.5em; color: #1a1a1a; }
+            .prose p { margin-bottom: 2em; color: #334155; }
             .prose .lead {
-                font-size: 1.25rem;
-                line-height: 1.7;
+                font-size: 1.4rem;
+                line-height: 1.8;
                 color: var(--text-primary);
                 font-weight: 500;
-                margin-bottom: 2em;
+                margin-bottom: 2.5em;
             }
             .prose h2 {
-                font-size: 1.85rem;
-                font-weight: 700;
-                color: var(--text-primary);
-                margin-top: 2.5em;
-                margin-bottom: 0.75em;
+                font-size: 2.75rem;
+                font-weight: 800;
+                color: #0f172a;
+                margin-top: 3.5rem;
+                margin-bottom: 1.5rem;
+                line-height: 1.1;
+                letter-spacing: -0.05em;
+                font-family: 'Plus Jakarta Sans', sans-serif;
             }
 
             .prose h3 {
-                font-size: 1.7rem;
-                font-weight: 600;
-                margin-top: 2em;
-                margin-bottom: 1em;
-                color: var(--text-primary);
-                line-height: 1.4;
+                font-size: 1.85rem;
+                font-weight: 800;
+                margin-top: 2.5rem;
+                margin-bottom: 1.25rem;
+                color: #1e293b;
+                line-height: 1.2;
+                letter-spacing: -0.03em;
+                font-family: 'Plus Jakarta Sans', sans-serif;
             }
             .prose h4 {
-                font-size: 1.1rem;
+                font-size: 1.25rem;
                 font-weight: 700;
                 color: var(--text-primary);
-                margin-top: 1.5em;
-                margin-bottom: 0.4em;
+                margin-top: 2em;
+                margin-bottom: 0.5em;
+                font-family: 'Plus Jakarta Sans', sans-serif;
             }
             .prose ul, .prose ol {
-                margin: 1.5em 0;
+                margin: 2em 0;
                 padding-left: 1.5em;
             }
-            .prose li { margin-bottom: 0.6em; line-height: 1.6; }
-            .prose strong { color: var(--text-primary); }
+            .prose li { margin-bottom: 1em; line-height: 1.7; }
+            .prose strong { color: #0f172a; font-weight: 700; }
             .prose a { color: var(--primary); text-decoration: underline; }
             .prose a:hover { opacity: 0.8; }
 
@@ -632,11 +647,12 @@ export function renderBlogPostPage(app, params) {
 
             /* ── Inline CTA Banner ── */
             .cta-inline-banner {
-                background: linear-gradient(135deg, var(--primary) 0%, #333333 100%);
+                background: linear-gradient(135deg, var(--primary) 0%, #1e1b4b 100%);
                 border-radius: var(--radius-lg);
-                padding: 36px 40px;
-                margin: 48px 0;
+                padding: 48px 50px;
+                margin: 60px 0;
                 color: white;
+                box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3);
             }
             .cta-inline-content {
                 display: flex;
@@ -646,9 +662,11 @@ export function renderBlogPostPage(app, params) {
                 flex-wrap: wrap;
             }
             .cta-inline-text h3 {
-                font-size: 1.4rem;
+                font-size: 1.6rem;
                 font-weight: 800;
                 margin-bottom: 8px;
+                color: white !important;
+                margin-top: 0;
             }
             .cta-inline-text p {
                 font-size: 0.95rem;
