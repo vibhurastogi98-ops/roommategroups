@@ -46,8 +46,7 @@ async function resolve() {
     const hash = window.location.hash;
     const cleanPath = path.split('?')[0]; // Note: path from pathname doesn't include hash
 
-    console.log('[Router] Resolving:', cleanPath, 'Hash:', hash);
-    console.log('[Router] Available routes:', Object.keys(routes));
+
 
     // Exact match
     let route = routes[cleanPath];
@@ -80,7 +79,7 @@ async function resolve() {
     trackPageView(cleanPath);
 
     if (route) {
-        console.log('[Router] Handler found, running middleware...');
+
         
         // Run global middleware first
         for (const middlewareFn of middleware) {
@@ -122,7 +121,7 @@ async function resolve() {
             }
         });
     } else {
-        console.log('[Router] No handler found! Falling back to home.');
+
         // Fallback to home
         window.scrollTo(0, 0);
         const homeRoute = routes['/'];
