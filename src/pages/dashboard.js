@@ -1586,18 +1586,66 @@ function renderNotifications(container, user) {
 // ── Subscription ─────────────────────────────────────────────
 
 function renderSubscription(container, user) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+        showToast('🎉 Subscription activated! Thank you for upgrading.');
+        window.history.replaceState({}, '', '/dashboard/subscription');
+    }
+
     const tier = user.subscription_tier || 'free';
+    const PORTAL_URL = 'https://billing.stripe.com/p/login/14kdTJ1l3ghc4cEdQQ';
 
     const PLANS = {
-        free: { name: 'Free', price: '$0', period: 'forever', color: '#64748b', icon: 'fa-seedling', features: ['1 active listing', '5 messages per day', 'Basic search & filters', 'Standard listing visibility', 'Standard support (48hr)'] },
-        premium: { name: 'Premium', price: '$4.99', period: '/month', color: '#6366f1', icon: 'fa-star', features: ['3 active listings', 'Unlimited messages', '2x boosted visibility', 'Verified badge', 'Basic compatibility score', 'Priority support (24hr)'] },
-        pro: { name: 'Pro', price: '$8.99', period: '/month', color: '#1a1a1a', icon: 'fa-bolt', features: ['5 active listings', 'Unlimited messages', '5x top ranking placement', 'Gold verified badge', 'Full analytics dashboard', '24-hour early access', 'VIP support (4hr)'] },
+        free: { 
+            name: 'Free', 
+            price: '$0', 
+            period: 'forever', 
+            color: '#64748b', 
+            icon: 'fa-seedling', 
+            features: [
+                '1 active listing', 
+                '5 messages per day', 
+                'Basic search & filters', 
+                'Standard listing visibility', 
+                'Standard support (48hr)'
+            ] 
+        },
+        premium: { 
+            name: 'Premium', 
+            price: '$4.99', 
+            period: '/month', 
+            color: '#6366f1', 
+            icon: 'fa-star', 
+            features: [
+                '3 active listings', 
+                'Unlimited messages', 
+                '2x boosted visibility', 
+                'Verified badge', 
+                'Basic compatibility score', 
+                'Priority support (24hr)'
+            ] 
+        },
+        pro: { 
+            name: 'Pro', 
+            price: '$8.99', 
+            period: '/month', 
+            color: '#1a1a1a', 
+            icon: 'fa-bolt', 
+            features: [
+                '5 active listings', 
+                'Unlimited messages', 
+                '5x top ranking placement', 
+                'Gold verified badge', 
+                'Full analytics dashboard', 
+                '24-hour early access', 
+                'VIP support (4hr)'
+            ] 
+        },
     };
 
     const plan = PLANS[tier] || PLANS.free;
     const isPaid = tier !== 'free';
 
-    // Renewal date: 30 days from "now" (simulated)
     const renewDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -1605,9 +1653,13 @@ function renderSubscription(container, user) {
         <div class="dashboard-header-bar">
             <h2>Subscription</h2>
             ${isPaid
-            ? `<button class="btn btn-outline" onclick="navigate('/pricing')"><i class="fas fa-arrow-up-right-from-square"></i> Change Plan</button>`
-            : `<button class="btn btn-primary" onclick="navigate('/pricing')"><i class="fas fa-star"></i> Upgrade Plan</button>`
-        }
+                ? `<button class="btn btn-outline" id="btn-manage-sub">
+                        <i class="fas fa-external-link-alt"></i> Manage Subscription
+                   </button>`
+                : `<button class="btn btn-primary" onclick="navigate('/pricing')">
+                        <i class="fas fa-star"></i> Upgrade Plan
+                   </button>`
+            }
         </div>
 
         <!-- Current Plan Card -->
@@ -1630,16 +1682,23 @@ function renderSubscription(container, user) {
                     <div class="sub-billing-label">Next billing date</div>
                     <div class="sub-billing-date">${renewDate}</div>
                 </div>
-                <button class="btn-text-danger" onclick="if(confirm('Cancel your ${plan.name} subscription?')) alert('Cancellation requested. You keep access until ${renewDate}.')">
-                    <i class="fas fa-xmark"></i> Cancel Subscription
-                </button>
+                <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+                    <button class="btn btn-outline btn-sm" id="btn-portal-billing">
+                        <i class="fas fa-credit-card"></i> Update Payment
+                    </button>
+                    <button class="btn-text-danger" id="btn-portal-cancel">
+                        <i class="fas fa-xmark"></i> Cancel Subscription
+                    </button>
+                </div>
             </div>` : `
             <div class="sub-plan-right">
-                <p style="color:var(--text-secondary);font-size:0.9rem;max-width:260px;">Upgrade to unlock more listings, unlimited messages, and powerful analytics.</p>
+                <p style="color:var(--text-secondary);font-size:0.9rem;max-width:260px;">
+                    Upgrade to unlock more listings, unlimited messages, and powerful analytics.
+                </p>
             </div>`}
         </div>
 
-        <!-- Features in Current Plan -->
+        <!-- Features -->
         <div class="db-panel" style="margin-top:24px;">
             <h3 class="panel-title">What's included in ${plan.name}</h3>
             <ul class="sub-feature-list">
@@ -1651,18 +1710,18 @@ function renderSubscription(container, user) {
             </ul>
         </div>
 
-        <!-- Upgrade Banner (only for non-Pro) -->
+        <!-- Upgrade Banner (non-Pro users) -->
         ${tier !== 'pro' ? `
         <div class="sub-upgrade-banner">
             <div class="sub-upgrade-text">
                 <h3>${tier === 'free' ? 'Ready to get more?' : 'Want even more power?'}</h3>
                 <p>${tier === 'free'
-                ? 'Upgrade to Basic, Premium, or Pro to unlock unlimited messages, advanced filters, and more.'
-                : 'Upgrade to the next tier to unlock more featured credits, analytics, and priority support.'}
+                    ? 'Upgrade to Premium or Pro to unlock unlimited messages, advanced filters, and more.'
+                    : 'Upgrade to Pro to unlock 5x ranking, full analytics, and VIP support.'}
                 </p>
             </div>
             <button class="btn btn-primary sub-upgrade-btn" onclick="navigate('/pricing')">
-                Contact Us to Upgrade <i class="fas fa-arrow-right"></i>
+                Upgrade Now <i class="fas fa-arrow-right"></i>
             </button>
         </div>` : ''}
 
@@ -1695,7 +1754,7 @@ function renderSubscription(container, user) {
             .sub-plan-right { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
             .sub-billing-label { font-size: 0.78rem; color: var(--text-secondary); text-align: right; }
             .sub-billing-date { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
-            .btn-text-danger { background: none; border: none; color: #1a1a1a; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0; }
+            .btn-text-danger { background: none; border: none; color: #ef4444; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0; }
             .btn-text-danger:hover { text-decoration: underline; }
             .sub-feature-list { list-style: none; padding: 0; margin: 16px 0 0; columns: 2; column-gap: 32px; }
             @media (max-width: 600px) { .sub-feature-list { columns: 1; } }
@@ -1714,26 +1773,42 @@ function renderSubscription(container, user) {
                 color: white;
             }
             .sub-upgrade-text h3 { font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; }
-            .sub-upgrade-text p  { font-size: 0.875rem; opacity: 0.8; max-width: 480px; line-height: 1.5; margin: 0; }
+            .sub-upgrade-text p { font-size: 0.875rem; opacity: 0.8; max-width: 480px; line-height: 1.5; margin: 0; }
             .sub-upgrade-btn {
-                background: white;
-                color: #1a1a1a;
-                border: none;
-                padding: 13px 26px;
-                border-radius: 10px;
-                font-weight: 700;
-                white-space: nowrap;
-                flex-shrink: 0;
-                cursor: pointer;
-                font-size: 0.95rem;
-                transition: all 0.2s;
-                display: flex;
-                align-items: center;
-                gap: 8px;
+                background: white; color: #1a1a1a; border: none;
+                padding: 13px 26px; border-radius: 10px; font-weight: 700;
+                white-space: nowrap; flex-shrink: 0; cursor: pointer;
+                font-size: 0.95rem; transition: all 0.2s;
+                display: flex; align-items: center; gap: 8px;
             }
             .sub-upgrade-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.2); }
         </style>
     `;
+
+    // Button bindings
+    const manageBtn = container.querySelector('#btn-manage-sub');
+    const portalBilling = container.querySelector('#btn-portal-billing');
+    const portalCancel = container.querySelector('#btn-portal-cancel');
+
+    if (manageBtn) {
+        manageBtn.addEventListener('click', () => {
+            window.open(PORTAL_URL, '_blank');
+        });
+    }
+
+    if (portalBilling) {
+        portalBilling.addEventListener('click', () => {
+            window.open(PORTAL_URL, '_blank');
+        });
+    }
+
+    if (portalCancel) {
+        portalCancel.addEventListener('click', () => {
+            if (confirm('This will open Stripe to cancel your subscription. Continue?')) {
+                window.open(PORTAL_URL, '_blank');
+            }
+        });
+    }
 }
 
 // ── Verification ─────────────────────────────────────────────

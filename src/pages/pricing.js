@@ -44,7 +44,8 @@ export function renderPricingPage(app) {
                 priceAnnual: 0.99,
                 ctaOutline: false,
                 ctaText: 'Subscribe to Premium',
-                monthlyUrl: 'https://buy.stripe.com/14A28s8Aa7615NefSn3ZK1A',
+                monthlyUrl: 'https://buy.stripe.com/14AeVecQq2PL4JaeOj3ZK1B',
+                annualUrl:  'https://buy.stripe.com/bJefZi2bM3TPgrS35B3ZK1C',
                 features: [
                     { name: 'Active Listings', value: '3 Listings' },
                     { name: 'Profile Setup', value: 'Enhanced + Photo Verification' },
@@ -69,6 +70,8 @@ export function renderPricingPage(app) {
                 ctaOutline: false,
                 ctaSuccess: true,
                 ctaText: 'Go Pro Today',
+                monthlyUrl: 'https://buy.stripe.com/28E14ocQq7611wY49F3ZK1D',
+                annualUrl:  'https://buy.stripe.com/00w8wQg2C4XT3F6fSn3ZK1E',
                 features: [
                     { name: 'Active Listings', value: '5 Listings' },
                     { name: 'Profile Setup', value: 'Premium + Social link' },
@@ -440,12 +443,6 @@ export function renderPricingPage(app) {
     // ── Logic ──
     const user = getCurrentUser();
 
-    function getCTARoute(planId) {
-        if (!user) return '/auth/register';
-        if (planId === 'free') return '/dashboard';
-        return '/dashboard/subscription';
-    }
-
     function renderCards() {
         const cardsHtml = Object.keys(plans).map(key => {
             const p = plans[key];
@@ -491,13 +488,19 @@ export function renderPricingPage(app) {
                 const planId = btn.dataset.plan;
                 const plan = plans[planId];
 
-                // Redirect to Stripe for Premium monthly
-                if (planId === 'premium' && !isAnnual && plan.monthlyUrl) {
-                    window.location.href = plan.monthlyUrl;
+                if (planId === 'free') {
+                    navigate(user ? '/dashboard' : '/auth/register');
                     return;
                 }
 
-                navigate(getCTARoute(planId));
+                const stripeUrl = isAnnual ? plan.annualUrl : plan.monthlyUrl;
+
+                if (stripeUrl) {
+                    const url = user?.email
+                        ? `${stripeUrl}?prefilled_email=${encodeURIComponent(user.email)}`
+                        : stripeUrl;
+                    window.location.href = url;
+                }
             });
         });
     }
