@@ -1775,13 +1775,18 @@ function renderSubscription(container, user) {
             .sub-upgrade-text h3 { font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; }
             .sub-upgrade-text p { font-size: 0.875rem; opacity: 0.8; max-width: 480px; line-height: 1.5; margin: 0; }
             .sub-upgrade-btn {
-                background: white; color: #1a1a1a; border: none;
+                background: white !important; color: #1a1a1a !important; border: none;
                 padding: 13px 26px; border-radius: 10px; font-weight: 700;
                 white-space: nowrap; flex-shrink: 0; cursor: pointer;
                 font-size: 0.95rem; transition: all 0.2s;
                 display: flex; align-items: center; gap: 8px;
             }
-            .sub-upgrade-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.2); }
+            .sub-upgrade-btn:hover { 
+                background: white !important; 
+                color: #1a1a1a !important;
+                transform: translateY(-2px); 
+                box-shadow: 0 6px 20px rgba(0,0,0,0.2); 
+            }
         </style>
     `;
 
