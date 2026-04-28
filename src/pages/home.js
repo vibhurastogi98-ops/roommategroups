@@ -223,7 +223,51 @@ export function renderHomePage(app) {
     </section>
 
 
+
+    <section class="stats-section" id="stats">
+      <div class="container">
+        <div class="stats-container">
+          <div class="stat-card" data-target="31" data-suffix="+">
+            <div class="stat-icon-box">
+              <i class="fas fa-globe"></i>
+            </div>
+            <div class="stat-text">
+              <div class="stat-number-wrapper">
+                <span class="stat-number">0</span><span class="stat-suffix">+</span>
+              </div>
+              <div class="stat-label">CITIES</div>
+            </div>
+          </div>
+
+          <div class="stat-card" data-target="1500000" data-suffix="+">
+            <div class="stat-icon-box">
+              <i class="fas fa-users"></i>
+            </div>
+            <div class="stat-text">
+              <div class="stat-number-wrapper">
+                <span class="stat-number">0</span><span class="stat-suffix">+</span>
+              </div>
+              <div class="stat-label">COMMUNITY MEMBERS</div>
+            </div>
+          </div>
+
+          <div class="stat-card" data-target="10000" data-suffix="+">
+            <div class="stat-icon-box">
+              <i class="fas fa-shield-halved"></i>
+            </div>
+            <div class="stat-text">
+              <div class="stat-number-wrapper">
+                <span class="stat-number">0</span><span class="stat-suffix">+</span>
+              </div>
+              <div class="stat-label">VERIFIED MEMBERS</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Popular Facebook Groups -->
+
     <section class="section popular-fb-groups-section" id="popular-groups">
       <div class="container">
         <div class="section-header-row animate-on-scroll">
@@ -272,47 +316,6 @@ export function renderHomePage(app) {
       </div>
     </section>
 
-    <section class="stats-section" id="stats">
-      <div class="container">
-        <div class="stats-container">
-          <div class="stat-card" data-target="31" data-suffix="+">
-            <div class="stat-icon-box">
-              <i class="fas fa-globe"></i>
-            </div>
-            <div class="stat-text">
-              <div class="stat-number-wrapper">
-                <span class="stat-number">0</span><span class="stat-suffix">+</span>
-              </div>
-              <div class="stat-label">CITIES</div>
-            </div>
-          </div>
-
-          <div class="stat-card" data-target="1500000" data-suffix="+">
-            <div class="stat-icon-box">
-              <i class="fas fa-users"></i>
-            </div>
-            <div class="stat-text">
-              <div class="stat-number-wrapper">
-                <span class="stat-number">0</span><span class="stat-suffix">+</span>
-              </div>
-              <div class="stat-label">COMMUNITY MEMBERS</div>
-            </div>
-          </div>
-
-          <div class="stat-card" data-target="10000" data-suffix="+">
-            <div class="stat-icon-box">
-              <i class="fas fa-shield-halved"></i>
-            </div>
-            <div class="stat-text">
-              <div class="stat-number-wrapper">
-                <span class="stat-number">0</span><span class="stat-suffix">+</span>
-              </div>
-              <div class="stat-label">VERIFIED MEMBERS</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- Feature Highlights -->
     <section class="feature-highlight-section">

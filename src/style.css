@@ -793,9 +793,8 @@ ol {
 
 /* 7. Trust Stats Section */
 .stats-section {
-  background: #ffffff;
-  padding: 30px 0;
-  border-bottom: 1px solid #edf0f7;
+  background: #f5f3ff;
+  padding: 60px 0;
 }
 
 .stats-header {
@@ -840,13 +839,12 @@ ol {
   text-align: left;
   padding: 24px;
   background: #ffffff;
-  border: 1px solid #f1f5f9;
   border-radius: 20px;
   display: flex;
   align-items: center;
   gap: 24px;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  box-shadow: 0 4px 6px rgba(124, 58, 237, 0.04);
 }
 
 .stat-card:hover {
