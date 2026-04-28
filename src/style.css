@@ -793,7 +793,7 @@ ol {
 
 /* 7. Trust Stats Section */
 .stats-section {
-  background: #f5f3ff;
+  background: radial-gradient(circle at 50% -20%, #7c3aed0d, #fff);
   padding: 60px 0;
 }
 
