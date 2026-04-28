@@ -593,7 +593,27 @@ app.get('/posts', async (c) => {
     const { results } = await c.env.DB.prepare(
       'SELECT * FROM posts ORDER BY published_date DESC'
     ).all()
-    return dbJson(c, results)
+    const mapped = results.map((p: any) => {
+      const post = { ...p }
+      // Normalize booleans
+      if ('is_published' in post) post.is_published = !!post.is_published
+      if ('tocEnabled' in post) post.tocEnabled = !!post.tocEnabled
+      // Parse JSON fields
+      const jsonFields = ['faqs', 'tags']
+      jsonFields.forEach(f => {
+        if (typeof post[f] === 'string') {
+          try { post[f] = JSON.parse(post[f]); } catch(e) { post[f] = []; }
+        }
+      })
+      // Reconstruct author object if needed by frontend
+      post.author = {
+        name: post.author_name || '',
+        avatar: post.author_avatar || '',
+        bio: post.author_bio || ''
+      }
+      return post
+    })
+    return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
   }
@@ -603,26 +623,61 @@ app.post('/posts', async (c) => {
   try {
     const body = await c.req.json()
     const id = body.post_id || `post_${Date.now()}`
-    // Schema uses author_name/author_avatar/author_bio (not a JSON author blob)
-    // and date_label (not date). Handle both flat and nested author formats.
+    
     const author = body.author || {}
     const authorName   = body.author_name   || (typeof author === 'object' ? author.name   : '') || ''
     const authorAvatar = body.author_avatar  || (typeof author === 'object' ? author.avatar : '') || ''
     const authorBio    = body.author_bio     || (typeof author === 'object' ? author.bio    : '') || ''
     const dateLabel    = body.date_label || body.date || ''
+
+    const mapped: Record<string, any> = {
+      post_id: id,
+      slug: body.slug || '',
+      title: body.title || '',
+      excerpt: body.excerpt || '',
+      category: body.category || '',
+      author_name: authorName,
+      author_avatar: authorAvatar,
+      author_bio: authorBio,
+      date_label: dateLabel,
+      read_time: body.readTime || body.read_time || '',
+      image: body.image || '',
+      content: body.content || '',
+      published_date: body.published_date || new Date().toISOString(),
+      is_published: body.is_published ? 1 : 0,
+      seoTitle: body.seoTitle || '',
+      seoDescription: body.seoDescription || body.seoDesc || '',
+      focusKeyword: body.focusKeyword || '',
+      canonicalUrl: body.canonicalUrl || '',
+      metaRobots: body.metaRobots || 'index,follow',
+      ogTitle: body.ogTitle || '',
+      ogDescription: body.ogDescription || body.ogDesc || '',
+      ogImage: body.ogImage || '',
+      imgAlt: body.imgAlt || '',
+      imgTitle: body.imgTitle || '',
+      imgCaption: body.imgCaption || '',
+      tocEnabled: body.tocEnabled ? 1 : 0,
+      faqs: typeof body.faqs === 'string' ? body.faqs : JSON.stringify(body.faqs || []),
+      tags: typeof body.tags === 'string' ? body.tags : JSON.stringify(body.tags || []),
+      ctaHeading: body.ctaHeading || '',
+      ctaText: body.ctaText || '',
+      ctaBtnText: body.ctaBtnText || '',
+      ctaBtnLink: body.ctaBtnLink || '',
+      ctaPosition: body.ctaPosition || 'bottom',
+      schemaType: body.schemaType || 'BlogPosting',
+      schemaText: body.schemaText || body.schemaJson || '',
+      redirectFrom: body.redirectFrom || '',
+      redirectTo: body.redirectTo || ''
+    }
+
+    const cols = Object.keys(mapped)
+    const placeholders = cols.map(() => '?').join(', ')
+    const vals = Object.values(mapped)
+
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO posts
-       (post_id, slug, title, excerpt, category, author_name, author_avatar, author_bio,
-        date_label, read_time, image, content, published_date, is_published)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    ).bind(
-      id, body.slug || '', body.title || '', body.excerpt || '',
-      body.category || '', authorName, authorAvatar, authorBio,
-      dateLabel, body.readTime || body.read_time || '',
-      body.image || '', body.content || '',
-      body.published_date || new Date().toISOString(),
-      body.is_published ? 1 : 0
-    ).run()
+      `INSERT OR REPLACE INTO posts (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...vals).run()
+    
     return dbJson(c, { success: true, post_id: id }, 201)
   } catch (err) {
     const error = err as Error
@@ -635,26 +690,53 @@ app.put('/posts/:id', async (c) => {
     const id = c.req.param('id')
     const body = await c.req.json()
     const mapped: Record<string, any> = {}
+    
+    // Valid columns for filtering
+    const validCols = [
+      'slug', 'title', 'excerpt', 'category', 'author_name', 'author_avatar', 
+      'author_bio', 'date_label', 'read_time', 'image', 'content', 'published_date', 
+      'is_published', 'seoTitle', 'seoDescription', 'focusKeyword', 'canonicalUrl', 
+      'metaRobots', 'ogTitle', 'ogDescription', 'ogImage', 'imgAlt', 'imgTitle', 
+      'imgCaption', 'tocEnabled', 'faqs', 'tags', 'ctaHeading', 'ctaText', 
+      'ctaBtnText', 'ctaBtnLink', 'ctaPosition', 'schemaType', 'schemaText', 
+      'redirectFrom', 'redirectTo'
+    ]
+
     for (const [k, v] of Object.entries(body)) {
-      if (k === 'is_published') {
+      if (k === 'is_published' || k === 'tocEnabled') {
         mapped[k] = v ? 1 : 0
       } else if (k === 'author' && typeof v === 'object' && v !== null) {
-        // Flatten nested author object into schema columns
         const a = v as any
         mapped['author_name']   = a.name   || ''
         mapped['author_avatar'] = a.avatar || ''
         mapped['author_bio']    = a.bio    || ''
       } else if (k === 'date') {
-        // Alias date → date_label
         mapped['date_label'] = v
-      } else {
+      } else if (k === 'readTime') {
+        mapped['read_time'] = v
+      } else if (k === 'seoDesc') {
+        mapped['seoDescription'] = v
+      } else if (k === 'schemaJson') {
+        mapped['schemaText'] = v
+      } else if (k === 'faqs' || k === 'tags') {
+        mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
+      } else if (validCols.includes(k)) {
         mapped[k] = v
       }
     }
-    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
-    const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
-    const vals = [...Object.values(mapped), id]
-    await c.env.DB.prepare(`UPDATE posts SET ${sets} WHERE post_id = ?`).bind(...vals).run()
+
+    const filtered: Record<string, any> = {}
+    for (const col of validCols) {
+      if (mapped[col] !== undefined) filtered[col] = mapped[col]
+    }
+
+    if (Object.keys(filtered).length === 0) return dbJson(c, { success: true })
+    
+    const sets = Object.keys(filtered).map(k => `${k} = ?`).join(', ')
+    const vals = [...Object.values(filtered), id]
+    
+    await c.env.DB.prepare(`UPDATE posts SET ${sets}, updated_at = datetime('now') WHERE post_id = ?`).bind(...vals).run()
+    
     return dbJson(c, { success: true })
   } catch (err) {
     const error = err as Error
