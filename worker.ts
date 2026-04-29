@@ -88,14 +88,15 @@ async function handleUpload(c: any) {
 app.post('/upload', handleUpload)
 app.post('/r2/upload', handleUpload)
 
-// ── R2: Get / serve a file by key ───────────────────────────
-// GET /r2/:key*  e.g. /r2/uploads/abc123.webp
-app.get('/r2/:key{.+}', async (c) => {
-  const key    = c.req.param('key')
+// GET /r2/*  e.g. /r2/uploads/abc123.webp
+app.get('/r2/*', async (c) => {
+  const key = c.req.param('*')
+  if (!key) return c.json({ error: 'Missing key' }, 400)
+
   const object = await c.env.BUCKET.get(key)
 
   if (!object) {
-    return c.json({ error: 'Object not found', key }, 404)
+    return c.json({ error: 'Object not found', key, bucket: 'BUCKET' }, 404)
   }
 
   const headers = new Headers()
@@ -151,18 +152,8 @@ app.delete('/r2/:key{.+}', async (c) => {
 })
 
 // ── R2: Proxy legacy /assets/img/:file route ─────────────────
-app.get('/assets/img/:file', async (c) => {
-  const file   = c.req.param('file')
-  const object = await c.env.BUCKET.get(`uploads/${file}`)
-
-  if (!object) return fetch(c.req.raw)
-
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('etag', object.httpEtag)
-  headers.set('cache-control', 'public, max-age=3600, must-revalidate')
-  return new Response(object.body, { headers })
-})
+// REMOVED to allow Cloudflare Assets to serve static images from /assets/img/
+// Use /r2/uploads/filename for R2 images.
 
 // ── R2: Favicon from bucket ───────────────────────────────────
 app.get('/favicon.png', async (c) => {
