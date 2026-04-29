@@ -90,8 +90,11 @@ app.post('/r2/upload', handleUpload)
 
 // GET /r2/*  e.g. /r2/uploads/abc123.webp
 app.get('/r2/*', async (c) => {
-  const key = c.req.param('*')
-  if (!key) return c.json({ error: 'Missing key' }, 400)
+  // Use c.req.path directly and strip the '/r2/' prefix for maximum reliability
+  const path = c.req.path
+  const key = path.startsWith('/r2/') ? path.slice(4) : path
+  
+  if (!key) return c.json({ error: 'Missing key', path }, 400)
 
   const object = await c.env.BUCKET.get(key)
 
