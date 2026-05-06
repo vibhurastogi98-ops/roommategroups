@@ -7,215 +7,211 @@
 import { getCurrentUser, logout } from '../../services/auth.js';
 import { db } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
-import { navigate, updateHeader } from '../mobile-main.js';
-import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
+import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const user = getCurrentUser();
 
   if (!user) {
-    navigate('auth');
+    (await getMobile()).navigate('auth');
     return;
   }
 
   console.log('[MOBILE] Profile init, user:', user.email);
 
+  const { updateHeader, navigate } = await getMobile();
   updateHeader({
     title: 'My Profile',
     showBack: true,
     rightAction: {
       icon: '⚙️',
       label: 'Settings',
-      onClick: () => navigate('settings'),
+      onClick: async () => (await getMobile()).navigate('settings'),
     }
   });
 
-  _render(container, user);
+  // ── Main render ──
+  async function _render() {
+    const myListings   = (db.listings?.findAll?.() || []).filter(l =>
+      (l.user_id === user.user_id || l.user_id === user.id) && l.is_active !== false
+    );
+    const savedIds     = user.saved_listings || [];
+    const savedListings = savedIds.map(id => db.listings?.findById?.(id)).filter(Boolean);
+    const allMessages  = (db.messages?.findAll?.() || []).filter(m =>
+      m.sender_id === user.user_id || m.receiver_id === user.user_id
+    );
+    const uniqThreads  = new Set([
+      ...allMessages.map(m => m.sender_id === user.user_id ? m.receiver_id : m.sender_id),
+      ...(db.threads?.findAll?.() || []).filter(t =>
+        Array.isArray(t.participants) && t.participants.includes(user.user_id)
+      ).map(t => t.thread_id),
+    ]);
+
+    const isVerified = user.verification_level && user.verification_level !== 'none' && user.verification_level !== 'basic';
+    const initials = (user.display_name || user.fullName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    const avatar = getAvatarUrl(user.profile_photo || user.avatar, user.display_name || user.fullName);
+
+    container.innerHTML = `
+      <div style="padding-bottom:24px;background:#f8fafc;">
+        <!-- HERO -->
+        <div style="background:#fff;padding:32px 20px 24px;text-align:center;border-bottom:1px solid #f1f5f9;">
+          <div style="position:relative;width:80px;height:80px;margin:0 auto 14px;">
+            <div id="profile-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#000000,#1a1a1a);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:#fff;overflow:hidden;cursor:pointer;">
+              ${avatar ? `<img src="${avatar}" id="avatar-img" style="width:100%;height:100%;object-fit:cover;" alt="">` : initials}
+            </div>
+            <label for="avatar-upload" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--mobile-accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.25);">📷
+              <input type="file" id="avatar-upload" accept="image/*" style="display:none;">
+            </label>
+          </div>
+          <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.02em;">${user.display_name || user.fullName || 'User'}</div>
+          <div style="font-size:0.82rem;color:#94a3b8;margin-top:2px;">${user.email || ''}</div>
+          ${user.bio ? `<div style="font-size:0.83rem;color:var(--text-secondary);margin-top:8px;line-height:1.5;max-width:280px;margin-inline:auto;">${user.bio}</div>` : ''}
+          <div style="margin-top:10px;">
+            <button id="prof-verify-btn" style="background:none;border:none;cursor:pointer;padding:4px 0;">
+              ${isVerified ? `<span style="padding:4px 12px;border-radius:20px;background:rgba(16,185,129,.12);color:#059669;font-size:0.72rem;font-weight:700;">✓ ${user.verification_level} verified</span>` : `<span style="padding:4px 12px;border-radius:20px;background:rgba(124,58,237,.1);color:var(--mobile-accent);font-size:0.72rem;font-weight:700;">Get Verified →</span>`}
+            </button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-top:18px;border-top:1px solid #f1f5f9;padding-top:16px;">
+            ${_stat(myListings.length, 'Listings')}
+            ${_stat(savedIds.length, 'Saved')}
+            ${_stat(uniqThreads.size, 'Messages')}
+          </div>
+        </div>
+
+        <!-- MY LISTINGS -->
+        <div style="background:#fff;margin-top:8px;padding:16px 0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin-bottom:12px;">
+            <div style="font-size:1rem;font-weight:800;color:var(--text-primary);">My Listings</div>
+            <button style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;" id="prof-see-all">See All</button>
+          </div>
+          ${myListings.length === 0 ? `
+            <div style="padding:24px 16px;text-align:center;">
+              <div style="font-size:2rem;margin-bottom:8px;">🏠</div>
+              <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">You haven't posted a listing yet.</div>
+              <button id="prof-post-btn" class="mobile-btn mobile-btn-accent" style="width:auto;padding:10px 24px;height:auto;">Post Now</button>
+            </div>` : `
+            <div class="mobile-scroll-x" id="my-listings-scroll" style="padding:0 16px;">
+              <div style="display:flex;gap:12px;width:max-content;">
+                ${myListings.map(l => `<div data-listing-id="${l.id}" style="width:200px;flex-shrink:0;cursor:pointer;">${renderMobileCard(l)}</div>`).join('')}
+              </div>
+            </div>`}
+        </div>
+
+        <!-- SAVED LISTINGS -->
+        <div id="saved-section" style="background:#fff;margin-top:8px;padding:16px 0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin-bottom:12px;">
+            <div style="font-size:1rem;font-weight:800;color:var(--text-primary);">Saved</div>
+            <button id="prof-saved-see-all" style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;">See All</button>
+          </div>
+          ${savedListings.length === 0 ? `
+            <div style="padding:24px 16px;text-align:center;">
+              <div style="font-size:2rem;margin-bottom:8px;">🤍</div>
+              <div style="font-size:0.85rem;color:#94a3b8;">Tap ❤️ on any listing to save it here.</div>
+            </div>` : `
+            <div class="mobile-scroll-x" style="padding:0 16px;">
+              <div id="saved-scroll" style="display:flex;gap:12px;width:max-content;">
+                ${savedListings.map(l => `<div data-listing-id="${l.id}" style="width:200px;flex-shrink:0;cursor:pointer;">${renderMobileCard(l)}</div>`).join('')}
+              </div>
+            </div>`}
+        </div>
+
+        <!-- SETTINGS LIST -->
+        <div style="background:#fff;margin-top:8px;padding:8px 16px;">
+          <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;padding:8px 0 4px;">ACCOUNT</div>
+          ${_settingsRow('✏️', 'Edit Profile', 'edit-profile')}
+          ${_settingsRow('🔔', 'Notifications', 'notifications')}
+          ${_settingsRow('🔒', 'Privacy Settings', 'privacy')}
+          <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;padding:16px 0 4px;">SUPPORT & INFO</div>
+          ${_settingsRow('ℹ️', 'About Us', 'about')}
+          ${_settingsRow('💰', 'Pricing Plans', 'pricing')}
+          ${_settingsRow('📝', 'Blog', 'blog')}
+          ${_settingsRow('❓', 'FAQ', 'faq')}
+          ${_settingsRow('✉️', 'Contact Us', 'contact')}
+        </div>
+
+        <!-- LOGOUT -->
+        <div style="padding:16px;">
+          <button id="prof-logout" class="mobile-btn" style="background:rgba(239,68,68,.08);color:#ef4444;border:1.5px solid rgba(239,68,68,.2);height:48px;">
+            🚪 Sign Out
+          </button>
+        </div>
+      </div>
+    `;
+
+    // ── Events ──
+    container.querySelector('#avatar-upload')?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const url = await uploadImage(file);
+        if (url) {
+          const fullUrl = getAssetUrl(url);
+          const img = container.querySelector('#avatar-img');
+          const avatarEl = container.querySelector('#profile-avatar');
+          if (img) img.src = fullUrl;
+          else avatarEl.innerHTML = `<img id="avatar-img" src="${fullUrl}" style="width:100%;height:100%;object-fit:cover;">`;
+          await db.users?.update?.(user.user_id, { profile_photo: url });
+        }
+      } catch (err) { console.log('[MOBILE] Avatar upload error:', err); }
+    });
+
+    const myScroll = container.querySelector('#my-listings-scroll');
+    if (myScroll) attachMobileCardEvents(myScroll, (id) => navigate('listing', { id }));
+    const savedScroll = container.querySelector('#saved-scroll');
+    if (savedScroll) attachMobileCardEvents(savedScroll, (id) => navigate('listing', { id }));
+
+    container.querySelector('#prof-post-btn')?.addEventListener('click', () => navigate('post'));
+    container.querySelector('#prof-see-all')?.addEventListener('click', () => navigate('my-listings'));
+    container.querySelector('#prof-saved-see-all')?.addEventListener('click', () => navigate('saved'));
+
+    container.querySelector('#settings-edit-profile')?.addEventListener('click', () => _showEditProfileSheet(container, user, _render));
+    container.querySelector('#settings-notifications')?.addEventListener('click', () => _showNotifSheet(user));
+    container.querySelector('#settings-privacy')?.addEventListener('click', () => _showPrivacySheet());
+    container.querySelector('#settings-about')?.addEventListener('click', () => navigate('about'));
+    container.querySelector('#settings-pricing')?.addEventListener('click', () => navigate('pricing'));
+    container.querySelector('#settings-blog')?.addEventListener('click', () => navigate('blog'));
+    container.querySelector('#settings-faq')?.addEventListener('click', () => navigate('faq'));
+    container.querySelector('#settings-contact')?.addEventListener('click', () => navigate('contact'));
+
+    container.querySelector('#prof-logout')?.addEventListener('click', async () => {
+      await logout();
+      navigate('auth');
+    });
+
+    container.querySelector('#prof-verify-btn')?.addEventListener('click', () => _showVerificationSheet(user));
+    
+    // Stats click logic
+    container.querySelectorAll('.prof-stat').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.stat;
+        if (type === 'Saved') container.querySelector('#saved-section')?.scrollIntoView({ behavior:'smooth' });
+        if (type === 'Messages') navigate('chat');
+      });
+    });
+  }
+
+  await _render();
 }
 
 export const renderMobileProfile = init;
 
-// ── Main render ────────────────────────────────────────────────
-function _render(container, user) {
-  const myListings   = (db.listings?.findAll?.() || []).filter(l =>
-    (l.user_id === user.user_id || l.user_id === user.id) && l.is_active !== false
-  );
-  const savedIds     = user.saved_listings || [];
-  const savedListings = savedIds.map(id => db.listings?.findById?.(id)).filter(Boolean);
-  const allMessages  = (db.messages?.findAll?.() || []).filter(m =>
-    m.sender_id === user.user_id || m.receiver_id === user.user_id
-  );
-  const uniqThreads  = new Set([
-    ...allMessages.map(m => m.sender_id === user.user_id ? m.receiver_id : m.sender_id),
-    ...(db.threads?.findAll?.() || []).filter(t =>
-      Array.isArray(t.participants) && t.participants.includes(user.user_id)
-    ).map(t => t.thread_id),
-  ]);
+function _stat(value, label) {
+  return `<button class="prof-stat" style="background:none;border:none;cursor:pointer;padding:8px 4px;text-align:center;" data-stat="${label}">
+    <div style="font-size:1.3rem;font-weight:900;color:var(--text-primary);">${value}</div>
+    <div style="font-size:0.72rem;color:#94a3b8;font-weight:600;letter-spacing:0.04em;">${label.toUpperCase()}</div>
+  </button>`;
+}
 
-  const isVerified = user.verification_level && user.verification_level !== 'none' && user.verification_level !== 'basic';
-
-  const initials = (user.display_name || user.fullName || 'U')
-    .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  const avatar = getAvatarUrl(user.profile_photo || user.avatar, user.display_name || user.fullName);
-
-  container.innerHTML = `
-    <div style="padding-bottom:24px;background:#f8fafc;">
-
-      <!-- HERO -->
-      <div style="background:#fff;padding:32px 20px 24px;text-align:center;border-bottom:1px solid #f1f5f9;">
-        <!-- Avatar with edit overlay -->
-        <div style="position:relative;width:80px;height:80px;margin:0 auto 14px;">
-          <div id="profile-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#000000,#1a1a1a);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:#fff;overflow:hidden;cursor:pointer;">
-            ${avatar ? `<img src="${avatar}" id="avatar-img" style="width:100%;height:100%;object-fit:cover;" alt="">` : initials}
-          </div>
-          <label for="avatar-upload" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--mobile-accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.25);">📷
-            <input type="file" id="avatar-upload" accept="image/*" style="display:none;">
-          </label>
-        </div>
-
-        <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.02em;">${user.display_name || user.fullName || 'User'}</div>
-        <div style="font-size:0.82rem;color:#94a3b8;margin-top:2px;">${user.email || ''}</div>
-
-        ${user.bio ? `<div style="font-size:0.83rem;color:var(--text-secondary);margin-top:8px;line-height:1.5;max-width:280px;margin-inline:auto;">${user.bio}</div>` : ''}
-
-        <!-- Verification badge & link -->
-        <div style="margin-top:10px;">
-          <button id="prof-verify-btn" style="background:none;border:none;cursor:pointer;padding:4px 0;">
-            ${isVerified
-              ? `<span style="padding:4px 12px;border-radius:20px;background:rgba(16,185,129,.12);color:#059669;font-size:0.72rem;font-weight:700;">✓ ${user.verification_level} verified</span>`
-              : `<span style="padding:4px 12px;border-radius:20px;background:rgba(124,58,237,.1);color:var(--mobile-accent);font-size:0.72rem;font-weight:700;">Get Verified →</span>`}
-          </button>
-        </div>
-
-        <!-- Stats row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-top:18px;border-top:1px solid #f1f5f9;padding-top:16px;">
-          ${_stat(myListings.length,    'Listings',  () => {})}
-          ${_stat(savedIds.length,      'Saved',     () => container.querySelector('#saved-section')?.scrollIntoView({ behavior:'smooth' }))}
-          ${_stat(uniqThreads.size,     'Messages',  () => navigate('chat'))}
-        </div>
-      </div>
-
-      <!-- MY LISTINGS -->
-      <div style="background:#fff;margin-top:8px;padding:16px 0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin-bottom:12px;">
-          <div style="font-size:1rem;font-weight:800;color:var(--text-primary);">My Listings</div>
-          <button onclick="" style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;" id="prof-see-all">See All</button>
-        </div>
-        ${myListings.length === 0 ? `
-          <div style="padding:24px 16px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:8px;">🏠</div>
-            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">You haven't posted a listing yet.</div>
-            <button id="prof-post-btn" class="mobile-btn mobile-btn-accent" style="width:auto;padding:10px 24px;height:auto;">Post Now</button>
-          </div>` : `
-          <div class="mobile-scroll-x" id="my-listings-scroll" style="padding:0 16px;">
-            <div style="display:flex;gap:12px;width:max-content;">
-              ${myListings.map(l => `
-                <div data-listing-id="${l.id}" style="width:200px;flex-shrink:0;cursor:pointer;">
-                  ${renderMobileCard(l)}
-                </div>`).join('')}
-            </div>
-          </div>`}
-      </div>
-
-      <!-- SAVED LISTINGS -->
-      <div id="saved-section" style="background:#fff;margin-top:8px;padding:16px 0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin-bottom:12px;">
-          <div style="font-size:1rem;font-weight:800;color:var(--text-primary);">Saved</div>
-          <button id="prof-saved-see-all" style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;">See All</button>
-        </div>
-        ${savedListings.length === 0 ? `
-          <div style="padding:24px 16px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:8px;">🤍</div>
-            <div style="font-size:0.85rem;color:#94a3b8;">Tap ❤️ on any listing to save it here.</div>
-          </div>` : `
-          <div class="mobile-scroll-x" style="padding:0 16px;">
-            <div id="saved-scroll" style="display:flex;gap:12px;width:max-content;">
-              ${savedListings.map(l => `
-                <div data-listing-id="${l.id}" style="width:200px;flex-shrink:0;cursor:pointer;">
-                  ${renderMobileCard(l)}
-                </div>`).join('')}
-            </div>
-          </div>`}
-      </div>
-
-      <!-- SETTINGS LIST -->
-      <div style="background:#fff;margin-top:8px;padding:8px 16px;">
-        <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;padding:8px 0 4px;">ACCOUNT</div>
-        ${_settingsRow('✏️', 'Edit Profile',     'edit-profile')}
-        ${_settingsRow('🔔', 'Notifications',    'notifications')}
-        ${_settingsRow('🔒', 'Privacy Settings', 'privacy')}
-        
-        <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;padding:16px 0 4px;">SUPPORT & INFO</div>
-        ${_settingsRow('ℹ️', 'About Us',          'about')}
-        ${_settingsRow('💰', 'Pricing Plans',     'pricing')}
-        ${_settingsRow('📝', 'Blog',               'blog')}
-        ${_settingsRow('❓', 'FAQ',                'faq')}
-        ${_settingsRow('✉️', 'Contact Us',        'contact')}
-      </div>
-
-      <!-- LOGOUT -->
-      <div style="padding:16px;">
-        <button id="prof-logout" class="mobile-btn" style="background:rgba(239,68,68,.08);color:#ef4444;border:1.5px solid rgba(239,68,68,.2);height:48px;">
-          🚪 Sign Out
-        </button>
-      </div>
-    </div>
-  `;
-
-  // ── Avatar upload ──
-  container.querySelector('#avatar-upload')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const url = await uploadImage(file);
-      if (url) {
-        const fullUrl = getAssetUrl(url);
-        const img = container.querySelector('#avatar-img');
-        const avatarEl = container.querySelector('#profile-avatar');
-        if (img) { img.src = fullUrl; }
-        else { avatarEl.innerHTML = `<img id="avatar-img" src="${fullUrl}" style="width:100%;height:100%;object-fit:cover;">`; }
-        await db.users?.update?.(user.user_id, { profile_photo: url });
-        console.log('[MOBILE] Avatar updated:', url);
-      }
-    } catch (err) { console.log('[MOBILE] Avatar upload error:', err); }
-  });
-
-  // ── My listings tap ──
-  const myScroll = container.querySelector('#my-listings-scroll');
-  if (myScroll) attachMobileCardEvents(myScroll, (id) => navigate('listing', { id }));
-
-  // ── Saved listings tap ──
-  const savedScroll = container.querySelector('#saved-scroll');
-  if (savedScroll) attachMobileCardEvents(savedScroll, (id) => navigate('listing', { id }));
-
-  // ── Post now ──
-  container.querySelector('#prof-post-btn')?.addEventListener('click', () => navigate('post'));
-  container.querySelector('#prof-see-all')?.addEventListener('click', () => navigate('my-listings'));
-  container.querySelector('#prof-saved-see-all')?.addEventListener('click', () => navigate('saved'));
-
-  // ── Settings rows ──
-  container.querySelector('#settings-edit-profile')?.addEventListener('click', () => _showEditProfileSheet(container, user));
-  container.querySelector('#settings-notifications')?.addEventListener('click', () => _showNotifSheet(user));
-  container.querySelector('#settings-privacy')?.addEventListener('click',       () => _showPrivacySheet());
-  
-  container.querySelector('#settings-about')?.addEventListener('click',   () => navigate('about'));
-  container.querySelector('#settings-pricing')?.addEventListener('click', () => navigate('pricing'));
-  container.querySelector('#settings-blog')?.addEventListener('click',    () => navigate('blog'));
-  container.querySelector('#settings-faq')?.addEventListener('click',     () => navigate('faq'));
-  container.querySelector('#settings-contact')?.addEventListener('click', () => navigate('contact'));
-
-  // ── Logout ──
-  container.querySelector('#prof-logout')?.addEventListener('click', async () => {
-    await logout();
-    navigate('auth');
-  });
-
-  // ── Verification ──
-  container.querySelector('#prof-verify-btn')?.addEventListener('click', () => {
-    _showVerificationSheet(user);
-  });
+function _settingsRow(icon, label, id) {
+  return `<div id="settings-${id}" style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;">
+    <span style="font-size:1.1rem;flex-shrink:0;">${icon}</span>
+    <span style="flex:1;font-size:0.9rem;font-weight:600;color:var(--text-primary);">${label}</span>
+    <span style="color:#94a3b8;font-size:1rem;">›</span>
+  </div>`;
 }
 
 function _showVerificationSheet(user) {
@@ -246,8 +242,7 @@ function _verifyStep(icon, label, done) {
   </div>`;
 }
 
-// ── Edit Profile bottom sheet ──────────────────────────────────
-function _showEditProfileSheet(container, user) {
+function _showEditProfileSheet(container, user, rerender) {
   showBottomSheet({
     title: 'Edit Profile',
     content: `
@@ -280,13 +275,11 @@ function _showEditProfileSheet(container, user) {
           try {
             await db.users?.update?.(user.user_id, { display_name: name, bio, phone });
             user.display_name = name;
-            user.bio   = bio;
+            user.bio = bio;
             user.phone = phone;
             hideBottomSheet();
-            _render(container, user);
-            console.log('[MOBILE] Profile updated');
+            rerender();
           } catch (e) {
-            console.log('[MOBILE] Profile update error:', e);
             if (errEl) { errEl.textContent = 'Failed to save. Try again.'; errEl.style.display = ''; }
           }
         }
@@ -295,7 +288,6 @@ function _showEditProfileSheet(container, user) {
   });
 }
 
-// ── Notifications sheet ────────────────────────────────────────
 function _showNotifSheet(user) {
   const enabled = user.notifications_enabled !== false;
   showBottomSheet({
@@ -314,7 +306,6 @@ function _showNotifSheet(user) {
     actions: [],
   });
 
-  // Wire toggle after sheet is in DOM
   setTimeout(() => {
     let on = enabled;
     document.querySelector('#notif-toggle')?.addEventListener('click', async (e) => {
@@ -327,7 +318,6 @@ function _showNotifSheet(user) {
   }, 50);
 }
 
-// ── Privacy sheet ──────────────────────────────────────────────
 function _showPrivacySheet() {
   showBottomSheet({
     title: 'Privacy Settings',
@@ -339,38 +329,6 @@ function _showPrivacySheet() {
       </div>`,
     actions: [{ label: 'Done', variant: 'accent' }],
   });
-}
-
-// ── Settings sheet (from header ⚙) ────────────────────────────
-function _showSettingsSheet(container, user) {
-  showBottomSheet({
-    title: 'Settings',
-    content: '',
-    actions: [
-      { label: '✏️  Edit Profile',    onClick: () => _showEditProfileSheet(container, user) },
-      { label: '🔔  Notifications',   onClick: () => _showNotifSheet(user) },
-      { label: '🔒  Privacy',         onClick: () => _showPrivacySheet() },
-      { label: '🚪  Sign Out',        variant: 'danger',
-        onClick: async () => { await logout(); navigate('auth'); }
-      },
-    ],
-  });
-}
-
-// ── Stat block ─────────────────────────────────────────────────
-function _stat(value, label, onClick) {
-  return `<button onclick="" class="prof-stat" style="background:none;border:none;cursor:pointer;padding:8px 4px;text-align:center;" data-stat="${label}">
-    <div style="font-size:1.3rem;font-weight:900;color:var(--text-primary);">${value}</div>
-    <div style="font-size:0.72rem;color:#94a3b8;font-weight:600;letter-spacing:0.04em;">${label.toUpperCase()}</div>
-  </button>`;
-}
-
-function _settingsRow(icon, label, id) {
-  return `<div id="settings-${id}" style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #f1f5f9;cursor:pointer;">
-    <span style="font-size:1.1rem;flex-shrink:0;">${icon}</span>
-    <span style="flex:1;font-size:0.9rem;font-weight:600;color:var(--text-primary);">${label}</span>
-    <span style="color:#94a3b8;font-size:1rem;">›</span>
-  </div>`;
 }
 
 function _privacyRow(label) {

@@ -6,8 +6,9 @@
 
 import { db } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
-import { navigate, goBack, updateHeader } from '../mobile-main.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container, params = {}) {
   const id = params?.id || location.pathname.split('/').pop();
@@ -23,11 +24,12 @@ export async function init(container, params = {}) {
         <div class="mobile-empty-text">It may have been removed or the link is invalid.</div>
         <button class="mobile-btn mobile-btn-accent" id="lst-back" style="width:auto;margin-top:20px;">← Go Back</button>
       </div>`;
-    container.querySelector('#lst-back')?.addEventListener('click', goBack);
+    container.querySelector('#lst-back')?.addEventListener('click', async () => (await getMobile()).goBack());
     return;
   }
 
   // Update header for this specific listing
+  const { updateHeader, goBack } = await getMobile();
   updateHeader({
     title: listing.title || 'Listing',
     showBack: true,
@@ -196,7 +198,7 @@ export async function init(container, params = {}) {
   let isSaved   = saved;
   saveBtn?.addEventListener('click', async () => {
     const u = getCurrentUser();
-    if (!u) { navigate('auth'); return; }
+    if (!u) { (await getMobile()).navigate('auth'); return; }
     isSaved = !isSaved;
     saveBtn.textContent   = isSaved ? '❤️' : '🤍';
     saveBtn.style.transform = 'scale(1.3)';
@@ -208,9 +210,9 @@ export async function init(container, params = {}) {
   });
 
   // ── Message button ─────────────────────────────────────────
-  container.querySelector('#lst-message')?.addEventListener('click', () => {
-    if (!user) { navigate('auth'); return; }
-    navigate('chat', { userId: listing.user_id });
+  container.querySelector('#lst-message')?.addEventListener('click', async () => {
+    if (!user) { (await getMobile()).navigate('auth'); return; }
+    (await getMobile()).navigate('chat', { userId: listing.user_id });
   });
 
   // ── Fullscreen photo tap ───────────────────────────────────

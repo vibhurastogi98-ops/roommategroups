@@ -10,8 +10,12 @@
 
 import { db } from '../../services/db.js';
 import { getCurrentUser, getVerificationBadge } from '../../services/auth.js';
-import { navigate, goBack, updateHeader } from '../mobile-main.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
+
+// Helper to get mobile-main late to avoid circular dependency
+async function getMobile() {
+  return await import('../mobile-main.js');
+}
 
 // ── Shared helpers (mirrors search.js) ───────────────────────
 
@@ -151,6 +155,7 @@ const TYPE_OPTIONS = [
 // ── Main export ───────────────────────────────────────────────
 
 export async function init(container, params = {}) {
+  const { updateHeader } = await getMobile();
   updateHeader({ title: 'Search', showBack: false });
 
   const cities      = db.cities.findAll().filter(c => c.is_active !== false);
@@ -469,7 +474,7 @@ export async function init(container, params = {}) {
       e.stopPropagation();
       const lid = heart.dataset.id;
       const currentUser = getCurrentUser();
-      if (!currentUser) { navigate('auth'); return; }
+      if (!currentUser) { (await getMobile()).navigate('auth'); return; }
 
       const dbUser = db.users.findById(currentUser.id || currentUser.user_id);
       if (!dbUser) return;
@@ -513,17 +518,17 @@ export async function init(container, params = {}) {
     // Card tap → navigate to listing
     const card = e.target.closest('.ms-card');
     if (card) {
-      navigate('listing', { id: card.dataset.id });
+      (await getMobile()).navigate('listing', { id: card.dataset.id });
     }
   });
 
   // Keyboard a11y on cards
-  grid.addEventListener('keydown', e => {
+  grid.addEventListener('keydown', async e => {
     if (e.key === 'Enter' || e.key === ' ') {
       const card = e.target.closest('.ms-card');
       if (card && !e.target.closest('.ms-card-heart')) {
         e.preventDefault();
-        navigate('listing', { id: card.dataset.id });
+        (await getMobile()).navigate('listing', { id: card.dataset.id });
       }
     }
   });

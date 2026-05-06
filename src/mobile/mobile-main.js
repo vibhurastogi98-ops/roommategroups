@@ -244,14 +244,17 @@ async function _renderRoute(route, params = {}, isBack = false) {
 
     const mod = await loader();
     // Support both export styles: init(container, params) or renderMobileXxx(container)
-    const initFn = mod.init
-      || mod[`renderMobile${_cap(route)}`]
-      || mod[`render${_cap(route)}`]
+    // Also handle cases where the loader returns a module with a .default property
+    const target = mod.default || mod;
+    const initFn = target.init
+      || target[`renderMobile${_cap(route)}`]
+      || target[`render${_cap(route)}`]
       || null;
 
     if (typeof initFn === 'function') {
       await initFn(_pageEl, params);
     } else {
+      console.warn(`[MOBILE] No init function found for route: ${route}`, mod);
       _render404(_pageEl, route);
     }
   } catch (err) {
