@@ -3,6 +3,8 @@
   "appName": "RoommateGroups",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "url": "https://roommategroups.vibhurastogi98.workers.dev",
+    "cleartext": false
   }
 }
