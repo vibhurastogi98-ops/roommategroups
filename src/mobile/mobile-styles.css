@@ -347,6 +347,7 @@ body, #mobile-app {
   box-shadow: var(--mobile-card-shadow);
   overflow: hidden;
   width: 100%;
+  flex-shrink: 0;           /* CRITICAL: prevent squashing in flex containers */
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   cursor: pointer;
 }

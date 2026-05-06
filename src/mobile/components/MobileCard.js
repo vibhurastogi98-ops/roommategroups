@@ -83,7 +83,7 @@ export function renderMobileCard(listing) {
     : `<div style="width:32px;height:32px;border-radius:12px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.7rem;font-weight:700;flex-shrink:0;">${posterName.charAt(0).toUpperCase()}</div>`;
 
   return `
-    <div class="mobile-card" data-listing-id="${id}" role="button" tabindex="0" aria-label="View listing: ${title || 'Untitled'}" style="background:#fff;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.04);border:1px solid #f1f5f9;margin-bottom:20px;position:relative;">
+    <div class="mobile-card" data-listing-id="${id}" role="button" tabindex="0" aria-label="View listing: ${title || 'Untitled'}" style="background:#fff;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.04);border:1px solid #f1f5f9;margin-bottom:20px;position:relative;flex-shrink:0;">
       <!-- Image + overlays -->
       <div style="position:relative;overflow:hidden;background:#f8fafc;aspect-ratio:1.2;">
         ${image
@@ -182,8 +182,12 @@ export function attachMobileCardEvents(container, onCardClick) {
       }
 
       // Optimistic UI update
-      btn.dataset.saved  = String(!isSaved);
-      btn.textContent    = !isSaved ? '❤️' : '🤍';
+      const isNowSaved = !isSaved;
+      btn.dataset.saved = String(isNowSaved);
+      btn.style.color   = isNowSaved ? '#000' : '#cbd5e1';
+      const svg = btn.querySelector('svg');
+      if (svg) svg.setAttribute('fill', isNowSaved ? 'currentColor' : 'none');
+      
       btn.style.transform = 'scale(1.3)';
       setTimeout(() => { btn.style.transform = ''; }, 250);
 

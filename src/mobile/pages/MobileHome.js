@@ -76,7 +76,7 @@ export async function init(container) {
               </button>
             </div>
           </div>
-          <div id="home-feed" class="mobile-feed" style="display:flex;flex-direction:column;gap:12px;">
+          <div id="home-feed" style="display:flex;flex-direction:column;gap:12px;">
             ${_renderCards(filteredList, pageIndex)}
           </div>
           ${filteredList.length > PAGE_SIZE * (pageIndex + 1) ? `
