@@ -6,5 +6,12 @@
     "androidScheme": "https",
     "url": "https://roommategroups.vibhurastogi98.workers.dev",
     "cleartext": false
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "body",
+      "style": "dark",
+      "resizeOnFullScreen": true
+    }
   }
 }

@@ -146,15 +146,14 @@ async function _renderDirectChat(container, threadId, user) {
 
     const msgsEl = container.querySelector('#chat-msgs');
     if (msgsEl) {
-        const isNearBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 100;
         msgsEl.innerHTML = html + '<div id="chat-bottom-anchor"></div>';
-        if (isNearBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
+        msgsEl.scrollTop = msgsEl.scrollHeight;
     }
   };
 
   container.classList.add('mobile-page-flex');
   container.innerHTML = `
-      <div id="chat-msgs" class="mobile-page-content" style="background:#f8fafc;padding-top:12px;">
+      <div id="chat-msgs" class="mobile-page-content chat-messages-area" style="background:#f8fafc;padding-top:12px;">
         <div class="mobile-loader"><div class="mobile-spinner"></div></div>
       </div>
 

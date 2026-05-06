@@ -11,6 +11,13 @@ import { getCurrentUser } from '../services/auth.js';
 import { initDB } from '../services/db.js';
 import { renderBottomNav, updateActiveTab } from './components/BottomNav.js';
 import { renderMobileHeader } from './components/MobileHeader.js';
+import { App } from '@capacitor/app';
+
+const TAB_ORDER = ['home', 'search', 'post', 'chat', 'profile'];
+const SWIPE_THRESHOLD = 80;
+const EDGE_ZONE = 40; // px from left edge
+let swipeStartX = 0, swipeStartY = 0, isSwiping = false;
+let tabSwipeStartX = 0, tabSwipeStartY = 0;
 
 // ── Path → route name adapter (for legacy mobileNavigate calls) ─
 const PATH_TO_ROUTE = {
@@ -107,7 +114,7 @@ let _headerCtrl = null;
 let _rendering = false;
 
 // ── Public: navigate(route, params) ──────────────────────────
-export async function navigate(routeOrPath, params = {}) {
+export async function navigate(routeOrPath, params = {}, direction = 'forward') {
   // ── Backward-compat: accept URL paths from legacy pages ──
   let route = routeOrPath;
   let resolvedParams = { ...params };
@@ -135,7 +142,7 @@ export async function navigate(routeOrPath, params = {}) {
   state.current = route;
   state.params = resolvedParams;
 
-  await _renderRoute(route, resolvedParams);
+  await _renderRoute(route, resolvedParams, direction);
 }
 
 // ── Public: getRouteParams() ──────────────────────────────────
@@ -159,9 +166,9 @@ export function goBack() {
     console.log('[MOBILE] Going back to:', prev.route, prev.params);
     state.current = prev.route;
     state.params = prev.params;
-    _renderRoute(prev.route, prev.params, true);
+    _renderRoute(prev.route, prev.params, 'back');
   } else {
-    navigate('home');
+    navigate('home', {}, 'back');
   }
 }
 
@@ -169,7 +176,7 @@ export function goBack() {
 export const mobileNavigate = navigate;
 
 // ── Internal renderer ─────────────────────────────────────────
-async function _renderRoute(route, params = {}, isBack = false) {
+async function _renderRoute(route, params = {}, direction = 'forward') {
   if (!_pageEl || !_appEl) return;
   if (_rendering) return;
   _rendering = true;
@@ -205,9 +212,7 @@ async function _renderRoute(route, params = {}, isBack = false) {
   }
 
   // ── Page transition ──
-  _pageEl.classList.remove('enter');
-  _pageEl.classList.add('exit');
-
+  const oldPage = _pageEl;
   const newPage = document.createElement('div');
   newPage.className = 'mobile-page';
 
@@ -215,51 +220,52 @@ async function _renderRoute(route, params = {}, isBack = false) {
   if (isAuth) {
     newPage.style.paddingTop = 'env(safe-area-inset-top, 44px)';
     newPage.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+  } else if (hideNav) {
+    newPage.style.paddingTop = 'calc(var(--mobile-header-height) + var(--mobile-safe-top))';
+    newPage.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+  } else {
+    newPage.style.paddingTop = 'calc(var(--mobile-header-height) + var(--mobile-safe-top))';
+    newPage.style.paddingBottom = 'calc(var(--mobile-bottom-nav-height) + var(--mobile-safe-bottom))';
   }
 
-  await new Promise(resolve => setTimeout(resolve, 180));
+  // Apply animation classes
+  if (direction === 'forward') {
+    newPage.classList.add('slide-in-right');
+    oldPage.classList.add('slide-out-left');
+  } else {
+    newPage.classList.add('slide-in-left');
+    oldPage.classList.add('slide-out-right');
+  }
 
-  _pageEl.remove();
+  _appEl.appendChild(newPage);
   _pageEl = newPage;
 
-  // Apply layout offsets — auth is full-screen, other routes clear the fixed header+nav
-  if (hideNav) {
-    _pageEl.style.paddingTop = 'calc(var(--mobile-header-height) + var(--mobile-safe-top))';
-    _pageEl.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
-  } else {
-    _pageEl.style.paddingTop = 'calc(var(--mobile-header-height) + var(--mobile-safe-top))';
-    _pageEl.style.paddingBottom = 'calc(var(--mobile-bottom-nav-height) + var(--mobile-safe-bottom))';
-  }
-
-  _appEl.appendChild(_pageEl);
-
-  requestAnimationFrame(() => {
-    _pageEl.classList.add('mobile-page-enter');
-    setTimeout(() => _pageEl.classList.remove('mobile-page-enter'), 320);
-  });
+  // Remove old page after animation
+  setTimeout(() => {
+    oldPage.remove();
+    newPage.classList.remove('slide-in-right', 'slide-in-left');
+  }, 300);
 
   // ── Load and call page module ──
   try {
     const loader = ROUTE_LOADERS[route];
-    if (!loader) { _render404(_pageEl, route); _rendering = false; return; }
+    if (!loader) { _render404(newPage, route); _rendering = false; return; }
 
     const mod = await loader();
-    // Support both export styles: init(container, params) or renderMobileXxx(container)
-    // Also handle cases where the loader returns a module with a .default property
     const target = mod.default || mod;
     const initFn = (typeof target === 'function') 
       ? target 
       : (target.init || target[`renderMobile${_cap(route)}`] || target[`render${_cap(route)}`] || null);
 
     if (typeof initFn === 'function') {
-      await initFn(_pageEl, params);
+      await initFn(newPage, params);
     } else {
       console.warn(`[MOBILE] No init function found for route: ${route}`, mod);
-      _render404(_pageEl, route);
+      _render404(newPage, route);
     }
   } catch (err) {
     console.error('[MOBILE] Error rendering route:', route, err);
-    _render404(_pageEl, route, err);
+    _render404(newPage, route, err);
   }
 
   _rendering = false;
@@ -332,10 +338,69 @@ export async function initMobile() {
   }
 
   // 8. Android hardware back button
-  document.addEventListener('backbutton', (e) => {
-    e.preventDefault();
-    goBack();
-  }, false);
+  App.addListener('backButton', ({ canGoBack }) => {
+    if (state.history.length > 1) {
+      goBack();
+    } else {
+      App.exitApp();
+    }
+  });
 
+  // 9. Gestures
+  document.addEventListener('touchstart', (e) => {
+    swipeStartX = e.touches[0].clientX;
+    swipeStartY = e.touches[0].clientY;
+    isSwiping = swipeStartX < EDGE_ZONE;
+    tabSwipeStartX = e.touches[0].clientX;
+    tabSwipeStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!isSwiping) return;
+    const deltaX = e.touches[0].clientX - swipeStartX;
+    const deltaY = Math.abs(e.touches[0].clientY - swipeStartY);
+    if (deltaX > 0 && deltaX > deltaY) {
+      const page = document.querySelector('.mobile-page');
+      if (page) page.style.transform = `translateX(${Math.min(deltaX * 0.4, 80)}px)`;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    // Swipe back
+    if (isSwiping) {
+      const deltaX = e.changedTouches[0].clientX - swipeStartX;
+      const page = document.querySelector('.mobile-page');
+      if (deltaX > SWIPE_THRESHOLD && state.history.length > 1) {
+        goBack();
+      } else {
+        if (page) { page.style.transition = 'transform 0.2s ease'; page.style.transform = ''; }
+      }
+      isSwiping = false;
+    }
+
+    // Tab swipe
+    const tabDeltaX = e.changedTouches[0].clientX - tabSwipeStartX;
+    const tabDeltaY = Math.abs(e.changedTouches[0].clientY - tabSwipeStartY);
+    if (Math.abs(tabDeltaX) > 60 && tabDeltaY < 40 && TAB_ORDER.includes(state.current) && swipeStartX > EDGE_ZONE) {
+      const idx = TAB_ORDER.indexOf(state.current);
+      if (tabDeltaX < 0 && idx < TAB_ORDER.length - 1) navigate(TAB_ORDER[idx + 1]);
+      if (tabDeltaX > 0 && idx > 0) navigate(TAB_ORDER[idx - 1]);
+    }
+  }, { passive: true });
+
+  // 10. Scroll fixes
+  document.body.addEventListener('touchmove', (e) => {
+    if (e.target.closest('.mobile-page') || e.target.closest('.chat-messages-area')) return;
+    e.preventDefault(); // block body scroll
+  }, { passive: false });
+
+  window.addEventListener('resize', () => {
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+      setTimeout(() => activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+    }
+  });
+
+  console.log('[MOBILE] Gestures initialized');
   console.log('[MOBILE] Shell ready. Route:', state.current);
 }

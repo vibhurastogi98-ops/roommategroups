@@ -234,7 +234,7 @@ export default async function init(container, params = {}) {
     </div>
 
     <!-- ④ Results area -->
-    <div class="mobile-page-content ms-results-area" id="ms-scroll">
+    <div class="mobile-page-content ms-results-area mobile-feed" id="ms-scroll">
       <!-- Results header -->
       <div class="ms-results-header">
         <div>
