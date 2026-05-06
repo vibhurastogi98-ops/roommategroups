@@ -8,6 +8,7 @@
 
 import { db } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -61,14 +62,21 @@ export function renderMobileCard(listing) {
   const id       = listing_id || listing.id;
   const price    = rent ? `₹${Number(rent).toLocaleString('en-IN')}` : 'Price TBC';
   const location = [area, city].filter(Boolean).join(', ') || 'Location TBC';
-  const image    = Array.isArray(photos) ? photos[0] : (photos || null);
+  
+  // Handle photos (D1 stores them as JSON strings, or they might be already parsed)
+  let photoList = photos;
+  if (typeof photos === 'string') {
+    try { photoList = JSON.parse(photos); } catch(e) { photoList = []; }
+  }
+  const image    = Array.isArray(photoList) ? getAssetUrl(photoList[0]) : getAssetUrl(photoList);
+  
   const saved    = _isSaved(id);
   const ago      = _timeAgo(created_at);
 
   // Poster info (sync look-up)
   const poster = user_id ? db.users.findById(user_id) : null;
   const posterName   = poster?.display_name || poster?.fullName || 'Anonymous';
-  const posterAvatar = poster?.profile_photo || '';
+  const posterAvatar = getAvatarUrl(poster?.profile_photo, posterName);
 
   const avatarHtml = posterAvatar
     ? `<img src="${posterAvatar}" alt="${posterName}" style="width:32px;height:32px;border-radius:12px;object-fit:cover;flex-shrink:0;">`

@@ -8,6 +8,7 @@ import { db, initDB, getLiveListingCount } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
 import { navigate, updateHeader } from '../mobile-main.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
+import { getAssetUrl } from '../../services/assets.js';
 
 const PAGE_SIZE = 10;
 
@@ -108,7 +109,7 @@ export async function init(container) {
             <div style="display:flex;gap:12px;width:max-content;">
               ${popularCities.map(c => `
                 <div class="city-chip-card" data-slug="${c.slug}" style="width:140px;flex-shrink:0;cursor:pointer;">
-                  <div style="height:100px;border-radius:14px;background:url('${c.hero_image || 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&q=80&w=400'}') center/cover;position:relative;overflow:hidden;">
+                  <div style="height:100px;border-radius:14px;background:url('${getAssetUrl(c.hero_image) || 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&q=80&w=400'}') center/cover;position:relative;overflow:hidden;">
                     <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%);"></div>
                     <div style="position:absolute;bottom:8px;left:10px;right:10px;color:#fff;font-weight:800;font-size:0.85rem;line-height:1.2;">${c.name}</div>
                   </div>
@@ -140,7 +141,7 @@ export async function init(container) {
                 
                 return `
                 <div class="fb-group-card" data-fb-id="${g.fb_city_id}" style="width:220px;flex-shrink:0;cursor:pointer;background:#fff;border:1px solid #f1f5f9;border-radius:18px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-                  <div style="height:120px;background:url('${g.city_image || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=400'}') center/cover;position:relative;">
+                  <div style="height:120px;background:url('${getAssetUrl(g.city_image) || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=400'}') center/cover;position:relative;">
                     <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 60%);"></div>
                     <div style="position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;color:#000;font-size:0.8rem;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                       <i class="fab fa-facebook-f"></i>

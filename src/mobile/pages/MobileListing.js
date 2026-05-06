@@ -7,6 +7,7 @@
 import { db } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
 import { navigate, goBack, updateHeader } from '../mobile-main.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 export async function init(container, params = {}) {
   const id = params?.id || location.pathname.split('/').pop();
@@ -42,7 +43,13 @@ export async function init(container, params = {}) {
 
   const user    = getCurrentUser();
   const poster  = listing.user_id ? db.users.findById(listing.user_id) : null;
-  const photos  = Array.isArray(listing.photos) ? listing.photos.filter(Boolean) : [];
+  
+  // Handle photos normalization
+  let photoList = listing.images || listing.photos || [];
+  if (typeof photoList === 'string') {
+    try { photoList = JSON.parse(photoList); } catch(e) { photoList = []; }
+  }
+  const photos  = (Array.isArray(photoList) ? photoList : [photoList]).filter(Boolean).map(p => getAssetUrl(p));
   const price   = listing.rent ? `₹${Number(listing.rent).toLocaleString('en-IN')}` : 'Price TBC';
   const loc     = [listing.area, listing.city, listing.postcode].filter(Boolean).join(', ') || 'Location TBC';
   const saved   = (user?.saved_listings || []).includes(id);
@@ -110,9 +117,7 @@ export async function init(container, params = {}) {
         <!-- Posted by -->
         ${poster ? `
           <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
-            ${poster.profile_photo
-              ? `<img src="${poster.profile_photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" alt="${poster.display_name}">`
-              : `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#000000,#1a1a1a);display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700;">${(poster.display_name||'A').charAt(0)}</div>`}
+            <img src="${getAvatarUrl(poster.profile_photo, poster.display_name)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" alt="${poster.display_name}">
             <div>
               <div style="font-size:0.82rem;font-weight:700;color:var(--text-primary);">${poster.display_name || 'Anonymous'}</div>
               ${ago ? `<div style="font-size:0.72rem;color:#94a3b8;">${ago}</div>` : ''}

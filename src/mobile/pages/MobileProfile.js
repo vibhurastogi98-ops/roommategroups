@@ -10,6 +10,7 @@ import { uploadImage } from '../../services/upload.js';
 import { navigate, updateHeader } from '../mobile-main.js';
 import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 export async function init(container) {
   const user = getCurrentUser();
@@ -57,7 +58,7 @@ function _render(container, user) {
 
   const initials = (user.display_name || user.fullName || 'U')
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  const avatar = user.profile_photo || user.avatar;
+  const avatar = getAvatarUrl(user.profile_photo || user.avatar, user.display_name || user.fullName);
 
   container.innerHTML = `
     <div style="padding-bottom:24px;background:#f8fafc;">
@@ -170,10 +171,11 @@ function _render(container, user) {
     try {
       const url = await uploadImage(file);
       if (url) {
+        const fullUrl = getAssetUrl(url);
         const img = container.querySelector('#avatar-img');
         const avatarEl = container.querySelector('#profile-avatar');
-        if (img) { img.src = url; }
-        else { avatarEl.innerHTML = `<img id="avatar-img" src="${url}" style="width:100%;height:100%;object-fit:cover;">`; }
+        if (img) { img.src = fullUrl; }
+        else { avatarEl.innerHTML = `<img id="avatar-img" src="${fullUrl}" style="width:100%;height:100%;object-fit:cover;">`; }
         await db.users?.update?.(user.user_id, { profile_photo: url });
         console.log('[MOBILE] Avatar updated:', url);
       }

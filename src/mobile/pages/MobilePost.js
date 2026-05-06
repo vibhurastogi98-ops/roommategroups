@@ -8,6 +8,7 @@ import { db, initDB } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
 import { navigate, goBack, updateHeader } from '../mobile-main.js';
 import { API_URL } from '../../services/config.js';
+import { getAssetUrl } from '../../services/assets.js';
 
 // ── Draft persistence ──────────────────────────────────────────
 const DRAFT_KEY = 'rg_mobile_draft_listing';
@@ -100,8 +101,9 @@ async function processImageUpload(file) {
 
 function getPhotoSrc(photo) {
   if (!photo) return '';
-  if (typeof photo === 'string') return photo;
-  return photo.thumb || photo.medium || photo.full || '';
+  if (typeof photo === 'string') return getAssetUrl(photo);
+  const path = photo.thumb || photo.medium || photo.full || '';
+  return getAssetUrl(path);
 }
 
 // ── Constants ─────────────────────────────────────────────────

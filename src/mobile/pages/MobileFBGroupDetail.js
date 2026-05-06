@@ -5,6 +5,7 @@
 
 import { db } from '../../services/db.js';
 import { navigate, updateHeader } from '../mobile-main.js';
+import { getAssetUrl } from '../../services/assets.js';
 
 export async function init(container, params) {
   const id = params.id;
@@ -23,7 +24,7 @@ export async function init(container, params) {
     <div style="background: #f8fafc; min-height: 100%; padding-bottom: 80px;">
       <!-- Hero -->
       <div style="height: 240px; position: relative;">
-        <img src="${group.city_image || fallback}" style="width:100%; height:100%; object-fit:cover;">
+        <img src="${getAssetUrl(group.city_image) || fallback}" style="width:100%; height:100%; object-fit:cover;">
         <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
         <div style="position:absolute; bottom:20px; left:20px; right:20px; color:#fff;">
           <h2 style="font-size: 1.5rem; font-weight: 900; margin: 0 0 4px; letter-spacing: -0.02em;">${group.fb_group_name}</h2>

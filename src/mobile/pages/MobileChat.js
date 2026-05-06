@@ -8,6 +8,7 @@ import { getCurrentUser } from '../../services/auth.js';
 import { db } from '../../services/db.js';
 import { navigate, goBack, updateHeader } from '../mobile-main.js';
 import * as msgService from '../../services/messaging.js';
+import { getAssetUrl } from '../../services/assets.js';
 
 export async function init(container, params = {}) {
   const user = getCurrentUser();
@@ -62,7 +63,7 @@ async function _renderThreadList(container, user) {
             <div data-thread-id="${t.thread_id}" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid #f1f5f9;background:#fff;">
               <div style="position:relative;flex-shrink:0;">
                 <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#000000,#1a1a1a);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:#fff;overflow:hidden;">
-                  ${avatar ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;">` : name.charAt(0).toUpperCase()}
+                  ${avatar ? `<img src="${getAssetUrl(avatar)}" style="width:100%;height:100%;object-fit:cover;">` : name.charAt(0).toUpperCase()}
                 </div>
                 ${unread ? `<div style="position:absolute;top:0;right:0;width:12px;height:12px;border-radius:50%;background:var(--mobile-accent);border:2px solid #fff;"></div>` : ''}
               </div>
@@ -134,7 +135,7 @@ async function _renderDirectChat(container, threadId, user) {
         ${separator}
         <div style="display:flex;align-items:flex-end;gap:8px;padding:2px 16px;justify-content:${isSent?'flex-end':'flex-start'};">
           ${!isSent ? `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#000000,#1a1a1a);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;color:#fff;">
-            ${avatar ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;">` : otherName.charAt(0)}
+            ${avatar ? `<img src="${getAssetUrl(avatar)}" style="width:100%;height:100%;object-fit:cover;">` : otherName.charAt(0)}
           </div>` : ''}
           <div style="max-width:72%;">
             <div style="padding:10px 14px;border-radius:${isSent?'18px 18px 4px 18px':'18px 18px 18px 4px'};background:${isSent?'var(--mobile-accent)':'#fff'};color:${isSent?'#fff':'var(--text-primary)'};font-size:0.88rem;line-height:1.45;box-shadow:0 1px 4px rgba(0,0,0,0.08);">${_escHtml(m.content)}</div>

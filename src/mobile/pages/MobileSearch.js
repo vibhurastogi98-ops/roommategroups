@@ -11,6 +11,7 @@
 import { db } from '../../services/db.js';
 import { getCurrentUser, getVerificationBadge } from '../../services/auth.js';
 import { navigate, goBack, updateHeader } from '../mobile-main.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 // ── Shared helpers (mirrors search.js) ───────────────────────
 
@@ -24,11 +25,7 @@ function escHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-function getPhotoSrc(photo, size) {
-  if (!photo) return '';
-  if (typeof photo === 'string') return photo;
-  return photo[size] || photo.thumb || photo.medium || '';
-}
+// Removed getPhotoSrc in favor of getAssetUrl from services/assets.js
 
 function relTime(iso) {
   if (!iso) return '';
@@ -54,16 +51,13 @@ function renderCard(listing, cities) {
   let _imgs = listing.images || listing.photos || [];
   if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch (e) { _imgs = []; } }
   const rawPhoto = _imgs[0];
-  const photo = (rawPhoto ? getPhotoSrc(rawPhoto, 'thumb') : null)
-    || 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&q=80&w=600';
+  const photo = getAssetUrl(rawPhoto);
 
   // Poster info
   let user = listing.user_details;
   if (!user && listing.user_id) user = db.users.findById(listing.user_id);
   const posterName = user ? (user.display_name || user.fullName || 'Unknown') : 'Unknown';
-  const avatar = (user && user.profile_photo)
-    ? user.profile_photo
-    : `https://ui-avatars.com/api/?name=${encodeURIComponent(posterName)}&background=1a1a1a&color=fff`;
+  const avatar = getAvatarUrl(user?.profile_photo, posterName);
   const verifiedIcon = user ? (getVerificationBadge ? getVerificationBadge(user) : '') : '';
 
   const heroImg = isRoommate ? avatar : photo;
