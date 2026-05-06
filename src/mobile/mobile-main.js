@@ -259,7 +259,7 @@ async function _renderRoute(route, params = {}, isBack = false) {
     }
   } catch (err) {
     console.error('[MOBILE] Error rendering route:', route, err);
-    _render404(_pageEl, route);
+    _render404(_pageEl, route, err);
   }
 
   _rendering = false;
@@ -267,12 +267,14 @@ async function _renderRoute(route, params = {}, isBack = false) {
 
 function _cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-function _render404(container, route) {
+function _render404(container, route, err) {
+  const errMsg = err ? `<div style="font-size:0.72rem;color:#ef4444;margin-top:8px;word-break:break-all;padding:0 8px;">${String(err)}</div>` : '';
   container.innerHTML = `
     <div class="mobile-empty">
       <div class="mobile-empty-icon">🔍</div>
       <div class="mobile-empty-title">Page not found</div>
       <div class="mobile-empty-text">No mobile view for "${route}"</div>
+      ${errMsg}
       <button class="mobile-btn mobile-btn-accent" id="back-btn-404" style="width:auto;margin-top:16px;">Go Back</button>
     </div>
   `;

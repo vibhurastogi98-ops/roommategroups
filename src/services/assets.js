@@ -9,36 +9,39 @@ import { Capacitor } from '@capacitor/core';
 
 export function getAssetUrl(path) {
     if (!path) {
-        // Return a stable placeholder if no path is provided
         return 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=400';
     }
 
+    // If it's an object with a url/src property (some DB records store images as objects)
+    if (typeof path === 'object') {
+        const inner = path.url || path.src || path.path || null;
+        return getAssetUrl(inner);
+    }
+
+    // Coerce to string for safety
+    const str = String(path);
+
     // 1. If it's already a full URL (http/https), return as is
-    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
-        return path;
+    if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('data:')) {
+        return str;
     }
 
     // 2. If it's a relative R2 path (starts with /r2/ or r2/)
-    if (path.startsWith('/r2/') || path.startsWith('r2/')) {
-        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    if (str.startsWith('/r2/') || str.startsWith('r2/')) {
+        const cleanPath = str.startsWith('/') ? str : `/${str}`;
         return `${API_URL}${cleanPath}`;
     }
 
     // 3. If it's a standard relative asset (like /logo.svg or assets/...)
-    // On Capacitor, these are served from the local bundle.
-    // On Web, they are relative to the origin.
-    if (path.startsWith('/')) {
+    if (str.startsWith('/')) {
         if (Capacitor.isNativePlatform()) {
-            // For native, we might need to point to the production server for some assets 
-            // if they aren't bundled, but usually /logo.svg is bundled.
-            // However, to be safe for user-uploaded content that might not have /r2/ prefix:
-            return `${API_URL}${path}`;
+            return `${API_URL}${str}`;
         }
-        return path;
+        return str;
     }
 
     // Default: try to prepend API_URL if it looks like a path
-    return `${API_URL}/${path}`;
+    return `${API_URL}/${str}`;
 }
 
 /**
