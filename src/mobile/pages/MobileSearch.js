@@ -154,14 +154,14 @@ const TYPE_OPTIONS = [
 
 // ── Main export ───────────────────────────────────────────────
 
-export async function init(container, params = {}) {
+export default async function init(container, params = {}) {
   // SEO Update
   setSEO({
     title: 'Search Rooms & Find a Roommate | RoommateGroups',
     description: 'Search thousands of verified rooms, apartments, sublets, and co-living spaces on mobile.',
   });
 
-  const { updateHeader } = await getMobile();
+  const { updateHeader, navigate } = await getMobile();
   updateHeader({ title: 'Search', showBack: false });
 
   const cities      = db.cities.findAll().filter(c => c.is_active !== false);
@@ -481,7 +481,7 @@ export async function init(container, params = {}) {
       e.stopPropagation();
       const lid = heart.dataset.id;
       const currentUser = getCurrentUser();
-      if (!currentUser) { (await getMobile()).navigate('auth'); return; }
+      if (!currentUser) { navigate('auth'); return; }
 
       const dbUser = db.users.findById(currentUser.id || currentUser.user_id);
       if (!dbUser) return;
@@ -525,7 +525,7 @@ export async function init(container, params = {}) {
     // Card tap → navigate to listing
     const card = e.target.closest('.ms-card');
     if (card) {
-      (await getMobile()).navigate('listing', { id: card.dataset.id });
+      navigate('listing', { id: card.dataset.id });
     }
   });
 
@@ -535,7 +535,7 @@ export async function init(container, params = {}) {
       const card = e.target.closest('.ms-card');
       if (card && !e.target.closest('.ms-card-heart')) {
         e.preventDefault();
-        (await getMobile()).navigate('listing', { id: card.dataset.id });
+        navigate('listing', { id: card.dataset.id });
       }
     }
   });
