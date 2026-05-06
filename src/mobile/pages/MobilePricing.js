@@ -3,13 +3,15 @@
  * Pricing plans adapted for mobile view, mirroring the website's detailed plans and functional logic.
  */
 
-import { navigate, updateHeader, goBack } from '../mobile-main.js';
 import { getCurrentUser } from '../../services/auth.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const user = getCurrentUser();
   let isAnnual = false;
 
+  const { updateHeader, goBack, navigate } = await getMobile();
   updateHeader({ title: 'Pricing Plans', showBack: true, onBack: goBack });
 
   const plans = {
@@ -157,6 +159,12 @@ export async function init(container) {
 
       </div>
     `;
+
+    _wire();
+  }
+
+  async function _wire() {
+    const { navigate } = await getMobile();
 
     // Events
     container.querySelectorAll('.toggle-opt').forEach(opt => {

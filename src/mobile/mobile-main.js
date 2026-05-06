@@ -15,6 +15,7 @@ import { renderMobileHeader } from './components/MobileHeader.js';
 // ── Path → route name adapter (for legacy mobileNavigate calls) ─
 const PATH_TO_ROUTE = {
   '/': 'home',
+  '/search': 'search',
   '/search/rooms': 'search',
   '/post-listing': 'post',
   '/dashboard/messages': 'chat',
@@ -246,10 +247,9 @@ async function _renderRoute(route, params = {}, isBack = false) {
     // Support both export styles: init(container, params) or renderMobileXxx(container)
     // Also handle cases where the loader returns a module with a .default property
     const target = mod.default || mod;
-    const initFn = target.init
-      || target[`renderMobile${_cap(route)}`]
-      || target[`render${_cap(route)}`]
-      || null;
+    const initFn = (typeof target === 'function') 
+      ? target 
+      : (target.init || target[`renderMobile${_cap(route)}`] || target[`render${_cap(route)}`] || null);
 
     if (typeof initFn === 'function') {
       await initFn(_pageEl, params);

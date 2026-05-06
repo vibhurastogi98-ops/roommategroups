@@ -7,12 +7,14 @@
 import { getCurrentUser, logout, updateProfile } from '../../services/auth.js';
 import { db } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
-import { updateHeader, navigate, goBack } from '../mobile-main.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const user = getCurrentUser();
-  if (!user) { navigate('auth'); return; }
+  if (!user) { (await getMobile()).navigate('auth'); return; }
 
+  const { updateHeader, goBack, navigate } = await getMobile();
   updateHeader({ title: 'Settings', showBack: true, onBack: goBack });
 
   // Always read fresh from DB so edits reflect immediately
@@ -148,7 +150,9 @@ export async function init(container) {
   }
 
   // ── Wire all interactions ─────────────────────────────────────
-  function _wire(dbUser) {
+  async function _wire(dbUser) {
+    const { navigate } = await getMobile();
+
     // Profile photo upload
     container.querySelector('#photo-file-input')?.addEventListener('change', async e => {
       const file = e.target.files[0];

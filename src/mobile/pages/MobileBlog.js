@@ -4,10 +4,13 @@
  */
 
 import { getBlogPosts } from '../../services/blog-data.js';
-import { navigate } from '../mobile-main.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const allPosts = getBlogPosts().filter(p => p.is_published !== false);
+
+  const { navigate } = await getMobile();
 
   function _render() {
     container.innerHTML = `
@@ -23,7 +26,7 @@ export async function init(container) {
             <div class="blog-mobile-card" data-slug="${post.slug}" style="background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.03); cursor: pointer;">
               <div style="height: 160px; position: relative;">
                 <img src="${post.featured_image || 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&q=80&w=600'}" style="width:100%; height:100%; object-fit:cover;">
-                <div style="position:absolute; top:12px; left:12px; background:var(--mobile-accent); color:#fff; font-size:0.65rem; font-weight:800; padding:4px 10px; border-radius:100px; text-transform:uppercase;">${post.category || 'Guide'}</div>
+                <div style="position:absolute; top:12px; left:12px; background:var(--mobile-accent); color:#fff; font-size:0.65rem; font-weight:800; padding:4px 100px; border-radius:100px; text-transform:uppercase;">${post.category || 'Guide'}</div>
               </div>
               <div style="padding: 16px;">
                 <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; line-height: 1.35; margin-bottom: 8px;">${post.title}</div>

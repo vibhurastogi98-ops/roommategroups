@@ -6,12 +6,15 @@
 
 import { getCurrentUser } from '../../services/auth.js';
 import { db, initDB, syncMessagesAndThreads } from '../../services/db.js';
-import { navigate, updateHeader } from '../mobile-main.js';
 import { getTotalUnread, getUnreadCountForThread } from '../../services/messaging.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const user = getCurrentUser();
-  if (!user) { navigate('auth'); return; }
+  if (!user) { (await getMobile()).navigate('auth'); return; }
+
+  const { updateHeader, navigate } = await getMobile();
 
   updateHeader({
     title: 'Dashboard',
@@ -19,7 +22,7 @@ export async function init(container) {
     rightAction: {
       icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 4.6a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
       label: 'Settings',
-      onClick: () => navigate('settings'),
+      onClick: async () => (await getMobile()).navigate('settings'),
     },
   });
 
@@ -158,7 +161,9 @@ export async function init(container) {
     _wireEvents();
   }
 
-  function _wireEvents() {
+  async function _wireEvents() {
+    const { navigate } = await getMobile();
+
     container.querySelector('#dash-browse-btn')?.addEventListener('click', () => navigate('search'));
 
     // Stat cards

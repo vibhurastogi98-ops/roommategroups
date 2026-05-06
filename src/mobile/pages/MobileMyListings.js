@@ -7,15 +7,17 @@
 import { db } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
-import { navigate, updateHeader, goBack } from '../mobile-main.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const user = getCurrentUser();
   if (!user) {
-    navigate('auth');
+    (await getMobile()).navigate('auth');
     return;
   }
 
+  const { updateHeader, goBack, navigate } = await getMobile();
   updateHeader({ title: 'My Listings', showBack: true, onBack: goBack });
 
   const allListings = (db.listings?.findAll?.() || []).filter(l =>

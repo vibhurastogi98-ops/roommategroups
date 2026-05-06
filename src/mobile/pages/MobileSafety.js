@@ -3,9 +3,10 @@
  * Safety tips and trust guidelines for mobile.
  */
 
-import { updateHeader } from '../mobile-main.js';
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
+  const { updateHeader } = await getMobile();
   updateHeader({ title: 'Safety Tips', showBack: true });
 
   const tips = [
@@ -68,8 +69,8 @@ export async function init(container) {
     </div>
   `;
 
-  container.querySelector('#report-safety-btn')?.addEventListener('click', () => {
-    const { navigate } = import('../mobile-main.js');
+  container.querySelector('#report-safety-btn')?.addEventListener('click', async () => {
+    const { navigate } = await getMobile();
     navigate('contact');
   });
 }

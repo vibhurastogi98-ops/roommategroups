@@ -1,4 +1,8 @@
-import { updateHeader } from '../mobile-main.js';
+/**
+ * src/mobile/pages/MobileFAQ.js
+ */
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 const FAQ_DATA = [
     {
@@ -33,6 +37,7 @@ const FAQ_DATA = [
 ];
 
 export async function init(container) {
+  const { updateHeader } = await getMobile();
   updateHeader({ title: 'FAQ', showBack: true });
 
   container.innerHTML = `
@@ -170,7 +175,7 @@ export async function init(container) {
   });
 
   container.querySelector('#contact-btn')?.addEventListener('click', async () => {
-    const { navigate } = await import('../mobile-main.js');
+    const { navigate } = await getMobile();
     navigate('contact');
   });
 }

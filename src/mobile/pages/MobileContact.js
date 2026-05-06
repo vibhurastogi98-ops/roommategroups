@@ -3,9 +3,10 @@
  * Contact Us page for mobile.
  */
 
-import { updateHeader, goBack } from '../mobile-main.js';
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
+  const { updateHeader, goBack } = await getMobile();
   updateHeader({ title: 'Contact Us', showBack: true });
 
   container.innerHTML = `

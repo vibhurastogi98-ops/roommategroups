@@ -6,9 +6,10 @@
 
 import { db, initDB, getLiveListingCount } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
-import { navigate, updateHeader } from '../mobile-main.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 import { getAssetUrl } from '../../services/assets.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 const PAGE_SIZE = 10;
 
@@ -243,6 +244,7 @@ export async function init(container) {
     });
   };
 
+  const { updateHeader, navigate } = await getMobile();
   updateHeader({
     title: 'LOGO',
     showBack: false,
@@ -276,10 +278,12 @@ function _renderCards(list, pageIdx) {
   return visible.map(l => renderMobileCard(l)).join('');
 }
 
-function _wireEvents(container, ctx) {
+async function _wireEvents(container, ctx) {
   const { rerender, setSelectedType, setPageIndex, getPageIndex, getFiltered } = ctx;
-  container.querySelector('#home-search-btn')?.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('search'); });
-  container.querySelector('#home-post-cta')?.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('post'); });
+  const { navigate } = await getMobile();
+
+  container.querySelector('#home-search-btn')?.addEventListener('click', () => { navigate('search'); });
+  container.querySelector('#home-post-cta')?.addEventListener('click', () => { navigate('post'); });
   container.querySelectorAll('.type-chip').forEach(c => c.addEventListener('click', () => setSelectedType(c.dataset.type)));
   container.querySelector('#home-refresh')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
@@ -288,17 +292,17 @@ function _wireEvents(container, ctx) {
     ctx.updateListings();
     setTimeout(() => {
       rerender();
-    }, 600); // Give it a moment to spin
+    }, 600);
   });
-  container.querySelectorAll('.city-chip-card').forEach(el => el.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('search', { city: el.dataset.slug }); }));
-  container.querySelector('#see-all-cities')?.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('search'); });
-  container.querySelector('#see-all-listings')?.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('search'); });
-  container.querySelector('#see-all-fb')?.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('fbGroups'); });
-  container.querySelectorAll('.fb-group-card').forEach(el => el.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('fbGroupDetail', { id: el.dataset.fbId }); }));
-  container.querySelectorAll('.home-faq-trigger, #home-view-all-faq').forEach(el => el.addEventListener('click', async () => { (await import('../mobile-main.js')).navigate('faq'); }));
+  container.querySelectorAll('.city-chip-card').forEach(el => el.addEventListener('click', () => { navigate('search', { city: el.dataset.slug }); }));
+  container.querySelector('#see-all-cities')?.addEventListener('click', () => { navigate('search'); });
+  container.querySelector('#see-all-listings')?.addEventListener('click', () => { navigate('search'); });
+  container.querySelector('#see-all-fb')?.addEventListener('click', () => { navigate('fbGroups'); });
+  container.querySelectorAll('.fb-group-card').forEach(el => el.addEventListener('click', () => { navigate('fbGroupDetail', { id: el.dataset.fbId }); }));
+  container.querySelectorAll('.home-faq-trigger, #home-view-all-faq').forEach(el => el.addEventListener('click', () => { navigate('faq'); }));
 
   const feed = container.querySelector('#home-feed');
-  if (feed) attachMobileCardEvents(feed, async (id) => { (await import('../mobile-main.js')).navigate('listing', { id }); });
+  if (feed) attachMobileCardEvents(feed, (id) => { navigate('listing', { id }); });
   container.querySelector('#load-more')?.addEventListener('click', () => { setPageIndex(getPageIndex() + 1); rerender(); });
 }
 

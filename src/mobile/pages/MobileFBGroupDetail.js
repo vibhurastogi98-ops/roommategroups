@@ -4,8 +4,9 @@
  */
 
 import { db } from '../../services/db.js';
-import { navigate, updateHeader } from '../mobile-main.js';
 import { getAssetUrl } from '../../services/assets.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container, params) {
   const id = params.id;
@@ -16,6 +17,7 @@ export async function init(container, params) {
     return;
   }
 
+  const { updateHeader } = await getMobile();
   updateHeader({ title: group.city_name, showBack: true });
 
   const fallback = 'https://images.unsplash.com/photo-1449844908441-8829872d2607?w=600&h=400&fit=crop';

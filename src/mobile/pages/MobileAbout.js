@@ -3,9 +3,10 @@
  * About Us page for mobile.
  */
 
-import { updateHeader } from '../mobile-main.js';
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
+  const { updateHeader } = await getMobile();
   updateHeader({ title: 'About Us', showBack: true });
 
   container.innerHTML = `

@@ -6,13 +6,14 @@
 
 import { getCurrentUser } from '../../services/auth.js';
 import { db } from '../../services/db.js';
-import { navigate, goBack, updateHeader } from '../mobile-main.js';
 import * as msgService from '../../services/messaging.js';
 import { getAssetUrl } from '../../services/assets.js';
 
+async function getMobile() { return await import('../mobile-main.js'); }
+
 export async function init(container, params = {}) {
   const user = getCurrentUser();
-  if (!user) { navigate('auth'); return; }
+  if (!user) { (await getMobile()).navigate('auth'); return; }
 
   // Request notification permission on first chat open
   msgService.requestPushPermission();
@@ -32,6 +33,7 @@ export const renderMobileChat = init;
 
 // ── Thread list ───────────────────────────────────────────────
 async function _renderThreadList(container, user) {
+  const { updateHeader, navigate } = await getMobile();
   updateHeader({ title: 'Messages', showBack: false });
 
   const render = (data) => {
@@ -90,14 +92,12 @@ async function _renderThreadList(container, user) {
   msgService.startPolling(user.user_id, null, (data) => {
     render(data);
   });
-
-  // Cleanup polling when page changes (handled by router or custom logic)
-  // For this simple router, we might need a better cleanup hook, 
-  // but messaging.js handle multiple intervals.
 }
 
 // ── Direct chat ───────────────────────────────────────────────
 async function _renderDirectChat(container, threadId, user) {
+  const { updateHeader, navigate, goBack } = await getMobile();
+
   const thread = db.threads.findById(threadId);
   if (!thread) { navigate('chat'); return; }
 

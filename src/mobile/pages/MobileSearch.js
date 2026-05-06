@@ -11,6 +11,8 @@
 import { db } from '../../services/db.js';
 import { getCurrentUser, getVerificationBadge } from '../../services/auth.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
+import { setSEO } from '../../seo.js';
+import { trackSearch } from '../../services/analytics.js';
 
 // Helper to get mobile-main late to avoid circular dependency
 async function getMobile() {
@@ -28,8 +30,6 @@ function escHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
-
-// Removed getPhotoSrc in favor of getAssetUrl from services/assets.js
 
 function relTime(iso) {
   if (!iso) return '';
@@ -62,7 +62,7 @@ function renderCard(listing, cities) {
   if (!user && listing.user_id) user = db.users.findById(listing.user_id);
   const posterName = user ? (user.display_name || user.fullName || 'Unknown') : 'Unknown';
   const avatar = getAvatarUrl(user?.profile_photo, posterName);
-  const verifiedIcon = user ? (getVerificationBadge ? getVerificationBadge(user) : '') : '';
+  const verifiedIcon = user ? getVerificationBadge(user) : '';
 
   const heroImg = isRoommate ? avatar : photo;
 
@@ -155,6 +155,12 @@ const TYPE_OPTIONS = [
 // ── Main export ───────────────────────────────────────────────
 
 export async function init(container, params = {}) {
+  // SEO Update
+  setSEO({
+    title: 'Search Rooms & Find a Roommate | RoommateGroups',
+    description: 'Search thousands of verified rooms, apartments, sublets, and co-living spaces on mobile.',
+  });
+
   const { updateHeader } = await getMobile();
   updateHeader({ title: 'Search', showBack: false });
 
@@ -163,17 +169,17 @@ export async function init(container, params = {}) {
 
   // Filter state (mirrors website URL params)
   const state = {
-    country:    'all',
-    city:       'all',
-    type:       'all',
-    minPrice:   '',
-    maxPrice:   '',
-    sort:       'newest',
-    dur:        'all',
-    furn:       'all',
-    verified:   false,
-    amenities:  [],
-    keyword:    '',
+    country:    params.country || 'all',
+    city:       params.city    || 'all',
+    type:       params.type    || 'all',
+    minPrice:   params.minPrice || '',
+    maxPrice:   params.maxPrice || '',
+    sort:       params.sort     || 'newest',
+    dur:        params.dur      || 'all',
+    furn:       params.furn     || 'all',
+    verified:   params.verified === 'true',
+    amenities:  params.amenities ? params.amenities.split(',') : [],
+    keyword:    params.keyword  || '',
   };
 
   // ── Render shell ─────────────────────────────────────────────
@@ -186,8 +192,9 @@ export async function init(container, params = {}) {
           <i class="fa-solid fa-magnifying-glass ms-search-icon"></i>
           <input id="ms-keyword" class="ms-search-input"
                  type="search" placeholder="Search listings…"
+                 value="${escHtml(state.keyword)}"
                  autocomplete="off" autocorrect="off">
-          <button id="ms-clear" class="ms-search-clear" aria-label="Clear" style="display:none;">
+          <button id="ms-clear" class="ms-search-clear" aria-label="Clear" style="${state.keyword ? '' : 'display:none;'}">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -205,7 +212,7 @@ export async function init(container, params = {}) {
           <select id="ms-country" class="ms-select">
             <option value="all">All Countries</option>
             ${allCountries.map(c =>
-              `<option value="${c.country_id}">${escHtml(c.flag_emoji || '')} ${escHtml(c.name)}</option>`
+              `<option value="${c.country_id}" ${state.country === c.country_id ? 'selected' : ''}>${escHtml(c.flag_emoji || '')} ${escHtml(c.name)}</option>`
             ).join('')}
           </select>
         </div>
@@ -213,8 +220,8 @@ export async function init(container, params = {}) {
           <i class="fa-solid fa-location-dot ms-select-icon"></i>
           <select id="ms-city" class="ms-select">
             <option value="all">Anywhere</option>
-            ${cities.map(c =>
-              `<option value="${c.slug}">${escHtml(c.name)}</option>`
+            ${cities.filter(c => state.country === 'all' || c.country === state.country).map(c =>
+              `<option value="${c.slug}" ${state.city === c.slug ? 'selected' : ''}>${escHtml(c.name)}</option>`
             ).join('')}
           </select>
         </div>
@@ -235,9 +242,9 @@ export async function init(container, params = {}) {
           <div class="ms-results-count" id="ms-count">Loading…</div>
         </div>
         <select id="ms-sort" class="ms-sort-select">
-          <option value="newest">Newest</option>
-          <option value="price_asc">Price ↑</option>
-          <option value="price_desc">Price ↓</option>
+          <option value="newest" ${state.sort === 'newest' ? 'selected' : ''}>Newest</option>
+          <option value="price_asc" ${state.sort === 'price_asc' ? 'selected' : ''}>Price ↑</option>
+          <option value="price_desc" ${state.sort === 'price_desc' ? 'selected' : ''}>Price ↓</option>
         </select>
       </div>
       <!-- Cards -->
@@ -258,10 +265,10 @@ export async function init(container, params = {}) {
           <div class="ms-filter-label">Price Range ($/mo)</div>
           <div class="ms-price-row">
             <input id="ms-min" class="ms-price-input mobile-input"
-                   type="number" placeholder="Min $" step="50">
+                   type="number" placeholder="Min $" step="50" value="${state.minPrice}">
             <span class="ms-price-dash">–</span>
             <input id="ms-max" class="ms-price-input mobile-input"
-                   type="number" placeholder="Max $" step="50">
+                   type="number" placeholder="Max $" step="50" value="${state.maxPrice}">
           </div>
         </div>
 
@@ -277,7 +284,7 @@ export async function init(container, params = {}) {
               { val: 'flexible', label: 'Flexible' },
             ].map(o => `
               <label class="ms-radio-label">
-                <input type="radio" name="ms-dur" value="${o.val}" ${o.val === 'all' ? 'checked' : ''}>
+                <input type="radio" name="ms-dur" value="${o.val}" ${state.dur === o.val ? 'checked' : ''}>
                 <span>${escHtml(o.label)}</span>
               </label>`).join('')}
           </div>
@@ -294,7 +301,7 @@ export async function init(container, params = {}) {
               { val: 'partial', label: 'Partial' },
             ].map(o => `
               <label class="ms-radio-label">
-                <input type="radio" name="ms-furn" value="${o.val}" ${o.val === 'all' ? 'checked' : ''}>
+                <input type="radio" name="ms-furn" value="${o.val}" ${state.furn === o.val ? 'checked' : ''}>
                 <span>${escHtml(o.label)}</span>
               </label>`).join('')}
           </div>
@@ -312,7 +319,7 @@ export async function init(container, params = {}) {
               { val: 'amen_parking', label: 'Parking' },
             ].map(a => `
               <label class="ms-check-label">
-                <input type="checkbox" class="ms-amenity" value="${a.val}">
+                <input type="checkbox" class="ms-amenity" value="${a.val}" ${state.amenities.includes(a.val) ? 'checked' : ''}>
                 <span>${escHtml(a.label)}</span>
               </label>`).join('')}
           </div>
@@ -322,7 +329,7 @@ export async function init(container, params = {}) {
         <div class="ms-filter-section">
           <div class="ms-filter-label">Trust & Safety</div>
           <label class="ms-toggle-label">
-            <input type="checkbox" id="ms-verified">
+            <input type="checkbox" id="ms-verified" ${state.verified ? 'checked' : ''}>
             <span class="ms-toggle-track"><span class="ms-toggle-thumb"></span></span>
             <span>Verified Users Only</span>
           </label>
@@ -653,6 +660,14 @@ export async function init(container, params = {}) {
     }
 
     countEl.textContent = `${results.length} listing${results.length !== 1 ? 's' : ''}`;
+
+    // Track search
+    const queryParts = [];
+    if (state.city !== 'all') queryParts.push(state.city);
+    else if (state.country !== 'all') queryParts.push(state.country);
+    if (state.type !== 'all') queryParts.push(state.type);
+    if (state.keyword) queryParts.push(state.keyword);
+    trackSearch(queryParts.join(' ') || 'all rooms', results.length);
 
     // Render
     if (results.length === 0) {

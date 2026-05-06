@@ -5,15 +5,17 @@
 
 import { getCurrentUser } from '../../services/auth.js';
 import { db } from '../../services/db.js';
-import { navigate, updateHeader, goBack } from '../mobile-main.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
     const user = getCurrentUser();
     if (!user) {
-        navigate('auth');
+        (await getMobile()).navigate('auth');
         return;
     }
 
+    const { updateHeader, goBack } = await getMobile();
     updateHeader({ title: 'Trust & Verification', showBack: true, onBack: goBack });
 
     const dbUser = db.users.findById(user.user_id || user.id);

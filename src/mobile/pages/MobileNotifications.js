@@ -5,15 +5,17 @@
 
 import { db } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
-import { navigate, updateHeader } from '../mobile-main.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const user = getCurrentUser();
   if (!user) {
-    navigate('auth');
+    (await getMobile()).navigate('auth');
     return;
   }
 
+  const { updateHeader } = await getMobile();
   updateHeader({ title: 'Notifications', showBack: true });
 
   const notifications = (db.notifications?.findAll?.() || [])

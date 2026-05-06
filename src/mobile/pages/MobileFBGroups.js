@@ -4,11 +4,14 @@
  */
 
 import { db } from '../../services/db.js';
-import { navigate } from '../mobile-main.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 export async function init(container) {
   const allCountries = db.fb_countries.findAll();
   const allCities    = db.fb_cities.findAll();
+
+  const { navigate } = await getMobile();
 
   function _render() {
     container.innerHTML = `

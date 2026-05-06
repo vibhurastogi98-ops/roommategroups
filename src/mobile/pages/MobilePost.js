@@ -6,9 +6,10 @@
 import { getCurrentUser } from '../../services/auth.js';
 import { db, initDB } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
-import { navigate, goBack, updateHeader } from '../mobile-main.js';
 import { API_URL } from '../../services/config.js';
 import { getAssetUrl } from '../../services/assets.js';
+
+async function getMobile() { return await import('../mobile-main.js'); }
 
 // ── Draft persistence ──────────────────────────────────────────
 const DRAFT_KEY = 'rg_mobile_draft_listing';
@@ -82,6 +83,7 @@ async function processImageUpload(file) {
               uploadImage(thumbBlob, 'thumb.webp'),
               uploadImage(medBlob, 'medium.webp'),
               uploadImage(fullBlob, 'full.webp'),
+              uploadImage(fullBlob, 'full.webp'),
             ]);
             resolve({ thumb: thumbUrl, medium: medUrl, full: fullUrl });
           } catch {
@@ -122,10 +124,11 @@ const CAT_CONFIG = {
 // ── Entry ──────────────────────────────────────────────────────
 export async function init(container) {
   const user = getCurrentUser();
-  if (!user) { navigate('auth'); return; }
+  if (!user) { (await getMobile()).navigate('auth'); return; }
   await initDB().catch(() => {});
   loadDraft();
 
+  const { updateHeader, goBack } = await getMobile();
   updateHeader({
     title: 'Post Listing',
     showBack: true,
@@ -557,7 +560,9 @@ function _step7() {
 }
 
 // ── Wire all step interactions ─────────────────────────────────
-function _wireStep(container) {
+async function _wireStep(container) {
+  const { navigate } = await getMobile();
+
   // Step 1: category select
   container.querySelectorAll('.wp-cat-card').forEach(card => {
     card.addEventListener('click', () => { wizard.category = card.dataset.cat; saveDraft(); _render(container); });
@@ -801,32 +806,23 @@ async function _handleSubmit(container) {
     });
 
     clearDraft();
-    _toast('Listing published successfully!');
-    navigate('dashboard');
+    _toast(isFree ? 'Listing submitted for review!' : 'Listing published successfully!');
+    setTimeout(async () => { (await getMobile()).navigate('dashboard'); }, 1500);
   } catch (err) {
-    console.error('[Publish]', err);
+    console.error('[Post] Submit error:', err);
     _toast('Failed to publish. Please try again.', 'error');
     if (btn) { btn.textContent = 'Publish Listing'; btn.disabled = false; }
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────
-function _esc(str) {
-  if (!str) return '';
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 function _toast(msg, type = 'success') {
   const t = document.createElement('div');
-  Object.assign(t.style, {
-    position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%) translateY(20px)',
-    background: type === 'success' ? '#10b981' : '#ef4444', color: '#fff',
-    padding: '10px 20px', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '700',
-    zIndex: '99999', opacity: '0', transition: 'all 0.25s ease', whiteSpace: 'nowrap',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-  });
+  t.style = `position:fixed; bottom:100px; left:50%; transform:translateX(-50%); background:${type === 'success' ? '#10b981' : '#ef4444'}; color:#fff; padding:10px 20px; border-radius:12px; font-size:0.85rem; font-weight:700; z-index:10000; box-shadow:0 4px 12px rgba(0,0,0,0.1);`;
   t.textContent = msg;
   document.body.appendChild(t);
-  requestAnimationFrame(() => requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)'; }));
-  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 250); }, 2800);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function _esc(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c]));
 }

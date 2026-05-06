@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "835632998129",
+    "project_id": "roommategroupsapp",
+    "storage_bucket": "roommategroupsapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:835632998129:android:154f7972479d57fd112b50",
+        "android_client_info": {
+          "package_name": "com.roommategroups.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5WRXe27G5kWUflxHjXc45W5Ety6CYNt4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
