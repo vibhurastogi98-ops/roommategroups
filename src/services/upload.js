@@ -5,9 +5,8 @@ import { getCurrentUser } from './auth.js';
  * Upload service to handle file uploads to the server.
  */
 
-const API_URL = window.location.hostname === 'localhost'
-    ? 'http://localhost:8787'
-    : window.location.origin;
+import { API_URL } from './config.js';
+
 
 export async function uploadImage(fileOrBlob, filename = 'image.webp') {
     const formData = new FormData();

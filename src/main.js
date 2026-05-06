@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import './style.css';
 import { initRouter, addRoute } from './router.js';
 import { renderHomePage } from './pages/home.js';
@@ -26,6 +27,10 @@ import { renderFBGroupsPage } from './pages/fb-groups.js';
 import { renderPricingPage } from './pages/pricing.js';
 import { renderGroupDetailPage } from './pages/group-detail.js';
 import { initDB } from './services/db.js';
+
+if (Capacitor.isNativePlatform()) {
+  import('./mobile/mobile-main.js').then(m => m.initMobile());
+} else {
 addRoute('/', renderHomePage);
 addRoute('/pricing', renderPricingPage);
 addRoute('/auth/register', renderRegisterPage);
@@ -152,3 +157,5 @@ window.copyShareLink = function(platform) {
 document.getElementById('rg-share-modal').addEventListener('click', (e) => {
     if (e.target.id === 'rg-share-modal') window.closeShareModal();
 });
+}
+

@@ -2,6 +2,7 @@ import { getCurrentUser, updateProfile } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db } from '../services/db.js';
 import { uploadImage } from '../services/upload.js';
+import { Camera, CameraResultType } from '@capacitor/camera';
 
 const lifestyleTags = [
     { id: 'clean', label: 'Clean', icon: 'fa-broom' },
@@ -181,7 +182,36 @@ export function renderProfileSetupPage(app) {
         photoPreview.dataset.photo = user.profile_photo;
     }
 
-    photoUpload.addEventListener('click', () => photoInput.click());
+    photoUpload.addEventListener('click', async () => {
+        try {
+            const image = await Camera.getPhoto({
+                quality: 90,
+                resultType: CameraResultType.Uri
+            });
+            
+            if (image && image.webPath) {
+                photoPreview.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                const response = await fetch(image.webPath);
+                const blob = await response.blob();
+                const file = new File([blob], 'camera_photo.jpg', { type: 'image/jpeg' });
+                
+                try {
+                    const imageUrl = await uploadImage(file, 'profile.jpg');
+                    photoPreview.innerHTML = `<img src="${imageUrl}" alt="Profile photo" />`;
+                    photoPreview.dataset.photo = imageUrl;
+                    showToast('Photo uploaded successfully', 'success');
+                } catch (err) {
+                    console.warn('[PROFILE] Server upload failed:', err);
+                    photoPreview.innerHTML = `<img src="${image.webPath}" alt="Profile photo" />`;
+                    photoPreview.dataset.photo = image.webPath;
+                    showToast('Server unavailable. Photo saved locally.', 'warning');
+                }
+            }
+        } catch (error) {
+            console.log('Camera not available or user cancelled, falling back to file input:', error);
+            photoInput.click();
+        }
+    });
 
     photoInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];

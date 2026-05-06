@@ -47,6 +47,8 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none; /* Disable text selection globally, enable only for inputs */
 }
 
 html {
@@ -63,6 +65,12 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+input, textarea {
+  user-select: auto;
 }
 
 img {

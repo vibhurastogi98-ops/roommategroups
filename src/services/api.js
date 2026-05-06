@@ -5,9 +5,8 @@
  * changes made in the Admin panel are visible on every device.
  */
 
-const API_URL = window.location.hostname === 'localhost'
-    ? 'http://localhost:8787'
-    : window.location.origin;
+import { API_URL } from './config.js';
+
 
 async function req(method, path, data, silent = false) {
     try {

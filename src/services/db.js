@@ -74,7 +74,7 @@ const SEED_DATA = {
             state_province: 'TX',
             latitude: 30.2672,
             longitude: -97.7431,
-            hero_image: 'https://images.unsplash.com/photo-1531218150217-54595bc2b934?w=800&q=80',
+            hero_image: 'https://images.unsplash.com/photo-1531218150217-54595bc2b934?auto=format&fit=crop&q=80&w=1200',
             description: `<h3>A Guide to Living in Austin, Texas</h3><p>Austin is one of the fastest-growing cities in the United States.</p><h4>Cost of Living</h4><p>The median rent for a one-bedroom is around $1,600.</p>`,
             avg_rent: 1450,
             listing_count: 342,
@@ -140,12 +140,12 @@ const SEED_DATA = {
             category: "Roommate Tips",
             author: { 
                 name: "Sarah Jenkins", 
-                avatar: "https://i.pravatar.cc/150?img=1",
+                avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150",
                 bio: "Sarah is a housing expert and former mediator who specializes in helping co-living arrangements thrive. She has lived with over 15 different roommates in 4 cities."
             },
             date: "Oct 12, 2026",
             readTime: "8 min read",
-            image: "https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&q=80&w=1200",
+            image: "https://images.unsplash.com/photo-1556912173-3bb406ef7e77?auto=format&fit=crop&q=80&w=1200",
             content: `<p class="lead">Splitting rent with roommates can be tricky. Here's our comprehensive guide to doing it fairly.</p><h2>1. Income-Based Split</h2><p>The most common method is to split rent proportionally based on each person's income. If one person earns 60% of the total household income, they pay 60% of the rent.</p><h2>2. Room Size Method</h2><p>Larger rooms should cost more. A master bedroom with private bathroom might be worth 1.5x a smaller bedroom.</p><h2>3. Equal Split</h2><p>Simplest method - everyone pays the same. Best for similar incomes and room sizes.</p>`,
             published_date: '2026-10-12T12:00:00Z',
             is_published: true
@@ -160,8 +160,8 @@ const SEED_DATA = {
         { fb_country_id: 'fbc_6', country_name: 'Canada', created_at: '2026-01-01T00:00:00Z' },
     ],
     fb_cities: IS_PROD ? [] : [
-        { fb_city_id: 'fbcity_1', country_id: 'fbc_1', city_name: 'Austin', city_image: 'https://images.unsplash.com/photo-1531218150217-54595bc2b934?w=800&h=400&fit=crop', fb_group_name: 'Austin Roommates & Rooms for Rent', fb_group_link: 'https://www.facebook.com/groups/austinroommates', total_members: 24800, is_popular: true, priority: 1, created_at: '2026-01-01T00:00:00Z' },
-        { fb_city_id: 'fbcity_2', country_id: 'fbc_1', city_name: 'New York City', city_image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&h=400&fit=crop', fb_group_name: 'NYC Rooms & Roommates', fb_group_link: 'https://www.facebook.com/groups/nycroommates', total_members: 142000, is_popular: true, priority: 2, created_at: '2026-01-01T00:00:00Z' }
+        { fb_city_id: 'fbcity_1', country_id: 'fbc_1', city_name: 'Austin', city_image: 'https://images.unsplash.com/photo-1531218150217-54595bc2b934?auto=format&fit=crop&q=80&w=800', fb_group_name: 'Austin Roommates & Rooms for Rent', fb_group_link: 'https://www.facebook.com/groups/austinroommates', total_members: 24800, is_popular: true, priority: 1, created_at: '2026-01-01T00:00:00Z' },
+        { fb_city_id: 'fbcity_2', country_id: 'fbc_1', city_name: 'New York City', city_image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&q=80&w=800', fb_group_name: 'NYC Rooms & Roommates', fb_group_link: 'https://www.facebook.com/groups/nycroommates', total_members: 142000, is_popular: true, priority: 2, created_at: '2026-01-01T00:00:00Z' }
     ],
 };
 
@@ -340,11 +340,16 @@ export async function initDB() {
         // IMPORTANT: We overwrite local data even if the array is empty [].
         // This ensures that if the admin deletes all data, all devices see an empty list.
         if (Array.isArray(d1Users)) {
-            // Map D1 snake_case keys back to localStorage camelCase if necessary, 
-            // but for now we just store as is and update auth.js to be flexible.
-            live.users = d1Users; 
-            liveUpdated = true; 
+            // Merge: D1 is authoritative, but preserve any locally-created users not yet synced to D1
+            const live2 = getDB();
+            const localUsers = live2.users || [];
+            const d1Ids = new Set(d1Users.map(u => u.user_id || u.id));
+            const localOnlyUsers = localUsers.filter(u => !d1Ids.has(u.user_id) && !d1Ids.has(u.id));
+            live.users = [...d1Users, ...localOnlyUsers];
+            liveUpdated = true;
         }
+
+
         if (Array.isArray(d1Cities))    { live.cities    = d1Cities;    liveUpdated = true; }
         if (Array.isArray(d1Listings))  { live.listings  = d1Listings;  liveUpdated = true; }
         if (Array.isArray(d1Posts))     { live.posts     = d1Posts;     liveUpdated = true; }
@@ -374,16 +379,34 @@ export async function initDB() {
  */
 export async function syncMessagesAndThreads() {
     try {
-        const [d1Threads, d1Messages, d1Notifications, d1Reports] = await Promise.all([
+        const [d1Users, d1Threads, d1Messages, d1Notifications, d1Reports, d1Listings] = await Promise.all([
+            api.getUsers().catch(() => null),
             api.getThreads().catch(() => null),
             api.getMessages().catch(() => null),
             api.get('/notifications').catch(() => []),
             api.get('/reports').catch(() => []),
+            api.getListings().catch(() => null),
         ]);
 
         const dbData = getDB();
         let changed = false;
 
+        if (Array.isArray(d1Users)) {
+            const old = JSON.stringify(dbData.users);
+            const next = JSON.stringify(d1Users);
+            if (old !== next) {
+                // Preserve locally-created users if any
+                const d1Ids = new Set(d1Users.map(u => u.user_id || u.id));
+                const localOnlyUsers = (dbData.users || []).filter(u => !d1Ids.has(u.user_id) && !d1Ids.has(u.id));
+                dbData.users = [...d1Users, ...localOnlyUsers];
+                changed = true;
+            }
+        }
+        if (Array.isArray(d1Listings)) {
+            const old = JSON.stringify(dbData.listings);
+            const next = JSON.stringify(d1Listings);
+            if (old !== next) { dbData.listings = d1Listings; changed = true; }
+        }
         if (Array.isArray(d1Threads)) {
             const old = JSON.stringify(dbData.threads);
             const next = JSON.stringify(d1Threads);

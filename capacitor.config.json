@@ -1,0 +1,8 @@
+{
+  "appId": "com.roommategroups.app",
+  "appName": "RoommateGroups",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

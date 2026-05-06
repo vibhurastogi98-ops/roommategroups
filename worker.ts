@@ -14,7 +14,8 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('*', cors({
   origin: (origin) => {
     if (!origin) return '*'
-    if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin
+    // Allow localhost, local IP (for emulators), and capacitor origins
+    if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('10.0.2.2') || origin.startsWith('capacitor://')) return origin
     if (origin.includes('workers.dev') || origin.includes('roommategroups')) return origin
     return null
   },

@@ -18,13 +18,43 @@ function generateStripeCustomerId() {
     return 'cus_' + Math.random().toString(36).substr(2, 14);
 }
 
+// ── localStorage helpers (bypass D1 sync entirely) ──
+
+function _getDB() { return JSON.parse(localStorage.getItem('rg_database') || '{}'); }
+function _saveDB(raw) { localStorage.setItem('rg_database', JSON.stringify(raw)); }
+function _genId() { return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
+
+function _localCreateUser(data) {
+    const raw = _getDB();
+    if (!raw.users) raw.users = [];
+    const user = { user_id: _genId(), created_at: new Date().toISOString(), ...data };
+    raw.users.push(user);
+    _saveDB(raw);
+    return user;
+}
+
+function _localUpdateUser(userId, data) {
+    const raw = _getDB();
+    const idx = (raw.users || []).findIndex(u => u.user_id === userId || u.id === userId);
+    if (idx === -1) return null;
+    raw.users[idx] = { ...raw.users[idx], ...data, updated_at: new Date().toISOString() };
+    _saveDB(raw);
+    return raw.users[idx];
+}
+
+function _bgSync(fn) {
+    // Fire-and-forget — network errors never block auth
+    Promise.resolve().then(fn).catch(e => console.debug('[AUTH] D1 sync skipped (offline):', e.message));
+}
+
 // ── Auth Functions ──
 
 export async function register({ fullName, email, password }) {
     const existing = db.users.findOne(u => u.email.toLowerCase() === email.toLowerCase());
     if (existing) return { success: false, error: 'An account with this email already exists.' };
 
-    const user = await db.users.create({
+    // Write to localStorage immediately — no network call
+    const user = _localCreateUser({
         display_name: fullName, email: email.toLowerCase(),
         passwordHash: password ? simpleHash(password) : null, city: '', country: '',
         profile_photo: '', bio: '', age_range: '', occupation: '',
@@ -36,35 +66,34 @@ export async function register({ fullName, email, password }) {
     });
 
     localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email }));
+
+    // Background D1 sync — never blocks
+    _bgSync(async () => {
+        const { api } = await import('./api.js');
+        await api.createUser(user);
+    });
+
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
 }
 
 export async function login(email, password) {
     const normalizedEmail = email.toLowerCase();
 
-    // ── Master Admin Bootstrap ──
-    // If this is the master admin email and the correct password is used,
-    // we ensure the user exists and has admin privileges.
+    // ── Master Admin Bootstrap (local only) ──
     if (normalizedEmail === 'hello@roommategroups.com' && password === 'Vibhu$12345') {
         let adminUser = db.users.findOne(u => u.email.toLowerCase() === normalizedEmail);
+        const pwHash = simpleHash(password);
         if (!adminUser) {
-            adminUser = await db.users.create({
-                display_name: 'roommategroups',
-                email: normalizedEmail,
-                passwordHash: simpleHash(password),
-                role: 'admin',
-                profileComplete: true,
-                is_active: true,
-                verification_level: 'community',
-                subscription_tier: 'admin'
+            adminUser = _localCreateUser({
+                display_name: 'roommategroups', email: normalizedEmail,
+                passwordHash: pwHash, role: 'admin', profileComplete: true,
+                is_active: true, verification_level: 'community', subscription_tier: 'admin'
             });
-        } else if (adminUser.role !== 'admin' || adminUser.passwordHash !== simpleHash(password) || adminUser.display_name !== 'roommategroups') {
-            adminUser = await db.users.update(adminUser.user_id, {
-                role: 'admin',
-                passwordHash: simpleHash(password),
-                display_name: 'roommategroups',
-                profileComplete: true
-            });
+            _bgSync(async () => { const { api } = await import('./api.js'); await api.createUser(adminUser); });
+        } else if (adminUser.role !== 'admin' || adminUser.passwordHash !== pwHash || adminUser.display_name !== 'roommategroups') {
+            const updates = { role: 'admin', passwordHash: pwHash, display_name: 'roommategroups', profileComplete: true };
+            _localUpdateUser(adminUser.user_id, updates);
+            _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(adminUser.user_id, updates); });
         }
     }
 
@@ -73,21 +102,28 @@ export async function login(email, password) {
 
     const storedHash = user.passwordHash || user.password_hash;
 
-    // Password check restored as per user request
     if (!storedHash) {
-        // If user was created without a password (legacy or social), set it on first login
+        // Legacy / social account — set password on first use
         const newHash = simpleHash(password || 'password123');
-        await db.users.update(user.user_id, { passwordHash: newHash });
+        _localUpdateUser(user.user_id, { passwordHash: newHash });
+        _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { password_hash: newHash }); });
     } else if (password && storedHash !== simpleHash(password)) {
         return { success: false, error: 'Invalid email or password.' };
     } else if (!password && storedHash) {
         return { success: false, error: 'Password is required for this account.' };
     }
 
-    user = await db.users.update(user.user_id, { last_active: new Date().toISOString() });
+    // Update last_active locally — no network needed
+    const now = new Date().toISOString();
+    user = _localUpdateUser(user.user_id, { last_active: now }) || user;
     localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email }));
+
+    // Background D1 sync — never blocks login
+    _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { last_active: now }); });
+
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
 }
+
 
 export async function logout() {
     localStorage.removeItem(SESSION_KEY);

@@ -1,7 +1,7 @@
 // ── Messaging Service ────────────────────────────────────────
 // All business logic for the messaging system.
 
-import { db } from './db.js';
+import { db, syncMessagesAndThreads } from './db.js';
 
 const RATE_LIMIT_MAX = 50;       // messages per hour
 const RATE_LIMIT_WINDOW = 3600000; // 1 hour in ms
@@ -15,7 +15,6 @@ const PAYMENT_LINK_PATTERNS = [
 ];
 
 let _pollingInterval = null;
-let _lastPollTimestamps = {};
 
 // ── Thread Management ─────────────────────────────────────────
 
@@ -87,6 +86,7 @@ export function sendMessage(threadId, senderId, content, photoUrl = null) {
         photo_url: photoUrl,
         is_read: false,
         read_at: null,
+        created_at: new Date().toISOString()
     });
 
     // 6. Update thread metadata
@@ -251,12 +251,9 @@ function checkRateLimit(userId) {
 }
 
 function incrementRateLimit(userId) {
-    const user = db.users.findById(userId);
-    const isFree = !user || user.subscription_tier === 'free';
-    const windowMs = 24 * 3600 * 1000;
-
     const key = `rg_ratelimit_${userId}`;
     const now = Date.now();
+    const windowMs = 24 * 3600 * 1000;
     let data = JSON.parse(localStorage.getItem(key) || '{"count":0,"windowStart":0}');
 
     if (now - data.windowStart > windowMs) {
@@ -276,10 +273,27 @@ function incrementRateLimit(userId) {
 export function startPolling(userId, activeThreadId, onUpdate) {
     if (_pollingInterval) stopPolling();
 
-    _pollingInterval = setInterval(() => {
+    _pollingInterval = setInterval(async () => {
+        // Sync critical data from D1 before updating UI
+        await syncMessagesAndThreads().catch(err => console.log('[POLL] Sync error:', err));
+
         const threads = getThreadsForUser(userId);
         const msgs = activeThreadId ? getMessagesForThread(activeThreadId) : [];
         const unread = getTotalUnread(userId);
+        
+        // Mobile notification check
+        if (unread > 0) {
+            const lastMsg = db.messages.findAll()
+                .filter(m => m.sender_id !== userId && !m.is_read)
+                .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0];
+            
+            if (lastMsg) {
+                const sender = db.users.findById(lastMsg.sender_id);
+                const senderName = sender?.display_name || 'New Message';
+                sendBrowserNotification(senderName, lastMsg.content || 'Sent a message');
+            }
+        }
+
         onUpdate({ threads, messages: msgs, unread });
     }, POLL_INTERVAL);
 }
@@ -303,15 +317,27 @@ export async function requestPushPermission() {
     return result;
 }
 
-export function sendBrowserNotification(title, body, icon = '/vite.svg') {
-    if (Notification.permission !== 'granted') return;
+const _notifiedMsgs = new Set();
 
-    new Notification(title, {
-        body,
-        icon,
-        badge: icon,
-        tag: 'rg-message',
-    });
+export function sendBrowserNotification(title, body, icon = '/logo.png') {
+    // Prevent double notification for same content in one session
+    const key = `${title}:${body}`;
+    if (_notifiedMsgs.has(key)) return;
+    _notifiedMsgs.add(key);
+    setTimeout(() => _notifiedMsgs.delete(key), 30000);
+
+    if (Notification.permission === 'granted') {
+        new Notification(title, {
+            body,
+            icon,
+            badge: icon,
+            tag: 'rg-message',
+        });
+    } else if (window.Capacitor) {
+        // Fallback for native Capacitor if we had the plugin, 
+        // but for now we just log for debugging
+        console.log('[MOBILE NOTIF]', title, body);
+    }
 }
 
 // ── Quick Replies ─────────────────────────────────────────────
