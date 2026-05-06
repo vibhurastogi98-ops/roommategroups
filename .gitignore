@@ -5,3 +5,21 @@ dist
 .wrangler/state
 .wrangler/tmp
 .DS_Store
+
+# IDE
+.idea/
+*.iml
+
+# Scratch / temp files
+scratch.js
+
+# Android build cache
+android/.gradle_home/
+android/.idea/
+
+# Firebase / Google credentials (sensitive)
+android/app/google-services.json
+ios/App/GoogleService-Info.plist
+
+# Generated assets
+assets/
