@@ -66,6 +66,7 @@ const ROUTE_LOADERS = {
   verification: () => import('./pages/MobileVerification.js'),
   faq: () => import('./pages/MobileFAQ.js'),
   'saved-searches': () => import('./pages/MobileSavedSearches.js'),
+  subscription: () => import('./pages/MobileSubscription.js'),
 };
 
 // Route name → bottom-nav tab id (null = hide nav)
@@ -82,6 +83,7 @@ const ROUTE_TO_TAB = {
   settings: 'dashboard',
   verification: 'dashboard',
   'saved-searches': 'dashboard',
+  subscription: 'dashboard',
   auth: null,
 };
 
@@ -109,6 +111,7 @@ const ROUTE_TITLES = {
   safety: 'Safety Tips',
   verification: 'Trust & Verification',
   'saved-searches': 'Saved Searches',
+  subscription: 'Subscription',
 };
 
 // ── App shell refs ────────────────────────────────────────────

@@ -23,8 +23,11 @@ const defaultWizard = {
   title: '',
   price: '',
   currency: 'USD',
+  deposit: '',
   availableFrom: '',
   leaseDuration: '',
+  minStay: 'flexible',
+  utilitiesIncluded: false,
   roomType: '',
   furnished: '',
   bedrooms: '',
@@ -62,50 +65,53 @@ function loadListingIntoWizard(listing) {
   try {
     const raw = typeof listing.images === 'string' ? JSON.parse(listing.images || '[]') : (listing.images || []);
     photos = Array.isArray(raw) ? raw : [];
-  } catch (_) {}
+  } catch (_) { }
 
   let roommatePrefs = {};
   try {
     roommatePrefs = typeof listing.roommate_prefs === 'string'
       ? JSON.parse(listing.roommate_prefs || '{}')
       : (listing.roommate_prefs || {});
-  } catch (_) {}
+  } catch (_) { }
 
   const furnishedMap = { true: 'Yes', false: 'No', 1: 'Yes', 0: 'No' };
   const furnishedStr = listing.furnished === true || listing.furnished === 1 ? 'Yes'
     : listing.furnished === false || listing.furnished === 0 ? 'No'
-    : String(listing.furnished || '');
+      : String(listing.furnished || '');
 
   wizard = {
     ...defaultWizard,
     step: 1,
-    category:        listing.category         || '',
-    country:         listing.country          || 'country_us',
-    city:            listing.city             || '',
-    neighborhood:    listing.neighborhood     || '',
-    address:         listing.address          || '',
-    title:           listing.title            || '',
-    price:           String(listing.rent      || listing.price || ''),
-    currency:        listing.currency         || 'USD',
-    availableFrom:   listing.available_from   ? listing.available_from.slice(0, 10) : '',
-    leaseDuration:   listing.lease_duration   || '',
-    roomType:        listing.room_type        || '',
-    furnished:       furnishedStr,
-    bedrooms:        String(listing.bedrooms  || ''),
-    bathrooms:       String(listing.bathrooms || ''),
-    sizeSqft:        String(listing.size_sqft || ''),
-    budgetMin:       String(listing.budgetMin || listing.budget_min || ''),
-    budgetMax:       String(listing.budgetMax || listing.budget_max || ''),
-    preferredArea:   listing.preferredArea    || listing.preferred_area || '',
-    moveInTimeline:  listing.moveInTimeline   || listing.move_in_timeline || '',
-    amenities:       Array.isArray(listing.amenities) ? listing.amenities : [],
+    category: listing.category || '',
+    country: listing.country || 'country_us',
+    city: listing.city || '',
+    neighborhood: listing.neighborhood || '',
+    address: listing.address || '',
+    title: listing.title || '',
+    price: String(listing.rent || listing.price || ''),
+    currency: listing.currency || 'USD',
+    deposit: String(listing.deposit || ''),
+    availableFrom: listing.available_from ? listing.available_from.slice(0, 10) : '',
+    leaseDuration: listing.lease_duration || '',
+    minStay: listing.min_stay || 'flexible',
+    utilitiesIncluded: !!listing.utilities_included || !!listing.bills_included,
+    roomType: listing.room_type || '',
+    furnished: furnishedStr,
+    bedrooms: String(listing.bedrooms || ''),
+    bathrooms: String(listing.bathrooms || ''),
+    sizeSqft: String(listing.size_sqft || ''),
+    budgetMin: String(listing.budgetMin || listing.budget_min || ''),
+    budgetMax: String(listing.budgetMax || listing.budget_max || ''),
+    preferredArea: listing.preferredArea || listing.preferred_area || '',
+    moveInTimeline: listing.moveInTimeline || listing.move_in_timeline || '',
+    amenities: Array.isArray(listing.amenities) ? listing.amenities : [],
     photos,
-    description:     listing.description      || '',
-    prefGender:      roommatePrefs.gender     || 'Any',
-    prefAgeMin:      roommatePrefs.ageMin     || 18,
-    prefAgeMax:      roommatePrefs.ageMax     || 99,
-    lifestyleTags:   roommatePrefs.tags       || [],
-    _termsAccepted:  true,
+    description: listing.description || '',
+    prefGender: roommatePrefs.gender || 'Any',
+    prefAgeMin: roommatePrefs.ageMin || 18,
+    prefAgeMax: roommatePrefs.ageMax || 99,
+    lifestyleTags: roommatePrefs.tags || [],
+    _termsAccepted: true,
   };
 }
 
@@ -181,7 +187,7 @@ const CAT_CONFIG = {
 export async function init(container, params = {}) {
   const user = getCurrentUser();
   if (!user) { (await getMobile()).navigate('auth'); return; }
-  await initDB().catch(() => {});
+  await initDB().catch(() => { });
 
   const { updateHeader, goBack } = await getMobile();
 
@@ -349,43 +355,59 @@ function _step3() {
         <input class="mobile-input" id="wp-title" type="text" placeholder="e.g. Sunny Room Near Downtown" value="${_esc(wizard.title)}">
         <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Minimum 3 characters required.</div>
       </div>
-      <div class="mobile-form-group">
-        <label class="mobile-form-label">Monthly Rent *</label>
-        <div style="display:flex; gap:8px;">
-          <select class="mobile-input" id="wp-currency" style="flex:0 0 80px;">
-            <option value="USD" ${wizard.currency === 'USD' ? 'selected' : ''}>$ USD</option>
-            <option value="EUR" ${wizard.currency === 'EUR' ? 'selected' : ''}>€ EUR</option>
-            <option value="GBP" ${wizard.currency === 'GBP' ? 'selected' : ''}>£ GBP</option>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Monthly Rent *</label>
+          <div style="display:flex; gap:8px;">
+            <select class="mobile-input" id="wp-currency" style="flex:0 0 70px; padding:0 8px; font-size:0.8rem;">
+              <option value="USD" ${wizard.currency === 'USD' ? 'selected' : ''}>$</option>
+              <option value="EUR" ${wizard.currency === 'EUR' ? 'selected' : ''}>€</option>
+              <option value="GBP" ${wizard.currency === 'GBP' ? 'selected' : ''}>£</option>
+            </select>
+            <input class="mobile-input" id="wp-price" type="number" placeholder="1200" value="${wizard.price}" style="flex:1;">
+          </div>
+        </div>
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Deposit ($)</label>
+          <input class="mobile-input" id="wp-deposit" type="number" placeholder="e.g. 500" value="${wizard.deposit}">
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Room Type</label>
+          <select class="mobile-input" id="wp-roomtype">
+            <option value="">Select type</option>
+            ${['Private Room', 'Shared Room', 'Entire Place', 'Studio'].map(rt => `<option value="${rt}" ${wizard.roomType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
           </select>
-          <input class="mobile-input" id="wp-price" type="number" placeholder="1,200" value="${wizard.price}" style="flex:1;">
+        </div>
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Date Available</label>
+          <input class="mobile-input" id="wp-date" type="date" value="${wizard.availableFrom}">
         </div>
       </div>
       <div class="mobile-form-group">
-        <label class="mobile-form-label">Available From</label>
-        <input class="mobile-input" id="wp-date" type="date" value="${wizard.availableFrom}">
-      </div>
-      <div class="mobile-form-group">
-        <label class="mobile-form-label">Lease Duration</label>
-        <div style="display:flex; flex-wrap:wrap; gap:8px;">
-          ${['<3 months','3-6 months','6-12 months','12+ months','Flexible'].map(d => `
-            <label style="display:flex; align-items:center; gap:6px; padding:8px 14px; border-radius:20px; border:1.5px solid ${wizard.leaseDuration === d ? 'var(--mobile-accent)' : '#e2e8f0'}; background:${wizard.leaseDuration === d ? 'var(--mobile-accent-soft,#f0f0f0)' : '#fff'}; cursor:pointer; font-size:0.82rem; font-weight:700; touch-action:manipulation;">
-              <input type="radio" name="wp-lease" value="${d}" ${wizard.leaseDuration === d ? 'checked' : ''} style="display:none;">
-              ${d}
-            </label>
-          `).join('')}
-        </div>
-      </div>
-      <div class="mobile-form-group">
-        <label class="mobile-form-label">Room Type</label>
-        <select class="mobile-input" id="wp-roomtype">
-          <option value="">Select type</option>
-          ${['Private Room','Shared Room','Entire Place','Studio'].map(rt => `<option value="${rt}" ${wizard.roomType === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+        <label class="mobile-form-label">Min. Stay</label>
+        <select class="mobile-input" id="wp-minstay">
+          <option value="flexible" ${wizard.minStay === 'flexible' ? 'selected' : ''}>Flexible</option>
+          <option value="1_month" ${wizard.minStay === '1_month' ? 'selected' : ''}>1 Month</option>
+          <option value="3_months" ${wizard.minStay === '3_months' ? 'selected' : ''}>3 Months</option>
+          <option value="6_months" ${wizard.minStay === '6_months' ? 'selected' : ''}>6 Months</option>
+          <option value="12_months" ${wizard.minStay === '12_months' ? 'selected' : ''}>12 Months</option>
         </select>
+      </div>
+      <div class="mobile-form-group" style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:12px 16px; border-radius:12px; margin-bottom:20px;">
+        <span style="font-weight:700; font-size:0.9rem; color:#475569;">Utilities Included</span>
+        <label style="position:relative; display:inline-block; width:44px; height:24px;">
+          <input type="checkbox" id="wp-utilities" ${wizard.utilitiesIncluded ? 'checked' : ''} style="opacity:0; width:0; height:0;">
+          <span style="position:absolute; cursor:pointer; inset:0; background-color:${wizard.utilitiesIncluded ? 'var(--mobile-accent)' : '#cbd5e1'}; transition:.4s; border-radius:24px;">
+            <span style="position:absolute; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; transform:${wizard.utilitiesIncluded ? 'translateX(20px)' : 'none'};"></span>
+          </span>
+        </label>
       </div>
       <div class="mobile-form-group">
         <label class="mobile-form-label">Furnished?</label>
         <div style="display:flex; gap:8px;">
-          ${['Yes','No','Partially'].map(f => `
+          ${['Yes', 'No', 'Partially'].map(f => `
             <label style="display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:20px; border:1.5px solid ${wizard.furnished === f ? 'var(--mobile-accent)' : '#e2e8f0'}; background:${wizard.furnished === f ? 'var(--mobile-accent-soft,#f0f0f0)' : '#fff'}; cursor:pointer; font-size:0.82rem; font-weight:700; touch-action:manipulation;">
               <input type="radio" name="wp-furnished" value="${f}" ${wizard.furnished === f ? 'checked' : ''} style="display:none;">
               ${f}
@@ -435,7 +457,7 @@ function _step3() {
       <label class="mobile-form-label">Move-in Timeline</label>
       <select class="mobile-input" id="wp-timeline">
         <option value="">Select timeline</option>
-        ${['ASAP','Within 30 days','1-3 Months','Flexible'].map(t => `<option value="${t}" ${wizard.moveInTimeline === t ? 'selected' : ''}>${t}</option>`).join('')}
+        ${['ASAP', 'Within 30 days', '1-3 Months', 'Flexible'].map(t => `<option value="${t}" ${wizard.moveInTimeline === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select>
     </div>
   `;
@@ -508,7 +530,7 @@ function _step6() {
       <div class="mobile-form-group">
         <label class="mobile-form-label">Preferred Gender</label>
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
-          ${['Any','Male','Female','Non-binary'].map(g => `
+          ${['Any', 'Male', 'Female', 'Non-binary'].map(g => `
             <label style="display:flex; align-items:center; padding:8px 16px; border-radius:20px; border:1.5px solid ${wizard.prefGender === g ? 'var(--mobile-accent)' : '#e2e8f0'}; background:${wizard.prefGender === g ? 'var(--mobile-accent-soft,#f0f0f0)' : '#fff'}; cursor:pointer; font-size:0.82rem; font-weight:700; touch-action:manipulation;">
               <input type="radio" name="wp-pref-gender" value="${g}" ${wizard.prefGender === g ? 'checked' : ''} style="display:none;">
               ${g}
@@ -563,9 +585,9 @@ function _step7() {
   const previewCard = `
     <div style="border-radius:16px; border:1px solid #f1f5f9; overflow:hidden; margin-bottom:24px;">
       ${coverPhoto
-        ? `<img src="${coverPhoto}" style="width:100%; height:160px; object-fit:cover;" alt="Cover photo">`
-        : `<div style="width:100%; height:120px; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:2rem;"><i class="fa-solid fa-image"></i></div>`
-      }
+      ? `<img src="${coverPhoto}" style="width:100%; height:160px; object-fit:cover;" alt="Cover photo">`
+      : `<div style="width:100%; height:120px; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:2rem;"><i class="fa-solid fa-image"></i></div>`
+    }
       <div style="padding:16px;">
         <div style="font-size:1.05rem; font-weight:900; color:#1e293b;">${_esc(wizard.title) || 'Untitled Listing'}</div>
         <div style="font-size:0.82rem; color:#64748b; margin-top:4px;">📍 ${_esc(wizard.address) || (wizard.city ? 'Location set' : 'No location')}</div>
@@ -689,8 +711,11 @@ async function _wireStep(container) {
   container.querySelector('#wp-title')?.addEventListener('input', e => { wizard.title = e.target.value; saveDraft(); });
   container.querySelector('#wp-currency')?.addEventListener('change', e => { wizard.currency = e.target.value; saveDraft(); });
   container.querySelector('#wp-price')?.addEventListener('input', e => { wizard.price = e.target.value; saveDraft(); });
+  container.querySelector('#wp-deposit')?.addEventListener('input', e => { wizard.deposit = e.target.value; saveDraft(); });
   container.querySelector('#wp-date')?.addEventListener('change', e => { wizard.availableFrom = e.target.value; saveDraft(); });
   container.querySelector('#wp-roomtype')?.addEventListener('change', e => { wizard.roomType = e.target.value; saveDraft(); });
+  container.querySelector('#wp-minstay')?.addEventListener('change', e => { wizard.minStay = e.target.value; saveDraft(); });
+  container.querySelector('#wp-utilities')?.addEventListener('change', e => { wizard.utilitiesIncluded = e.target.checked; saveDraft(); _render(container); });
   container.querySelector('#wp-beds')?.addEventListener('input', e => { wizard.bedrooms = e.target.value; saveDraft(); });
   container.querySelector('#wp-baths')?.addEventListener('input', e => { wizard.bathrooms = e.target.value; saveDraft(); });
   container.querySelector('#wp-sqft')?.addEventListener('input', e => { wizard.sizeSqft = e.target.value; saveDraft(); });
@@ -698,9 +723,6 @@ async function _wireStep(container) {
   container.querySelector('#wp-bmax')?.addEventListener('input', e => { wizard.budgetMax = e.target.value; saveDraft(); });
   container.querySelector('#wp-pref-area')?.addEventListener('input', e => { wizard.preferredArea = e.target.value; saveDraft(); });
   container.querySelector('#wp-timeline')?.addEventListener('change', e => { wizard.moveInTimeline = e.target.value; saveDraft(); });
-  container.querySelectorAll('input[name="wp-lease"]').forEach(r => {
-    r.addEventListener('change', e => { wizard.leaseDuration = e.target.value; saveDraft(); _render(container); });
-  });
   container.querySelectorAll('input[name="wp-furnished"]').forEach(r => {
     r.addEventListener('change', e => { wizard.furnished = e.target.value; saveDraft(); _render(container); });
   });
@@ -720,7 +742,7 @@ async function _wireStep(container) {
     const status = container.querySelector('#wp-upload-status');
     if (status) status.textContent = 'Uploading photos…';
     for (const file of files) {
-      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { _toast(`${file.name}: unsupported format`, 'error'); continue; }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { _toast(`${file.name}: unsupported format`, 'error'); continue; }
       if (file.size > 5 * 1024 * 1024) { _toast(`${file.name}: exceeds 5MB`, 'error'); continue; }
       try { wizard.photos.push(await processImageUpload(file)); } catch (err) { _toast('Upload failed', 'error'); }
     }
@@ -857,12 +879,15 @@ async function _handleSubmit(container) {
       description: wizard.description,
       rent: isRoommate ? (parseInt(wizard.budgetMax) || 0) : (parseInt(wizard.price) || 0),
       currency: wizard.currency,
+      deposit: parseInt(wizard.deposit) || 0,
       country: wizard.country,
       city: wizard.city,
       neighborhood: wizard.neighborhood,
       address: wizard.address,
       room_type: wizard.roomType,
       available_from: wizard.availableFrom,
+      min_stay: wizard.minStay,
+      utilities_included: wizard.utilitiesIncluded,
       lease_duration: wizard.leaseDuration,
       furnished: wizard.furnished,
       amenities: wizard.amenities,
@@ -922,5 +947,5 @@ function _toast(msg, type = 'success') {
 }
 
 function _esc(str) {
-  return String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c]));
+  return String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
 }

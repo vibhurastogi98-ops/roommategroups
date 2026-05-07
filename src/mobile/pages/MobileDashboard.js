@@ -130,7 +130,7 @@ export async function init(container) {
             ${_action('📋', 'My Listings',        'my-listings')}
             ${_action('🔔', 'Notifications',      'notifications')}
             ${_action('⚙️', 'Account Settings',  'settings')}
-            ${_action('💳', 'Upgrade Plan',       'pricing')}
+            ${_action('💳', 'Subscription',       'subscription')}
             ${_action('🛡️', 'Verify Account',    'verification')}
           </div>
         </div>

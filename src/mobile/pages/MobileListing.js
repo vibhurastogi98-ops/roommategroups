@@ -42,18 +42,19 @@ export async function init(container, params = {}) {
     }
   });
 
-  const user     = getCurrentUser();
-  const isOwner  = !!(user && listing.user_id && user.user_id === listing.user_id);
-  const poster   = listing.user_id ? db.users.findById(listing.user_id) : null;
-  
+  const user = getCurrentUser();
+  const isOwner = !!(user && listing.user_id && user.user_id === listing.user_id);
+  const poster = listing.user_id ? db.users.findById(listing.user_id) : null;
+
   // Handle photos normalization
   let photoList = listing.images || listing.photos || [];
   if (typeof photoList === 'string') {
-    try { photoList = JSON.parse(photoList); } catch(e) { photoList = []; }
+    try { photoList = JSON.parse(photoList); } catch (e) { photoList = []; }
   }
-  const photos  = (Array.isArray(photoList) ? photoList : [photoList]).filter(Boolean).map(p => getAssetUrl(p));
-  const price   = listing.rent ? `₹${Number(listing.rent).toLocaleString('en-IN')}` : 'Price TBC';
-  
+  const photos = (Array.isArray(photoList) ? photoList : [photoList]).filter(Boolean).map(p => getAssetUrl(p));
+  const symbol = listing.currency === 'EUR' ? '€' : listing.currency === 'GBP' ? '£' : listing.currency === 'INR' ? '₹' : '$';
+  const price = listing.rent ? `${symbol}${Number(listing.rent).toLocaleString(listing.currency === 'INR' ? 'en-IN' : 'en-US')}` : 'Price TBC';
+
   // Normalize City Name
   let cityName = '';
   const cityId = listing.city || listing.city_id;
@@ -63,9 +64,9 @@ export async function init(container, params = {}) {
     else cityName = cityId.replace('city_', '').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
-  const loc     = [listing.area, cityName, listing.postcode].filter(Boolean).join(', ') || 'Location TBC';
-  const saved   = (user?.saved_listings || []).includes(id);
-  const ago     = _timeAgo(listing.created_at);
+  const loc = [listing.area, cityName, listing.postcode].filter(Boolean).join(', ') || 'Location TBC';
+  const saved = (user?.saved_listings || []).includes(id);
+  const ago = _timeAgo(listing.created_at);
 
   // Normalize Property Type
   const rawType = listing.room_type || listing.category || listing.property_type || listing.type;
@@ -81,7 +82,9 @@ export async function init(container, params = {}) {
     listing.gender_preference && `${listing.gender_preference === 'Female' ? '♀' : listing.gender_preference === 'Male' ? '♂' : '⚥'} ${listing.gender_preference}`,
     listing.furnished !== undefined && (listing.furnished ? '🛋️ Furnished' : '📦 Unfurnished'),
     listing.available_from && `📅 From ${new Date(listing.available_from).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
-    listing.bills_included && '💡 Bills included',
+    (listing.utilities_included || listing.bills_included) && '💡 Bills included',
+    listing.deposit && `💰 Deposit: ${symbol}${Number(listing.deposit).toLocaleString()}`,
+    listing.min_stay && `⏳ Min. Stay: ${listing.min_stay.replace('_', ' ')}`,
   ].filter(Boolean);
 
   container.innerHTML = `
@@ -91,18 +94,18 @@ export async function init(container, params = {}) {
       <div id="gallery-wrap" style="position:relative;background:#0f172a;overflow:hidden;touch-action:pan-y;">
         <div id="gallery-track" style="display:flex;transition:transform .3s cubic-bezier(.4,0,.2,1);will-change:transform;">
           ${photos.length
-            ? photos.map((p, i) => `
-                <img data-idx="${i}" src="${p}" alt="Photo ${i+1}"
+      ? photos.map((p, i) => `
+                <img data-idx="${i}" src="${p}" alt="Photo ${i + 1}"
                   style="min-width:100%;width:100%;aspect-ratio:4/3;object-fit:cover;display:block;flex-shrink:0;">`)
-              .join('')
-            : `<div style="min-width:100%;width:100%;aspect-ratio:4/3;background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:center;font-size:5rem;">🏠</div>`
-          }
+        .join('')
+      : `<div style="min-width:100%;width:100%;aspect-ratio:4/3;background:linear-gradient(135deg,#1e293b,#334155);display:flex;align-items:center;justify-content:center;font-size:5rem;">🏠</div>`
+    }
         </div>
 
         ${photos.length > 1 ? `
           <!-- Dot indicators -->
           <div id="gallery-dots" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;">
-            ${photos.map((_, i) => `<div class="gallery-dot" data-i="${i}" style="width:${i===0?'20px':'6px'};height:6px;border-radius:3px;background:${i===0?'#fff':'rgba(255,255,255,.5)'};transition:all .25s;"></div>`).join('')}
+            ${photos.map((_, i) => `<div class="gallery-dot" data-i="${i}" style="width:${i === 0 ? '20px' : '6px'};height:6px;border-radius:3px;background:${i === 0 ? '#fff' : 'rgba(255,255,255,.5)'};transition:all .25s;"></div>`).join('')}
           </div>
           <!-- Photo count badge -->
           <div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.55);color:#fff;border-radius:20px;padding:4px 12px;font-size:0.75rem;font-weight:700;">
@@ -115,7 +118,7 @@ export async function init(container, params = {}) {
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div style="font-size:1.8rem;font-weight:900;color:var(--mobile-accent);letter-spacing:-0.03em;">${price}<span style="font-size:1rem;font-weight:600;color:#94a3b8;">/month</span></div>
           ${propType ? `<span style="padding:5px 14px;border-radius:20px;font-size:0.78rem;font-weight:700;background:var(--mobile-accent-soft);color:var(--mobile-accent);">${propType}</span>` : ''}
-          ${listing.bills_included ? `<span style="padding:5px 14px;border-radius:20px;font-size:0.78rem;font-weight:700;background:rgba(16,185,129,.12);color:#059669;">Bills incl.</span>` : ''}
+          ${(listing.utilities_included || listing.bills_included) ? `<span style="padding:5px 14px;border-radius:20px;font-size:0.78rem;font-weight:700;background:rgba(16,185,129,.12);color:#059669;">Bills incl.</span>` : ''}
         </div>
       </div>
 
@@ -174,7 +177,7 @@ export async function init(container, params = {}) {
           <div style="font-size:1rem;font-weight:800;color:var(--text-primary);margin-bottom:12px;">Location</div>
           <div style="border-radius:14px;overflow:hidden;height:200px;">
             <iframe
-              src="https://www.openstreetmap.org/export/embed.html?bbox=${listing.longitude-.01},${listing.latitude-.01},${listing.longitude+.01},${listing.latitude+.01}&layer=mapnik&marker=${listing.latitude},${listing.longitude}"
+              src="https://www.openstreetmap.org/export/embed.html?bbox=${listing.longitude - .01},${listing.latitude - .01},${listing.longitude + .01},${listing.latitude + .01}&layer=mapnik&marker=${listing.latitude},${listing.longitude}"
               style="width:100%;height:100%;border:none;" loading="lazy" title="Map">
             </iframe>
           </div>
@@ -184,7 +187,7 @@ export async function init(container, params = {}) {
 
     <!-- STICKY CONTACT BAR -->
     <div style="position:fixed;bottom:calc(var(--mobile-bottom-nav-height) + var(--mobile-safe-bottom));left:0;right:0;padding:10px 16px;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);border-top:1px solid #e2e8f0;display:flex;gap:10px;z-index:800;">
-      <button id="lst-save" aria-label="${saved?'Remove from saved':'Save listing'}"
+      <button id="lst-save" aria-label="${saved ? 'Remove from saved' : 'Save listing'}"
         style="width:48px;height:48px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform .2s cubic-bezier(.34,1.56,.64,1);">
         ${saved ? '❤️' : '🤍'}
       </button>
@@ -215,29 +218,29 @@ export async function init(container, params = {}) {
   if (photos.length > 1) _initGallery(container, photos);
 
   // ── Read more toggle ──────────────────────────────────────
-  const descEl   = container.querySelector('#lst-desc');
+  const descEl = container.querySelector('#lst-desc');
   const readMore = container.querySelector('#lst-readmore');
-  let expanded   = false;
+  let expanded = false;
   readMore?.addEventListener('click', () => {
     expanded = !expanded;
-    descEl.style.maxHeight      = expanded ? 'none' : '4.9em';
-    readMore.textContent        = expanded ? 'Read less ▲' : 'Read more ▼';
+    descEl.style.maxHeight = expanded ? 'none' : '4.9em';
+    readMore.textContent = expanded ? 'Read less ▲' : 'Read more ▼';
   });
 
   // ── Save toggle ────────────────────────────────────────────
   const saveBtn = container.querySelector('#lst-save');
-  let isSaved   = saved;
+  let isSaved = saved;
   saveBtn?.addEventListener('click', async () => {
     const u = getCurrentUser();
     if (!u) { (await getMobile()).navigate('auth'); return; }
     isSaved = !isSaved;
-    saveBtn.textContent   = isSaved ? '❤️' : '🤍';
+    saveBtn.textContent = isSaved ? '❤️' : '🤍';
     saveBtn.style.transform = 'scale(1.3)';
     setTimeout(() => { saveBtn.style.transform = ''; }, 250);
     const savedList = [...(u.saved_listings || [])];
     if (isSaved && !savedList.includes(id)) savedList.push(id);
     else if (!isSaved) savedList.splice(savedList.indexOf(id), 1);
-    await db.users.update(u.user_id, { saved_listings: savedList }).catch(() => {});
+    await db.users.update(u.user_id, { saved_listings: savedList }).catch(() => { });
   });
 
   // ── Message button ─────────────────────────────────────────
@@ -271,18 +274,18 @@ export const renderMobileListing = init;
 
 // ── Gallery swipe logic ────────────────────────────────────────
 function _initGallery(container, photos) {
-  const track    = container.querySelector('#gallery-track');
+  const track = container.querySelector('#gallery-track');
   const dotsWrap = container.querySelector('#gallery-dots');
-  const badge    = container.querySelector('#gallery-wrap [style*="1 /"]');
-  let current    = 0;
-  let startX     = 0;
+  const badge = container.querySelector('#gallery-wrap [style*="1 /"]');
+  let current = 0;
+  let startX = 0;
 
   function goTo(idx) {
     current = Math.max(0, Math.min(idx, photos.length - 1));
     track.style.transform = `translateX(-${current * 100}%)`;
     if (badge) badge.textContent = `${current + 1} / ${photos.length}`;
     dotsWrap?.querySelectorAll('.gallery-dot').forEach((d, i) => {
-      d.style.width      = i === current ? '20px' : '6px';
+      d.style.width = i === current ? '20px' : '6px';
       d.style.background = i === current ? '#fff' : 'rgba(255,255,255,.5)';
     });
   }
@@ -369,14 +372,14 @@ function _openReportSheet(listing, user) {
         try {
           const { api: a } = await import('../../services/api.js');
           await a.saveReport({
-            report_id: `rpt_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+            report_id: `rpt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             listing_id: listing.listing_id || listing.id,
             reporter_id: user.user_id,
             reason,
             status: 'pending',
             created_at: new Date().toISOString(),
           });
-        } catch (_) {}
+        } catch (_) { }
         hideBottomSheet();
         alert('Thank you — your report has been submitted.');
       });

@@ -77,7 +77,19 @@ export async function init(container, params = {}) {
             </label>` : ''}
           </div>
           <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.02em;">${user.display_name || user.fullName || 'User'}</div>
-          <div style="font-size:0.82rem;color:#94a3b8;margin-top:2px;">${isSelf ? (user.email || '') : ''}</div>
+          ${(() => {
+            const tier = (user.subscription_tier || 'free').toLowerCase();
+            if (tier === 'free' && !isSelf) return '';
+            const labels = { free: 'FREE', basic: 'BASIC', premium: 'PREMIUM', pro: 'PRO', admin: 'ADMIN' };
+            const colors = { free: '#64748b', basic: '#0ea5e9', premium: '#6366f1', pro: '#1a1a1a', admin: '#000000' };
+            const bg = colors[tier] || '#64748b';
+            const isDark = tier === 'pro' || tier === 'admin';
+            return `<div style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 10px;border-radius:6px;background:${bg};color:#fff;font-size:0.65rem;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+              ${tier !== 'free' ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>' : ''}
+              ${labels[tier]} PLAN
+            </div>`;
+          })()}
+          <div style="font-size:0.82rem;color:#94a3b8;margin-top:4px;">${isSelf ? (user.email || '') : ''}</div>
           ${user.bio ? `<div style="font-size:0.83rem;color:var(--text-secondary);margin-top:8px;line-height:1.5;max-width:280px;margin-inline:auto;">${user.bio}</div>` : ''}
           <div style="margin-top:10px;">
             <div id="prof-verify-btn" style="background:none;border:none;cursor:pointer;padding:4px 0;">
@@ -137,7 +149,7 @@ export async function init(container, params = {}) {
           ${_settingsRow('🔒', 'Privacy Settings', 'privacy')}
           <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;padding:16px 0 4px;">SUPPORT & INFO</div>
           ${_settingsRow('ℹ️', 'About Us', 'about')}
-          ${_settingsRow('💰', 'Pricing Plans', 'pricing')}
+          ${_settingsRow('💳', 'Subscription', 'subscription')}
           ${_settingsRow('📝', 'Blog', 'blog')}
           ${_settingsRow('❓', 'FAQ', 'faq')}
           ${_settingsRow('✉️', 'Contact Us', 'contact')}
@@ -182,7 +194,7 @@ export async function init(container, params = {}) {
     container.querySelector('#settings-notifications')?.addEventListener('click', () => _showNotifSheet(user));
     container.querySelector('#settings-privacy')?.addEventListener('click', () => _showPrivacySheet());
     container.querySelector('#settings-about')?.addEventListener('click', () => navigate('about'));
-    container.querySelector('#settings-pricing')?.addEventListener('click', () => navigate('pricing'));
+    container.querySelector('#settings-subscription')?.addEventListener('click', () => navigate('subscription'));
     container.querySelector('#settings-blog')?.addEventListener('click', () => navigate('blog'));
     container.querySelector('#settings-faq')?.addEventListener('click', () => navigate('faq'));
     container.querySelector('#settings-contact')?.addEventListener('click', () => navigate('contact'));

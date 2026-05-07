@@ -131,7 +131,7 @@ export async function init(container) {
           <div>
             <h3 style="${SECTION_TITLE}">Account</h3>
             <div style="${CARD}">
-              ${_row('💳', 'Subscription', 'Manage Plan', 'go-pricing')}
+              ${_row('💳', 'Subscription', 'Manage Plan', 'go-subscription')}
               ${_row('🔔', 'Notifications', '', 'go-notifications')}
               ${_row('🛡️', 'Verification', '', 'go-verification')}
               ${_row('🚪', 'Log Out', '', 'do-logout', true)}
@@ -198,7 +198,7 @@ export async function init(container) {
     });
 
     // Navigation rows
-    container.querySelector('[data-action="go-pricing"]')?.addEventListener('click', () => navigate('pricing'));
+    container.querySelector('[data-action="go-subscription"]')?.addEventListener('click', () => navigate('subscription'));
     container.querySelector('[data-action="go-notifications"]')?.addEventListener('click', () => navigate('notifications'));
     container.querySelector('[data-action="go-verification"]')?.addEventListener('click', () => navigate('verification'));
 
