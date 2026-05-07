@@ -7,7 +7,7 @@
  */
 
 import { db } from '../../services/db.js';
-import { getCurrentUser } from '../../services/auth.js';
+import { getCurrentUser, getVerificationBadge } from '../../services/auth.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -23,6 +23,22 @@ function _timeAgo(dateStr) {
   return months === 1 ? '1 month ago' : `${months} months ago`;
 }
 
+function _getCityName(cityId) {
+  if (!cityId) return '';
+  const city = db.cities.findById(cityId);
+  if (city) return city.name;
+  // Fallback for raw city strings
+  return cityId.replace('city_', '').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function _getPropertyType(listing) {
+  const type = listing.room_type || listing.category || listing.property_type || listing.type;
+  if (!type) return 'Room'; // Default fallback
+  
+  // Clean up and format
+  return type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 function _genderColor(pref) {
   if (!pref || pref === 'Any') return 'background:#f1f5f9;color:#475569;';
   if (pref === 'Female')       return 'background:#fafafa;color:#000;border:1px solid #e2e8f0;';
@@ -31,13 +47,12 @@ function _genderColor(pref) {
 }
 
 function _typeColor(type) {
-  const map = {
-    PG:     'background:#000;color:#fff;',
-    Flat:   'background:#334155;color:#fff;',
-    Room:   'background:#64748b;color:#fff;',
-    Studio: 'background:#94a3b8;color:#000;',
-  };
-  return map[type] || 'background:#f1f5f9;color:#000;';
+  const t = (type || '').toLowerCase();
+  if (t.includes('pg')) return 'background:#000;color:#fff;';
+  if (t.includes('flat') || t.includes('apartment')) return 'background:#334155;color:#fff;';
+  if (t.includes('room')) return 'background:#64748b;color:#fff;';
+  if (t.includes('studio')) return 'background:#94a3b8;color:#000;';
+  return 'background:#f1f5f9;color:#000;';
 }
 
 function _isSaved(listingId) {
@@ -53,41 +68,50 @@ function _isSaved(listingId) {
  * @returns {string}        - HTML string to inject
  */
 export function renderMobileCard(listing) {
-  const {
-    listing_id, title, area, city, rent, type,
-    photos, roommates_wanted, gender_preference,
-    created_at, user_id,
-  } = listing;
-
-  const id       = listing_id || listing.id;
+  const id       = listing.listing_id || listing.id;
+  const title    = listing.title || 'Untitled';
+  const area     = listing.area || '';
+  const city     = _getCityName(listing.city || listing.city_id);
+  const rent     = listing.rent || listing.price;
+  const type     = _getPropertyType(listing);
+  const is_featured = listing.is_featured === true || listing.is_featured === 1;
+  const category = (listing.category || '').toLowerCase();
+  const isRoommate = category.includes('roommate_wanted') || category.includes('room_wanted');
+  
   const price    = rent ? `₹${Number(rent).toLocaleString('en-IN')}` : 'Price TBC';
   const location = [area, city].filter(Boolean).join(', ') || 'Location TBC';
   
-  // Handle photos (D1 stores them as JSON strings, or they might be already parsed)
-  let photoList = photos;
-  if (typeof photos === 'string') {
-    try { photoList = JSON.parse(photos); } catch(e) { photoList = []; }
-  }
-  const image    = Array.isArray(photoList) ? getAssetUrl(photoList[0]) : getAssetUrl(photoList);
-  
-  const saved    = _isSaved(id);
-  const ago      = _timeAgo(created_at);
-
-  // Poster info (sync look-up)
-  const poster = user_id ? db.users.findById(user_id) : null;
+  // Poster info
+  const user_id = listing.user_id;
+  const poster = user_id ? db.users.findById(user_id) : (listing.user_details || null);
   const posterName   = poster?.display_name || poster?.fullName || 'Anonymous';
   const posterAvatar = getAvatarUrl(poster?.profile_photo, posterName);
+  const verifiedHtml = poster ? getVerificationBadge(poster) : '';
+
+  // Handle photos / hero image
+  let photoList = listing.photos || listing.images || [];
+  if (typeof photoList === 'string') {
+    try { photoList = JSON.parse(photoList); } catch(e) { photoList = []; }
+  }
+  const rawPhoto = Array.isArray(photoList) ? photoList[0] : photoList;
+  const photoUrl = getAssetUrl(rawPhoto);
+  
+  // Roommate listings show avatar as hero image
+  const heroImg = isRoommate ? posterAvatar : photoUrl;
+  
+  const saved    = _isSaved(id);
+  const ago      = _timeAgo(listing.created_at);
 
   const avatarHtml = posterAvatar
     ? `<img src="${posterAvatar}" alt="${posterName}" style="width:32px;height:32px;border-radius:12px;object-fit:cover;flex-shrink:0;">`
     : `<div style="width:32px;height:32px;border-radius:12px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.7rem;font-weight:700;flex-shrink:0;">${posterName.charAt(0).toUpperCase()}</div>`;
 
   return `
-    <div class="mobile-card" data-listing-id="${id}" role="button" tabindex="0" aria-label="View listing: ${title || 'Untitled'}" style="background:#fff;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.04);border:1px solid #f1f5f9;margin-bottom:20px;position:relative;flex-shrink:0;">
+    <div class="mobile-card" data-listing-id="${id}" role="button" tabindex="0" aria-label="View listing: ${title}" style="background:#fff;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.04);border:1px solid #f1f5f9;margin-bottom:20px;position:relative;flex-shrink:0;">
       <!-- Image + overlays -->
       <div style="position:relative;overflow:hidden;background:#f8fafc;aspect-ratio:1.2;">
-        ${image
-          ? `<img src="${image}" alt="${title || 'Listing photo'}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`
+        ${heroImg
+          ? `<img src="${heroImg}" alt="${title}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`
           : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#e2e8f0;background:#f8fafc;">
                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
              </div>`
@@ -101,17 +125,24 @@ export function renderMobileCard(listing) {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
         </div>
 
-        <!-- Type Badge -->
-        <div style="position:absolute;bottom:16px;left:16px;padding:6px 14px;border-radius:10px;font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;${_typeColor(type)} backdrop-filter:blur(8px);">
-          ${type || 'Property'}
+        <!-- Badges (bottom-left) -->
+        <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:6px;flex-wrap:wrap;">
+          ${is_featured ? `
+            <div style="padding:6px 14px;border-radius:10px;font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;background:#fbbf24;color:#000;backdrop-filter:blur(8px);">
+              <i class="fa-solid fa-star"></i> Featured
+            </div>` : ''
+          }
+          <div style="padding:6px 14px;border-radius:10px;font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;${_typeColor(type)} backdrop-filter:blur(8px);">
+            ${type}
+          </div>
         </div>
       </div>
 
       <!-- Card body -->
       <div style="padding:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
-           <div style="font-size:1.2rem;font-weight:800;color:#000;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;letter-spacing:-0.01em;">${title || 'Untitled'}</div>
-           <div style="font-size:1.2rem;font-weight:900;color:#000;white-space:nowrap;">${rent ? price : 'TBC'}</div>
+           <div style="font-size:1.2rem;font-weight:800;color:#000;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;letter-spacing:-0.01em;">${title}</div>
+           <div style="font-size:1.2rem;font-weight:900;color:#000;white-space:nowrap;">${price}</div>
         </div>
         
         <div style="display:flex;align-items:center;gap:6px;color:#64748b;font-size:0.85rem;margin-bottom:16px;font-weight:500;">
@@ -121,10 +152,12 @@ export function renderMobileCard(listing) {
 
         <!-- Footer -->
         <div style="padding-top:16px;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:10px;">
+          <div class="mobile-card-poster" data-user-id="${user_id}" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
             ${avatarHtml}
             <div>
-              <div style="font-size:0.85rem;font-weight:800;color:#000;">${posterName}</div>
+              <div style="font-size:0.85rem;font-weight:800;color:#000;display:flex;align-items:center;">
+                ${posterName} ${verifiedHtml}
+              </div>
               <div style="font-size:0.7rem;color:#94a3b8;font-weight:600;">${ago || 'Recently'}</div>
             </div>
           </div>
@@ -145,11 +178,27 @@ export function renderMobileCard(listing) {
  * @param {HTMLElement} container  — element containing .mobile-card nodes
  * @param {Function}    onCardClick — called with listing id string
  */
-export function attachMobileCardEvents(container, onCardClick) {
+export function attachMobileCardEvents(container, onCardClick, onProfileClick) {
   // Card tap (but not on heart button)
   container.querySelectorAll('.mobile-card').forEach(card => {
-    card.addEventListener('click', (e) => {
+    card.addEventListener('click', async (e) => {
       if (e.target.closest('.mobile-card-heart')) return;
+      
+      // Poster click → Go to profile
+      const poster = e.target.closest('.mobile-card-poster');
+      if (poster) {
+        e.stopPropagation();
+        const uid = poster.dataset.userId;
+        if (uid) {
+          if (typeof onProfileClick === 'function') onProfileClick(uid);
+          else {
+            const { navigate } = await import('../mobile-main.js');
+            navigate('profile', { userId: uid });
+          }
+        }
+        return;
+      }
+
       const lid = card.dataset.listingId;
       if (lid && typeof onCardClick === 'function') onCardClick(lid);
     });

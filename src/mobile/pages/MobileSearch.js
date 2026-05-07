@@ -13,6 +13,7 @@ import { getCurrentUser, getVerificationBadge } from '../../services/auth.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 import { setSEO } from '../../seo.js';
 import { trackSearch } from '../../services/analytics.js';
+import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 
 // Helper to get mobile-main late to avoid circular dependency
 async function getMobile() {
@@ -29,106 +30,6 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-function relTime(iso) {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return 'Just now';
-  if (h < 24) return h + 'h ago';
-  return Math.floor(h / 24) + 'd ago';
-}
-
-function cityName(listing, cities) {
-  const found = cities.find(c => c.city_id === listing.city);
-  if (found) return found.name;
-  if (listing.city) return listing.city.replace('city_', '').replace(/_/g, ' ');
-  return 'Unknown';
-}
-
-// ── Render a single search result card (mobile version) ──────
-
-function renderCard(listing, cities) {
-  const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
-
-  let _imgs = listing.images || listing.photos || [];
-  if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch (e) { _imgs = []; } }
-  const rawPhoto = _imgs[0];
-  const photo = getAssetUrl(rawPhoto);
-
-  // Poster info
-  let user = listing.user_details;
-  if (!user && listing.user_id) user = db.users.findById(listing.user_id);
-  const posterName = user ? (user.display_name || user.fullName || 'Unknown') : 'Unknown';
-  const avatar = getAvatarUrl(user?.profile_photo, posterName);
-  const verifiedIcon = user ? getVerificationBadge(user) : '';
-
-  const heroImg = isRoommate ? avatar : photo;
-
-  // Badges
-  let badgesHtml = '';
-  if (listing.is_featured) {
-    badgesHtml += `<span class="ms-badge ms-badge-featured"><i class="fa-solid fa-star"></i> Featured</span>`;
-  }
-  if (listing.room_type) {
-    badgesHtml += `<span class="ms-badge">${escHtml(listing.room_type)}</span>`;
-  }
-  if (listing.furnished === 'yes') {
-    badgesHtml += `<span class="ms-badge">Furnished</span>`;
-  }
-
-  // Saved state
-  const currentUser = getCurrentUser();
-  let isSaved = false;
-  if (currentUser) {
-    const dbUser = db.users.findById(currentUser.id || currentUser.user_id);
-    if (dbUser) {
-      const savedList = Array.isArray(dbUser.saved_listings)
-        ? dbUser.saved_listings
-        : (typeof dbUser.saved_listings === 'string'
-          ? JSON.parse(dbUser.saved_listings || '[]')
-          : []);
-      isSaved = savedList.includes(listing.listing_id);
-    }
-  }
-
-  const price = listing.rent ?? listing.price ?? '?';
-  const loc = cityName(listing, cities);
-
-  return `
-    <div class="ms-card" data-id="${listing.listing_id}" role="button" tabindex="0"
-         aria-label="View listing: ${escHtml(listing.title)}">
-      <!-- Image -->
-      <div class="ms-card-img-wrap">
-        <img class="ms-card-img" src="${escHtml(heroImg)}"
-             alt="${escHtml(listing.title)}" loading="lazy">
-        <!-- Badges overlay -->
-        ${badgesHtml ? `<div class="ms-card-badges">${badgesHtml}</div>` : ''}
-        <!-- Save / Heart -->
-        <button class="ms-card-heart ${isSaved ? 'active' : ''}"
-                data-id="${listing.listing_id}"
-                aria-label="${isSaved ? 'Remove from saved' : 'Save listing'}">
-          <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
-        </button>
-      </div>
-      <!-- Body -->
-      <div class="ms-card-body">
-        <div class="ms-card-price">$${escHtml(String(price))}<span>/mo</span></div>
-        <div class="ms-card-title">${escHtml(listing.title)}</div>
-        <div class="ms-card-meta">
-          <i class="fa-solid fa-location-dot"></i> ${escHtml(loc)}
-        </div>
-        <div class="ms-card-footer">
-          <div class="ms-card-poster">
-            <img src="${escHtml(avatar)}" alt="${escHtml(posterName)}" loading="lazy">
-            <span>${escHtml(posterName)}${verifiedIcon ? ' ' + verifiedIcon : ''}</span>
-          </div>
-          <div class="ms-card-time">${relTime(listing.created_at)}</div>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 // ── Chip helper ───────────────────────────────────────────────
@@ -474,68 +375,18 @@ export default async function init(container, params = {}) {
   });
 
   // ── Save / Heart events (delegated) ─────────────────────────
-  grid.addEventListener('click', async e => {
-    const heart = e.target.closest('.ms-card-heart');
-    if (heart) {
-      e.preventDefault();
-      e.stopPropagation();
-      const lid = heart.dataset.id;
-      const currentUser = getCurrentUser();
-      if (!currentUser) { navigate('auth'); return; }
-
-      const dbUser = db.users.findById(currentUser.id || currentUser.user_id);
-      if (!dbUser) return;
-
-      if (!Array.isArray(dbUser.saved_listings)) {
-        dbUser.saved_listings = typeof dbUser.saved_listings === 'string'
-          ? JSON.parse(dbUser.saved_listings || '[]')
-          : [];
-      }
-
-      const idx = dbUser.saved_listings.indexOf(lid);
-      const isSaved = idx > -1;
-      if (isSaved) {
-        dbUser.saved_listings.splice(idx, 1);
-      } else {
-        dbUser.saved_listings.push(lid);
-      }
-
-      // Optimistic UI
-      const icon = heart.querySelector('i');
-      if (icon) {
-        icon.className = isSaved ? 'fa-regular fa-heart' : 'fa-solid fa-heart';
-      }
-      heart.classList.toggle('active', !isSaved);
-      heart.style.transform = 'scale(1.3)';
-      setTimeout(() => { heart.style.transform = ''; }, 220);
-
-      try {
-        await db.users.update(currentUser.id || currentUser.user_id, {
-          saved_listings: dbUser.saved_listings,
-        });
-      } catch (err) {
-        console.warn('[MOBILE] Save toggle failed:', err);
-        // Rollback
-        if (icon) icon.className = isSaved ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
-        heart.classList.toggle('active', isSaved);
-      }
-      return;
-    }
-
-    // Card tap → navigate to listing
-    const card = e.target.closest('.ms-card');
-    if (card) {
-      navigate('listing', { id: card.dataset.id });
-    }
+  // Use shared component event wiring
+  attachMobileCardEvents(grid, (id) => {
+    navigate('listing', { id });
   });
 
-  // Keyboard a11y on cards
+  // Keep existing keyboard a11y on grid (though attachMobileCardEvents also handles it)
   grid.addEventListener('keydown', async e => {
     if (e.key === 'Enter' || e.key === ' ') {
-      const card = e.target.closest('.ms-card');
-      if (card && !e.target.closest('.ms-card-heart')) {
+      const card = e.target.closest('.mobile-card');
+      if (card && !e.target.closest('.mobile-card-heart')) {
         e.preventDefault();
-        navigate('listing', { id: card.dataset.id });
+        navigate('listing', { id: card.dataset.listingId });
       }
     }
   });
@@ -585,11 +436,16 @@ export default async function init(container, params = {}) {
 
     // Type filter (mirrors website logic)
     if (state.type !== 'all') {
+      const q = state.type.toLowerCase();
       results = results.filter(l => {
-        if (state.type === 'room') {
-          return l.category === 'room' || l.category === 'room_rental' || l.room_type === 'private';
+        const val = (l.room_type || l.category || l.property_type || l.type || '').toLowerCase();
+        if (q === 'room') {
+          return (val.includes('room') || val.includes('private')) && !val.includes('roommate');
         }
-        return l.category === state.type || l.room_type === state.type;
+        if (q === 'roommate') {
+          return val.includes('roommate') || val.includes('room_wanted');
+        }
+        return val.includes(q);
       });
     }
 
@@ -680,7 +536,11 @@ export default async function init(container, params = {}) {
           <div class="mobile-empty-text">Try adjusting your filters or search keywords.</div>
         </div>`;
     } else {
-      grid.innerHTML = results.map(l => renderCard(l, cities)).join('');
+      grid.innerHTML = results.map(l => renderMobileCard(l)).join('');
+      // Wire events again after render
+      attachMobileCardEvents(grid, (id) => {
+        navigate('listing', { id });
+      });
     }
   }
 

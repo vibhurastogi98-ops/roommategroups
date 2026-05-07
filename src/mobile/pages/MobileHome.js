@@ -291,9 +291,9 @@ export async function init(container) {
       onClick: () => { navigate('settings'); },
     },
     rightAction: {
-      icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
-      label: 'Post',
-      onClick: async () => { navigate('post'); },
+      icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
+      label: 'Notifications',
+      onClick: () => { navigate('notifications'); },
     }
   });
 
@@ -306,8 +306,18 @@ export const renderMobileHome = init;
 function _filterListings(all, cityId, type) {
   let filtered = [...all];
   if (cityId && cityId !== 'all') filtered = filtered.filter(l => l.city === cityId || l.city_id === cityId);
-  if (type && type !== 'all') filtered = filtered.filter(l => (l.room_type || l.category || '').toLowerCase().includes(type.toLowerCase()));
   
+  if (type && type !== 'all') {
+    const q = type.toLowerCase();
+    filtered = filtered.filter(l => {
+      const val = (l.room_type || l.category || l.property_type || l.type || '').toLowerCase();
+      // Special case for 'Roommate Wanted' vs 'Roommate'
+      if (q === 'roommate wanted') return val.includes('roommate_wanted') || val.includes('room_wanted');
+      if (q === 'room') return val.includes('room') && !val.includes('roommate');
+      return val.includes(q);
+    });
+  }
+
   // Order by created_at DESC (newest first) and limit to 10
   return filtered
     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))

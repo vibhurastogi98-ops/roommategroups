@@ -13,25 +13,33 @@ import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
-export async function init(container) {
-  const user = getCurrentUser();
+export async function init(container, params = {}) {
+  const currentUser = getCurrentUser();
+  const targetId = params.userId || params.id;
+  
+  // If targetId is provided, we are viewing another user. Otherwise, view self.
+  const user = targetId ? db.users.findById(targetId) : currentUser;
 
   if (!user) {
-    (await getMobile()).navigate('auth');
+    if (!currentUser) (await getMobile()).navigate('auth');
+    else {
+      container.innerHTML = `<div style="padding:40px;text-align:center;color:#94a3b8;">User not found</div>`;
+    }
     return;
   }
 
-  console.log('[MOBILE] Profile init, user:', user.email);
+  const isSelf = currentUser && (user.user_id === currentUser.user_id || user.id === currentUser.id);
+  console.log('[MOBILE] Profile init, viewing:', user.display_name, 'isSelf:', isSelf);
 
   const { updateHeader, navigate } = await getMobile();
   updateHeader({
-    title: 'My Profile',
+    title: isSelf ? 'My Profile' : (user.display_name || 'Profile'),
     showBack: true,
-    rightAction: {
+    rightAction: isSelf ? {
       icon: '⚙️',
       label: 'Settings',
       onClick: async () => (await getMobile()).navigate('settings'),
-    }
+    } : null
   });
 
   // ── Main render ──
@@ -63,17 +71,18 @@ export async function init(container) {
             <div id="profile-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#000000,#1a1a1a);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:#fff;overflow:hidden;cursor:pointer;">
               ${avatar ? `<img src="${avatar}" id="avatar-img" style="width:100%;height:100%;object-fit:cover;" alt="">` : initials}
             </div>
+            ${isSelf ? `
             <label for="avatar-upload" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--mobile-accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.25);">📷
               <input type="file" id="avatar-upload" accept="image/*" style="display:none;">
-            </label>
+            </label>` : ''}
           </div>
           <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.02em;">${user.display_name || user.fullName || 'User'}</div>
-          <div style="font-size:0.82rem;color:#94a3b8;margin-top:2px;">${user.email || ''}</div>
+          <div style="font-size:0.82rem;color:#94a3b8;margin-top:2px;">${isSelf ? (user.email || '') : ''}</div>
           ${user.bio ? `<div style="font-size:0.83rem;color:var(--text-secondary);margin-top:8px;line-height:1.5;max-width:280px;margin-inline:auto;">${user.bio}</div>` : ''}
           <div style="margin-top:10px;">
-            <button id="prof-verify-btn" style="background:none;border:none;cursor:pointer;padding:4px 0;">
-              ${isVerified ? `<span style="padding:4px 12px;border-radius:20px;background:rgba(16,185,129,.12);color:#059669;font-size:0.72rem;font-weight:700;">✓ ${user.verification_level} verified</span>` : `<span style="padding:4px 12px;border-radius:20px;background:rgba(124,58,237,.1);color:var(--mobile-accent);font-size:0.72rem;font-weight:700;">Get Verified →</span>`}
-            </button>
+            <div id="prof-verify-btn" style="background:none;border:none;cursor:pointer;padding:4px 0;">
+              ${isVerified ? `<span style="padding:4px 12px;border-radius:20px;background:rgba(16,185,129,.12);color:#059669;font-size:0.72rem;font-weight:700;">✓ ${user.verification_level} verified</span>` : (isSelf ? `<span style="padding:4px 12px;border-radius:20px;background:rgba(124,58,237,.1);color:var(--mobile-accent);font-size:0.72rem;font-weight:700;">Get Verified →</span>` : '')}
+            </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-top:18px;border-top:1px solid #f1f5f9;padding-top:16px;">
             ${_stat(myListings.length, 'Listings')}
@@ -85,8 +94,8 @@ export async function init(container) {
         <!-- MY LISTINGS -->
         <div style="background:#fff;margin-top:8px;padding:16px 0;">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin-bottom:12px;">
-            <div style="font-size:1rem;font-weight:800;color:var(--text-primary);">My Listings</div>
-            <button style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;" id="prof-see-all">See All</button>
+            <div style="font-size:1rem;font-weight:800;color:var(--text-primary);">${isSelf ? 'My Listings' : 'Listings'}</div>
+            ${isSelf ? `<button style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;" id="prof-see-all">See All</button>` : ''}
           </div>
           ${myListings.length === 0 ? `
             <div style="padding:24px 16px;text-align:center;">
@@ -120,6 +129,7 @@ export async function init(container) {
         </div>
 
         <!-- SETTINGS LIST -->
+        ${isSelf ? `
         <div style="background:#fff;margin-top:8px;padding:8px 16px;">
           <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;padding:8px 0 4px;">ACCOUNT</div>
           ${_settingsRow('✏️', 'Edit Profile', 'edit-profile')}
@@ -138,7 +148,7 @@ export async function init(container) {
           <button id="prof-logout" class="mobile-btn" style="background:rgba(239,68,68,.08);color:#ef4444;border:1.5px solid rgba(239,68,68,.2);height:48px;">
             🚪 Sign Out
           </button>
-        </div>
+        </div>` : ''}
       </div>
     `;
 

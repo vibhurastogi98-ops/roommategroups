@@ -7,6 +7,7 @@
 import { db } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
+import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -37,9 +38,7 @@ export async function init(container, params = {}) {
     rightAction: {
       icon: '<i class="fa-solid fa-share-nodes"></i>',
       label: 'Share',
-      onClick: () => {
-        if (window.openShareModal) window.openShareModal(id);
-      }
+      onClick: () => _openShareSheet(listing, price)
     }
   });
 
@@ -53,9 +52,23 @@ export async function init(container, params = {}) {
   }
   const photos  = (Array.isArray(photoList) ? photoList : [photoList]).filter(Boolean).map(p => getAssetUrl(p));
   const price   = listing.rent ? `₹${Number(listing.rent).toLocaleString('en-IN')}` : 'Price TBC';
-  const loc     = [listing.area, listing.city, listing.postcode].filter(Boolean).join(', ') || 'Location TBC';
+  
+  // Normalize City Name
+  let cityName = '';
+  const cityId = listing.city || listing.city_id;
+  if (cityId) {
+    const found = db.cities.findById(cityId);
+    if (found) cityName = found.name;
+    else cityName = cityId.replace('city_', '').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+
+  const loc     = [listing.area, cityName, listing.postcode].filter(Boolean).join(', ') || 'Location TBC';
   const saved   = (user?.saved_listings || []).includes(id);
   const ago     = _timeAgo(listing.created_at);
+
+  // Normalize Property Type
+  const rawType = listing.room_type || listing.category || listing.property_type || listing.type;
+  const propType = rawType ? rawType.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Room';
 
   // Amenities — normalize
   const amenList = Array.isArray(listing.amenities) ? listing.amenities : [];
@@ -100,7 +113,7 @@ export async function init(container, params = {}) {
       <div style="background:#fff;padding:16px 16px 12px;border-bottom:1px solid #f1f5f9;">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div style="font-size:1.8rem;font-weight:900;color:var(--mobile-accent);letter-spacing:-0.03em;">${price}<span style="font-size:1rem;font-weight:600;color:#94a3b8;">/month</span></div>
-          ${listing.type ? `<span style="padding:5px 14px;border-radius:20px;font-size:0.78rem;font-weight:700;background:var(--mobile-accent-soft);color:var(--mobile-accent);">${listing.type}</span>` : ''}
+          ${propType ? `<span style="padding:5px 14px;border-radius:20px;font-size:0.78rem;font-weight:700;background:var(--mobile-accent-soft);color:var(--mobile-accent);">${propType}</span>` : ''}
           ${listing.bills_included ? `<span style="padding:5px 14px;border-radius:20px;font-size:0.78rem;font-weight:700;background:rgba(16,185,129,.12);color:#059669;">Bills incl.</span>` : ''}
         </div>
       </div>
@@ -118,7 +131,7 @@ export async function init(container, params = {}) {
         </div>
         <!-- Posted by -->
         ${poster ? `
-          <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
+          <div id="poster-info" style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;cursor:pointer;">
             <img src="${getAvatarUrl(poster.profile_photo, poster.display_name)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" alt="${poster.display_name}">
             <div>
               <div style="font-size:0.82rem;font-weight:700;color:var(--text-primary);">${poster.display_name || 'Anonymous'}</div>
@@ -174,11 +187,24 @@ export async function init(container, params = {}) {
         style="width:48px;height:48px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform .2s cubic-bezier(.34,1.56,.64,1);">
         ${saved ? '❤️' : '🤍'}
       </button>
+      <button id="lst-search-jump" aria-label="Go to search"
+        style="width:48px;height:48px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:1.2rem;cursor:pointer;flex-shrink:0;">
+        🔍
+      </button>
       ${listing.phone ? `
         <a href="tel:${listing.phone}" class="mobile-btn mobile-btn-outline" style="flex:1;height:48px;text-decoration:none;">📞 Call</a>` : ''}
       <button id="lst-message" class="mobile-btn mobile-btn-accent" style="flex:2;height:48px;">💬 Message</button>
     </div>
   `;
+
+  // ── Navigation events ──────────────────────────────────────
+  container.querySelector('#poster-info')?.addEventListener('click', async () => {
+    (await getMobile()).navigate('profile', { userId: listing.user_id });
+  });
+
+  container.querySelector('#lst-search-jump')?.addEventListener('click', async () => {
+    (await getMobile()).navigate('search');
+  });
 
   // ── Gallery swipe ──────────────────────────────────────────
   if (photos.length > 1) _initGallery(container, photos);
@@ -263,4 +289,39 @@ function _timeAgo(dateStr) {
   if (d === 0) return 'Today'; if (d === 1) return '1 day ago';
   if (d < 30) return `${d} days ago`;
   const m = Math.floor(d / 30); return `${m} month${m > 1 ? 's' : ''} ago`;
+}
+
+function _openShareSheet(listing, price) {
+  const url = window.location.origin + '/listing/' + (listing.listing_id || listing.id);
+  const encodedUrl = encodeURIComponent(url);
+  const text = encodeURIComponent(`Check out this listing on RoommateGroups: ${listing.title} for ${price}`);
+
+  const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+  const waUrl = `https://api.whatsapp.com/send?text=${text}%20${encodedUrl}`;
+  const twUrl = `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${text}`;
+
+  showBottomSheet({
+    title: 'Share listing',
+    content: `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:8px 0;">
+        <a href="${fbUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; border-radius:12px; background:#e0f2fe; color:#0284c7; text-decoration:none; font-weight:700; font-size:0.85rem;"><i class="fa-brands fa-facebook"></i> Facebook</a>
+        <a href="${waUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; border-radius:12px; background:#dcfce7; color:#16a34a; text-decoration:none; font-weight:700; font-size:0.85rem;"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+        <a href="${twUrl}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; border-radius:12px; background:#f1f5f9; color:#0f1419; text-decoration:none; font-weight:700; font-size:0.85rem;"><i class="fa-brands fa-x-twitter"></i> Twitter</a>
+        <button id="share-insta" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; border-radius:12px; background:#fce7f3; color:#db2777; border:none; font-weight:700; cursor:pointer; font-size:0.85rem;"><i class="fa-brands fa-instagram"></i> Instagram</button>
+        <button id="share-copy" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; border-radius:12px; background:#f3e8ff; color:#7c3aed; border:none; font-weight:700; cursor:pointer; font-size:0.85rem; grid-column: span 2;"><i class="fa-solid fa-link"></i> Copy Link</button>
+      </div>`,
+  });
+
+  setTimeout(() => {
+    document.querySelector('#share-insta')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(url);
+      alert('Link copied! You can now paste it into Instagram.');
+      hideBottomSheet();
+    });
+    document.querySelector('#share-copy')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(url);
+      alert('Link copied to clipboard!');
+      hideBottomSheet();
+    });
+  }, 100);
 }
