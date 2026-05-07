@@ -33,9 +33,9 @@
 /* ── 2. Global Mobile Reset ─────────────────────────────────── */
 html {
   height: 100%;
-  /* FIX: was overflow:hidden — blocks scroll on some Android browsers.
-     Let the .mobile-page containers handle their own overflow instead. */
   overflow: hidden;
+  position: fixed;
+  width: 100%;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -346,6 +346,11 @@ body, #mobile-app {
   flex: 0 0 64px;
 }
 
+/* Hide Post label on phones — shown in sidebar mode (≥1024px) */
+.mobile-nav-tab.tab-post .mobile-nav-tab-label {
+  display: none;
+}
+
 .mobile-nav-tab.tab-post .mobile-nav-tab-icon {
   width: 48px;
   height: 48px;
@@ -469,15 +474,13 @@ body, #mobile-app {
   z-index: 1001;
   background: #fff;
   border-radius: 24px 24px 0 0;
-  padding-bottom: calc(24px + var(--mobile-safe-bottom));
   transform: translateY(100%);
   transition: transform var(--mobile-transition);
-  max-height: 90vh;
-  /* FIX: use scroll (not auto) for consistent iOS momentum scrolling */
-  overflow-y: scroll;
-  -webkit-overflow-scrolling: touch;
-  /* FIX: isolate sheet scroll from page scroll */
-  overscroll-behavior: contain;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
 }
 
 .mobile-sheet.open {
@@ -487,22 +490,39 @@ body, #mobile-app {
 .mobile-sheet-handle,
 .bottom-sheet-handle {
   width: 40px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.15);
-  margin: 12px auto 20px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.12);
+  margin: 12px auto 8px;
+  flex-shrink: 0;
 }
 
 .mobile-sheet-title {
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 800;
   color: var(--text-primary);
-  padding: 0 24px 16px;
+  padding: 12px 24px 16px;
   border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
 }
 
 .mobile-sheet-content {
+  flex: 1;
+  height: 0; /* Forces flex child to stay within parent bounds */
   padding: 16px 24px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.mobile-sheet-footer {
+  padding: 12px 24px calc(16px + var(--mobile-safe-bottom));
+  background: #fff;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* ── 8. Page Scroll Containers ──────────────────────────────── */
@@ -515,12 +535,13 @@ body, #mobile-app {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               opacity 0.3s ease;
   height: 100vh;
-  overflow-y: auto;
+  overflow-y: scroll;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;  /* iOS momentum scroll */
-  overscroll-behavior-y: contain;     /* prevent scroll chaining to body */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-y: contain;
   scroll-behavior: smooth;
-  will-change: scroll-position;
+  will-change: auto;
 }
 
 /* Fix for inputs causing page jump on focus (keyboard open) */
@@ -610,17 +631,21 @@ body, #mobile-app {
   top: 60px;       /* header height */
   bottom: 72px;    /* input bar height + safe area */
   left: 0; right: 0;
-  overflow-y: auto;
+  overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-y: contain;
+  will-change: auto;
   padding: 12px 16px;
 }
 
 /* Listing feed scroll container */
 .mobile-feed {
-  overflow-y: auto;
+  overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
   overscroll-behavior-y: contain;
+  will-change: auto;
   height: calc(100vh - 60px - 80px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   /* 60px = header, 80px = bottom nav */
 }
@@ -1494,4 +1519,886 @@ body, #mobile-app {
   gap: 10px;
   padding-top: 12px;
   padding-bottom: calc(var(--mobile-bottom-nav-height) + 20px);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RESPONSIVE BREAKPOINT SYSTEM — Mobile-First
+   Base styles = phone (≤480px), enhanced upward via min-width.
+
+   Breakpoints:
+     480px  — large phones / iPhone Pro Max
+     768px  — iPad Mini portrait, Android tablets
+     834px  — iPad Air / iPad 11th gen portrait
+    1024px  — iPad landscape / iPad Pro 11" portrait
+    1194px  — iPad Pro 12.9" portrait
+    1366px  — iPad Pro 12.9"/13" landscape
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Fluid Typography (base) ──────────────────────────────────── */
+:root {
+  --fluid-body: clamp(0.875rem, 2.5vw, 1rem);
+  --fluid-h1: clamp(1.25rem, 4vw, 1.75rem);
+  --fluid-h2: clamp(1.1rem, 3.5vw, 1.5rem);
+  --fluid-small: clamp(0.7rem, 2vw, 0.85rem);
+  --fluid-card-title: clamp(0.88rem, 2.5vw, 1.05rem);
+  --fluid-card-price: clamp(1rem, 3vw, 1.25rem);
+  /* Sidebar width for tablet landscape+ */
+  --sidebar-width: 240px;
+}
+
+/* ── Touch-only: larger hit targets ──────────────────────────── */
+@media (pointer: coarse) {
+  .mobile-nav-tab,
+  .bottom-nav-tab,
+  .mobile-header-back,
+  .mobile-header-action,
+  .ms-chip,
+  .ms-filter-pill,
+  .ms-radio-label,
+  .ms-check-label {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .mobile-btn {
+    min-height: 48px;
+  }
+
+  /* Safe touch-action for Android */
+  .mobile-page,
+  .mobile-sheet-content,
+  .chat-messages-area,
+  .mobile-feed {
+    touch-action: pan-x pan-y;
+  }
+}
+
+/* ── Hover effects only for non-touch ────────────────────────── */
+@media (hover: hover) {
+  .mobile-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  .ms-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  }
+
+  .mobile-btn:hover {
+    opacity: 0.92;
+  }
+
+  .mobile-btn-accent:hover,
+  .mobile-btn-primary:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+
+  .mobile-nav-tab:hover {
+    color: var(--mobile-accent);
+  }
+
+  .ms-chip:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .ms-radio-label:hover,
+  .ms-check-label:hover {
+    background: #f1f5f9;
+  }
+
+  .mobile-header-back:hover,
+  .mobile-header-action:hover {
+    opacity: 0.85;
+    transform: scale(0.96);
+  }
+}
+
+/* ── Touch-only: disable hover transforms ────────────────────── */
+@media (hover: none) {
+  .mobile-card:hover,
+  .ms-card:hover {
+    transform: none;
+    box-shadow: var(--mobile-card-shadow);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BREAKPOINT: ≥480px — Large phones (iPhone Pro Max)
+   ════════════════════════════════════════════════════════════════ */
+@media (min-width: 480px) {
+  .mobile-header-title {
+    font-size: clamp(1rem, 2.5vw, 1.15rem);
+  }
+
+  .mobile-card-body {
+    padding: 18px;
+  }
+
+  .mobile-card-title {
+    font-size: var(--fluid-card-title);
+  }
+
+  .mobile-card-price {
+    font-size: var(--fluid-card-price);
+  }
+
+  .mobile-section {
+    padding: 20px;
+  }
+
+  .mobile-section-title {
+    font-size: clamp(1rem, 2.8vw, 1.15rem);
+  }
+
+  .ms-grid {
+    padding: 0 20px 24px;
+  }
+
+  .ms-search-row {
+    padding: 12px 20px 10px;
+  }
+
+  .ms-location-row {
+    padding: 0 20px 10px;
+  }
+
+  .ms-type-strip {
+    padding: 8px 20px 12px;
+  }
+
+  .ms-results-header {
+    padding: 16px 20px 10px;
+  }
+
+  .mobile-chat-bubble,
+  .chat-bubble-received {
+    max-width: 68%;
+  }
+
+  .chat-input-bar {
+    padding: 12px 16px 12px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BREAKPOINT: ≥768px — Tablet portrait (iPad Mini, Android tabs)
+   ════════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) {
+  /* ── Root token overrides ── */
+  :root {
+    --mobile-header-height: 64px;
+    --mobile-radius: 20px;
+    --mobile-radius-sm: 14px;
+  }
+
+  /* ── Page: keep as absolute scroll container, same model as phone ── */
+
+  .mobile-page-content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  /* ── Header: taller, larger text ── */
+  .mobile-header {
+    height: calc(var(--mobile-header-height) + var(--mobile-safe-top));
+    padding-left: calc(24px + var(--mobile-safe-left));
+    padding-right: calc(24px + var(--mobile-safe-right));
+    padding-bottom: 10px;
+  }
+
+  .mobile-header-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    grid-template-columns: 52px 1fr 52px;
+  }
+
+  .mobile-header-title {
+    font-size: clamp(1.05rem, 2.5vw, 1.25rem);
+  }
+
+  .mobile-header-back,
+  .mobile-header-action {
+    width: 48px;
+    height: 48px;
+  }
+
+  .mobile-header-back svg,
+  .mobile-header-action svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* ── Logo pill scales up ── */
+  .mobile-logo-pill {
+    height: 40px;
+    border-radius: 14px;
+  }
+
+  .mobile-logo-left,
+  .mobile-logo-right {
+    font-size: 0.9rem;
+    padding: 0 14px;
+  }
+
+  /* ── Bottom nav: larger tap targets ── */
+  .mobile-bottom-nav,
+  .bottom-nav {
+    height: calc(72px + var(--mobile-safe-bottom));
+  }
+
+  .mobile-nav-tab,
+  .bottom-nav-tab {
+    height: 72px;
+    min-height: 52px;
+    gap: 6px;
+  }
+
+  .mobile-nav-tab-icon {
+    font-size: 1.5rem;
+  }
+
+  .mobile-nav-tab-label {
+    font-size: 0.7rem;
+  }
+
+  .mobile-nav-tab.tab-post .mobile-nav-tab-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+    font-size: 1.3rem;
+  }
+
+  /* ── Cards: 2-column grid ── */
+  .ms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    padding: 0 24px 32px;
+  }
+
+  .mobile-card-body {
+    padding: 20px;
+  }
+
+  .mobile-card-title {
+    font-size: var(--fluid-card-title);
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+  }
+
+  .mobile-card-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .ms-card-body {
+    padding: 16px;
+  }
+
+  .ms-card-price {
+    font-size: clamp(1.1rem, 2.5vw, 1.3rem);
+  }
+
+  .ms-card-title {
+    font-size: clamp(0.9rem, 2vw, 1rem);
+  }
+
+  /* ── Chat bubbles: narrower on tablet ── */
+  .mobile-chat-bubble,
+  .chat-bubble-received {
+    max-width: 60%;
+    font-size: clamp(0.9rem, 2vw, 1rem);
+    padding: 12px 16px;
+    border-radius: 20px;
+  }
+
+  .mobile-chat-bubble-row.sent .mobile-chat-bubble {
+    border-bottom-right-radius: 6px;
+  }
+
+  .mobile-chat-bubble-row.received .mobile-chat-bubble {
+    border-bottom-left-radius: 6px;
+  }
+
+  .mobile-chat-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* ── Chat input bar: wider padding, centered ── */
+  .chat-input-bar {
+    padding: 14px 24px;
+    max-width: 800px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 20px 20px 0 0;
+  }
+
+  /* ── Bottom sheet → centered modal ── */
+  .mobile-sheet,
+  .bottom-sheet-panel {
+    max-width: 540px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.15);
+  }
+
+  .mobile-sheet.open {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .mobile-sheet-title {
+    font-size: clamp(1.1rem, 2.5vw, 1.3rem);
+    padding: 16px 28px 18px;
+  }
+
+  .mobile-sheet-content {
+    padding: 20px 28px;
+  }
+
+  .mobile-sheet-footer {
+    padding: 16px 28px calc(20px + var(--mobile-safe-bottom));
+  }
+
+  /* ── Form inputs ── */
+  .mobile-input,
+  .mobile-form-input {
+    height: 56px;
+    font-size: var(--fluid-body);
+    border-radius: var(--mobile-radius-sm);
+  }
+
+  .mobile-textarea {
+    font-size: var(--fluid-body);
+    padding: 16px 18px;
+  }
+
+  /* ── Buttons ── */
+  .mobile-btn {
+    min-height: 52px;
+    padding: 14px 28px;
+    font-size: clamp(0.95rem, 2vw, 1.05rem);
+    border-radius: var(--mobile-radius-sm);
+  }
+
+  /* ── Search page ── */
+  .ms-search-row {
+    padding: 14px 24px 10px;
+  }
+
+  .ms-search-input {
+    height: 48px;
+    font-size: var(--fluid-body);
+    border-radius: 14px;
+  }
+
+  .ms-location-row {
+    padding: 0 24px 10px;
+    gap: 12px;
+  }
+
+  .ms-type-strip {
+    padding: 8px 24px 14px;
+  }
+
+  .ms-results-header {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 18px 24px 12px;
+  }
+
+  .ms-filter-pill {
+    height: 48px;
+    padding: 0 18px;
+    font-size: 0.88rem;
+  }
+
+  .ms-chip {
+    height: 38px;
+    padding: 0 22px;
+    font-size: 0.82rem;
+    border-radius: 22px;
+  }
+
+  /* ── Sections ── */
+  .mobile-section {
+    padding: 24px;
+  }
+
+  .mobile-section-title {
+    font-size: clamp(1.05rem, 2.5vw, 1.2rem);
+    margin-bottom: 16px;
+  }
+
+  /* ── Empty state ── */
+  .mobile-empty {
+    padding: 64px 32px;
+    gap: 16px;
+  }
+
+  .mobile-empty-icon {
+    font-size: 3.5rem;
+  }
+
+  .mobile-empty-title {
+    font-size: clamp(1.05rem, 2.5vw, 1.2rem);
+  }
+
+  .mobile-empty-text {
+    font-size: var(--fluid-body);
+    max-width: 420px;
+  }
+
+  /* ── Tags / chips ── */
+  .mobile-tag {
+    padding: 6px 14px;
+    font-size: 0.78rem;
+  }
+
+  /* ── Divider ── */
+  .mobile-divider {
+    margin: 0 -24px;
+  }
+
+  /* ── Header badge ── */
+  .header-badge {
+    min-width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BREAKPOINT: ≥834px — iPad Air / iPad 11th gen portrait
+   ════════════════════════════════════════════════════════════════ */
+@media (min-width: 834px) {
+  .ms-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .ms-results-header {
+    padding: 20px 0 14px;
+    max-width: 960px;
+  }
+
+  .mobile-page-content {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  /* Side-by-side filter panels in search */
+  .ms-location-row {
+    max-width: 600px;
+  }
+
+  .ms-price-row {
+    max-width: 400px;
+  }
+
+  /* Checkbox grid: 3 columns on wider tablets */
+  .ms-check-group {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BREAKPOINT: ≥1024px — iPad landscape / iPad Pro 11" portrait
+   Persistent sidebar replaces bottom nav. 3-column grid.
+   ════════════════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  :root {
+    --mobile-header-height: 68px;
+  }
+
+  /* ── Hide bottom nav, show sidebar ── */
+  .mobile-bottom-nav,
+  .bottom-nav {
+    /* Convert to sidebar */
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: auto;
+    width: var(--sidebar-width);
+    height: 100vh;
+    flex-direction: column;
+    border-top: none;
+    border-right: 1px solid var(--mobile-glass-border);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05);
+    padding: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 16px) 0 calc(16px + var(--mobile-safe-bottom));
+    z-index: 850;
+  }
+
+  .mobile-nav-tabs {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 0 12px;
+  }
+
+  .mobile-nav-tab,
+  .bottom-nav-tab {
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    height: auto;
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    transition: background 0.2s ease, color var(--mobile-transition);
+  }
+
+  .mobile-nav-tab.active,
+  .bottom-nav-tab.active {
+    background: var(--mobile-accent-soft);
+  }
+
+  .mobile-nav-tab.active::after {
+    display: none;
+  }
+
+  .mobile-nav-tab-icon {
+    font-size: 1.25rem;
+  }
+
+  .mobile-nav-tab.active .mobile-nav-tab-icon {
+    transform: none;
+  }
+
+  .mobile-nav-tab-label {
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  /* Post tab in sidebar — inline, no special pill */
+  .mobile-nav-tab.tab-post {
+    flex: 0 0 auto;
+  }
+
+  /* Re-show Post label in sidebar */
+  .mobile-nav-tab.tab-post .mobile-nav-tab-label {
+    display: inline;
+  }
+
+  .mobile-nav-tab.tab-post .mobile-nav-tab-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-shadow: none;
+  }
+
+  /* ── Offset all content for sidebar ── */
+  .mobile-header {
+    left: var(--sidebar-width);
+    padding-left: calc(32px + var(--mobile-safe-left));
+    padding-right: calc(32px + var(--mobile-safe-right));
+  }
+
+  .mobile-page {
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+
+  .mobile-page-content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding-left: 32px;
+    padding-right: 32px;
+    padding-bottom: 32px;
+  }
+
+  /* ── Header inner centered ── */
+  .mobile-header-inner {
+    max-width: 960px;
+    grid-template-columns: 52px 1fr 52px;
+  }
+
+  /* ── 3-column card grid ── */
+  .ms-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 0 32px;
+  }
+
+  /* ── Chat input: centered container ── */
+  .chat-input-bar {
+    left: calc(var(--sidebar-width) + 50%);
+    transform: translateX(-50%);
+    max-width: 800px;
+    bottom: env(safe-area-inset-bottom, 0px);
+    border-radius: 20px 20px 0 0;
+    padding: 16px 28px;
+  }
+
+  /* ── Sheet → centered modal on desktop-like ── */
+  .mobile-sheet,
+  .bottom-sheet-panel {
+    max-width: 540px;
+    border-radius: 24px;
+    bottom: auto;
+    top: 50%;
+    left: calc(var(--sidebar-width) + (100% - var(--sidebar-width)) / 2);
+    transform: translate(-50%, -50%) scale(0.95);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.3s ease;
+    max-height: 85vh;
+  }
+
+  .mobile-sheet.open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+
+  /* ── Search bar area ── */
+  .ms-topbar {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .ms-search-row {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 16px 0 12px;
+  }
+
+  .ms-location-row {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 0 12px;
+  }
+
+  .ms-type-strip {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 8px 0 16px;
+  }
+
+  .ms-results-header {
+    padding: 20px 0 14px;
+  }
+
+  /* ── Chat bubbles ── */
+  .mobile-chat-bubble,
+  .chat-bubble-received {
+    max-width: 55%;
+  }
+
+  /* ── Sections ── */
+  .mobile-section {
+    padding: 28px 0;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BREAKPOINT: ≥1194px — iPad Pro 12.9" portrait
+   ════════════════════════════════════════════════════════════════ */
+@media (min-width: 1194px) {
+  :root {
+    --sidebar-width: 260px;
+  }
+
+  .ms-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+  }
+
+  .mobile-page-content {
+    max-width: 1080px;
+  }
+
+  .mobile-header-inner {
+    max-width: 1080px;
+  }
+
+  .ms-results-header {
+    max-width: 1080px;
+  }
+
+  .mobile-section {
+    max-width: 1080px;
+  }
+
+  .mobile-nav-tab-label {
+    font-size: 0.92rem;
+  }
+
+  .mobile-nav-tab,
+  .bottom-nav-tab {
+    padding: 14px 20px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BREAKPOINT: ≥1366px — iPad Pro 12.9"/13" landscape
+   ════════════════════════════════════════════════════════════════ */
+@media (min-width: 1366px) {
+  :root {
+    --sidebar-width: 280px;
+  }
+
+  .mobile-page-content {
+    max-width: 1120px;
+  }
+
+  .mobile-header-inner {
+    max-width: 1120px;
+  }
+
+  .ms-grid {
+    max-width: 1120px;
+    gap: 28px;
+  }
+
+  .ms-results-header {
+    max-width: 1120px;
+  }
+
+  .mobile-section {
+    max-width: 1120px;
+  }
+
+  .mobile-sheet,
+  .bottom-sheet-panel {
+    max-width: 600px;
+  }
+
+  .chat-input-bar {
+    max-width: 860px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ORIENTATION-SPECIFIC RULES
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Portrait: phones ── */
+@media (max-width: 479px) and (orientation: portrait) {
+  .mobile-page {
+    padding-top: calc(var(--mobile-header-height) + var(--mobile-safe-top));
+  }
+}
+
+/* ── Landscape: phones — compact header, hide bottom nav labels ── */
+@media (max-height: 480px) and (orientation: landscape) {
+  :root {
+    --mobile-header-height: 44px;
+  }
+
+  .mobile-header {
+    padding-bottom: 4px;
+  }
+
+  .mobile-header-back,
+  .mobile-header-action {
+    width: 36px;
+    height: 36px;
+  }
+
+  .mobile-header-inner {
+    grid-template-columns: 36px 1fr 36px;
+  }
+
+  .mobile-nav-tab-label {
+    display: none;
+  }
+
+  .mobile-bottom-nav,
+  .bottom-nav {
+    height: calc(48px + var(--mobile-safe-bottom));
+  }
+
+  .mobile-nav-tab,
+  .bottom-nav-tab {
+    height: 48px;
+  }
+
+  .mobile-nav-tab.tab-post .mobile-nav-tab-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mobile-sheet,
+  .bottom-sheet-panel {
+    max-height: 95vh;
+  }
+
+  /* 2-column grid in landscape phones */
+  .ms-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+/* ── Tablet portrait orientation specifics ── */
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
+  .ms-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mobile-page {
+    position: relative;
+    height: auto;
+  }
+}
+
+/* ── Tablet landscape: ensure sidebar is active ── */
+@media (min-width: 768px) and (orientation: landscape) {
+  .mobile-page-content {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SAFE AREA INSETS — Notch / Dynamic Island / Home Indicator
+   ════════════════════════════════════════════════════════════════ */
+@supports (padding: env(safe-area-inset-top)) {
+  .mobile-header {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
+  }
+
+  .mobile-bottom-nav,
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .mobile-sheet-footer {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Sidebar safe areas on iPad landscape */
+  @media (min-width: 1024px) {
+    .mobile-bottom-nav,
+    .bottom-nav {
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .mobile-header {
+      padding-left: calc(32px + env(safe-area-inset-left, 0px));
+    }
+  }
 }

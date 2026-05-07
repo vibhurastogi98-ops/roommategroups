@@ -209,10 +209,6 @@ export async function init(container) {
           <label class="mobile-form-label">Description</label>
           <textarea class="mobile-input" id="ep-desc" style="height:120px; padding:12px; line-height:1.5;">${_esc(l.description)}</textarea>
         </div>
-        
-        <div style="text-align:center; margin-top:8px; margin-bottom:16px;">
-            <button id="ep-full-edit" style="background:none; border:none; color:#6366f1; font-size:0.85rem; font-weight:800; text-decoration:underline; cursor:pointer;">Full Post Edit (Advanced)</button>
-        </div>
       </div>
     `;
 
@@ -232,11 +228,6 @@ export async function init(container) {
         const knob = toggle.querySelector('span');
         toggle.style.backgroundColor = e.target.checked ? '#1a1a1a' : '#cbd5e1';
         knob.style.transform = e.target.checked ? 'translateX(20px)' : 'none';
-    });
-
-    sheet.querySelector('#ep-full-edit').addEventListener('click', async () => {
-        hideBottomSheet();
-        (await getMobile()).navigate('post', { listingId: id });
     });
   }
 

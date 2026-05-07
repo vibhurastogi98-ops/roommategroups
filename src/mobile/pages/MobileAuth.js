@@ -16,7 +16,7 @@ export const renderMobileAuth = init;
 // ── Main render ───────────────────────────────────────────────
 function _render(container, tab) {
   container.innerHTML = `
-    <div style="min-height:100%;display:flex;flex-direction:column;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <div style="min-height:100%;display:flex;flex-direction:column;background:#fff;overflow-y:scroll;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;overscroll-behavior-y:contain;will-change:auto;">
 
       <div style="background:linear-gradient(135deg,#1a1a1a 0%,#000000 100%);padding:48px 24px 32px;text-align:center;flex-shrink:0;">
         <div class="mobile-logo-pill" style="margin-bottom:20px;border:1px solid rgba(255,255,255,0.15);">
@@ -146,9 +146,13 @@ function _wireForm(container, tab) {
     btn.disabled = true; btn.textContent = '⏳ Connecting…';
     _clearErrors(container);
     initGoogleSignIn(
-      async () => {
+      async (res) => {
         const { navigate } = await import('../mobile-main.js');
-        navigate('home');
+        if (res?.user && !res.user.profileComplete) {
+          navigate('profile-setup');
+        } else {
+          navigate('home');
+        }
       },
       (msg) => {
         btn.disabled = false;
@@ -183,9 +187,13 @@ function _wireForm(container, tab) {
         ? await register({ fullName: name, email, password })
         : await login(email, password);
       if (!res?.success) throw new Error(res?.error || 'Authentication failed.');
-      console.log('[MOBILE] Auth success → home');
+      console.log('[MOBILE] Auth success');
       const { navigate } = await import('../mobile-main.js');
-      navigate('home');
+      if (res.user && !res.user.profileComplete) {
+        navigate('profile-setup');
+      } else {
+        navigate('home');
+      }
     } catch (err) {
       console.log('[MOBILE] Auth error:', err?.message);
       _showErr(container, 'e-global', err?.message || 'Something went wrong.');

@@ -26,7 +26,7 @@ export async function init(container) {
     },
   });
 
-  await initDB().catch(() => {});
+  await initDB().catch(() => { });
 
   // ── Timer — self-cleaning: stops when container leaves the DOM ──
   let timer = null;
@@ -47,10 +47,10 @@ export async function init(container) {
     }
 
     const userListings = db.listings.find(l => l.user_id === dbUser.user_id);
-    const activeListings  = userListings.filter(l => l.status === 'active' || l.is_active !== false).length;
-    const totalViews      = userListings.reduce((s, l) => s + (l.view_count || l.views_count || 0), 0);
-    const savedCount      = (dbUser.saved_listings || []).length;
-    const unread          = getTotalUnread(dbUser.user_id);
+    const activeListings = userListings.filter(l => l.status === 'active' || l.is_active !== false).length;
+    const totalViews = userListings.reduce((s, l) => s + (l.view_count || l.views_count || 0), 0);
+    const savedCount = (dbUser.saved_listings || []).length;
+    const unread = getTotalUnread(dbUser.user_id);
 
     const threads = db.threads.find(t => {
       const parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]');
@@ -67,8 +67,8 @@ export async function init(container) {
       .forEach(t => {
         const parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]');
         const senderId = parts.find(id => id !== dbUser.user_id);
-        const sender   = senderId ? db.users.findById(senderId) : null;
-        const listing  = db.listings.findById(t.listing_id);
+        const sender = senderId ? db.users.findById(senderId) : null;
+        const listing = db.listings.findById(t.listing_id);
         const threadUnread = getUnreadCountForThread(t.thread_id, dbUser.user_id);
         activityItems.push({
           icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
@@ -115,23 +115,23 @@ export async function init(container) {
 
         <!-- Stat Cards (all tappable) -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
-          ${_stat('🏠', activeListings,  'Active Listings', 'my-listings')}
-          ${_stat('👁️', totalViews,      'Total Views',     'my-listings')}
-          ${_stat('💬', unread,          'Messages',        'chat')}
-          ${_stat('❤️', savedCount,      'Saved',           'saved')}
+          ${_stat('🏠', activeListings, 'Active Listings', 'my-listings')}
+          ${_stat('👁️', totalViews, 'Total Views', 'my-listings')}
+          ${_stat('💬', unread, 'Messages', 'chat')}
+          ${_stat('❤️', savedCount, 'Saved', 'saved')}
         </div>
 
         <!-- Quick Actions -->
         <div style="background:#fff;border-radius:24px;padding:20px;border:1px solid #f1f5f9;margin-bottom:24px;box-shadow:0 4px 15px rgba(0,0,0,0.03);">
           <h3 style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:16px;">Quick Actions</h3>
           <div style="display:flex;flex-direction:column;gap:4px;">
-            ${_action('➕', 'Post New Listing',  'post')}
-            ${_action('💬', 'Messages',           'chat',          unread)}
-            ${_action('📋', 'My Listings',        'my-listings')}
-            ${_action('🔔', 'Notifications',      'notifications')}
-            ${_action('⚙️', 'Account Settings',  'settings')}
-            ${_action('💳', 'Subscription',       'subscription')}
-            ${_action('🛡️', 'Verify Account',    'verification')}
+            ${_action('➕', 'Post New Listing', 'post')}
+            ${_action('💬', 'Messages', 'chat', unread)}
+            ${_action('📋', 'My Listings', 'my-listings')}
+            ${_action('🔔', 'Notifications', 'notifications')}
+            ${_action('⚙️', 'Account Settings', 'settings')}
+            ${_action('💳', 'Subscription', 'subscription')}
+            ${_action('🛡️', 'Verify Account', 'verification')}
           </div>
         </div>
 
@@ -139,8 +139,8 @@ export async function init(container) {
         <div style="background:#fff;border-radius:24px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 4px 15px rgba(0,0,0,0.03);">
           <h3 style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:16px;">Recent Activity</h3>
           ${activityItems.length === 0
-            ? `<div style="text-align:center;padding:24px;color:#94a3b8;font-size:0.85rem;">No recent activity yet.</div>`
-            : `<div style="display:flex;flex-direction:column;gap:16px;">
+        ? `<div style="text-align:center;padding:24px;color:#94a3b8;font-size:0.85rem;">No recent activity yet.</div>`
+        : `<div style="display:flex;flex-direction:column;gap:16px;">
                 ${activityItems.map(a => `
                   <div class="dash-activity" data-route="${a.route}" data-params='${JSON.stringify(a.params)}'
                     style="display:flex;gap:12px;align-items:flex-start;cursor:pointer;touch-action:manipulation;">
@@ -153,7 +153,7 @@ export async function init(container) {
                   </div>
                 `).join('')}
               </div>`
-          }
+      }
         </div>
       </div>
     `;
@@ -210,17 +210,17 @@ export async function init(container) {
     if (!iso) return '';
     const diff = Date.now() - new Date(iso).getTime();
     const m = Math.floor(diff / 60000);
-    if (m < 1)  return 'Just now';
+    if (m < 1) return 'Just now';
     if (m < 60) return `${m}m ago`;
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}h ago`;
     const d = Math.floor(h / 24);
-    if (d < 7)  return `${d}d ago`;
+    if (d < 7) return `${d}d ago`;
     return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
   function _esc(str) {
-    return String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c]));
+    return String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
   }
 
   _render();

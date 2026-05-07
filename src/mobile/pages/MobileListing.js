@@ -210,9 +210,7 @@ export async function init(container, params = {}) {
     (await getMobile()).navigate('profile', { userId: listing.user_id });
   });
 
-  container.querySelector('#lst-edit')?.addEventListener('click', async () => {
-    (await getMobile()).navigate('post', { listingId: listing.listing_id });
-  });
+  container.querySelector('#lst-edit')?.addEventListener('click', () => _showEditPopup(listing.listing_id || listing.id, container));
 
   // ── Gallery swipe ──────────────────────────────────────────
   if (photos.length > 1) _initGallery(container, photos);
@@ -268,6 +266,110 @@ export async function init(container, params = {}) {
     overlay.querySelector('button').onclick = () => overlay.remove();
     overlay.onclick = (ev) => { if (ev.target === overlay) overlay.remove(); };
   });
+}
+
+function _showEditPopup(id, container) {
+  const l = db.listings.findById(id);
+  if (!l) return;
+
+  const content = `
+    <div style="padding: 0 4px;">
+      <div class="mobile-form-group">
+        <label class="mobile-form-label">Title *</label>
+        <input class="mobile-input" id="ep-title" type="text" value="${_esc(l.title)}">
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Price ($/mo) *</label>
+          <input class="mobile-input" id="ep-price" type="number" value="${l.rent || l.price || 0}">
+        </div>
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Deposit ($)</label>
+          <input class="mobile-input" id="ep-deposit" type="number" value="${l.deposit || 0}">
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Room Type</label>
+          <select class="mobile-input" id="ep-roomtype">
+            ${['Private Room', 'Shared Room', 'Entire Place', 'Studio'].map(rt => `<option value="${rt}" ${l.room_type === rt ? 'selected' : ''}>${rt}</option>`).join('')}
+          </select>
+        </div>
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Date Available</label>
+          <input class="mobile-input" id="ep-date" type="date" value="${(l.available_from || '').slice(0, 10)}">
+        </div>
+      </div>
+
+      <div class="mobile-form-group">
+        <label class="mobile-form-label">Min. Stay</label>
+        <select class="mobile-input" id="ep-minstay">
+          ${['flexible', '1_month', '3_months', '6_months', '12_months'].map(ms => `<option value="${ms}" ${l.min_stay === ms ? 'selected' : ''}>${ms.replace('_', ' ')}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="mobile-form-group" style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:12px 16px; border-radius:12px; margin-bottom:20px;">
+        <span style="font-weight:700; font-size:0.9rem; color:#475569;">Utilities Included</span>
+        <label style="position:relative; display:inline-block; width:44px; height:24px;">
+          <input type="checkbox" id="ep-utilities" ${l.utilities_included ? 'checked' : ''} style="opacity:0; width:0; height:0;">
+          <span style="position:absolute; cursor:pointer; inset:0; background-color:${l.utilities_included ? '#1a1a1a' : '#cbd5e1'}; transition:.4s; border-radius:24px;">
+            <span style="position:absolute; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; transform:${l.utilities_included ? 'translateX(20px)' : 'none'};"></span>
+          </span>
+        </label>
+      </div>
+
+      <div class="mobile-form-group">
+        <label class="mobile-form-label">Description</label>
+        <textarea class="mobile-input" id="ep-desc" style="height:120px; padding:12px; line-height:1.5;">${_esc(l.description)}</textarea>
+      </div>
+    </div>
+  `;
+
+  showBottomSheet({
+    title: 'Edit Listing',
+    content,
+    actions: [
+      { label: 'Save Changes', variant: 'accent', onClick: () => _handlePopupSave(id, container) },
+      { label: 'Cancel', variant: 'outline', onClick: () => { } }
+    ]
+  });
+
+  // Wire internal events
+  const sheet = document.querySelector('.mobile-sheet');
+  sheet.querySelector('#ep-utilities').addEventListener('change', (e) => {
+    const toggle = e.target.nextElementSibling;
+    const knob = toggle.querySelector('span');
+    toggle.style.backgroundColor = e.target.checked ? '#1a1a1a' : '#cbd5e1';
+    knob.style.transform = e.target.checked ? 'translateX(20px)' : 'none';
+  });
+}
+
+async function _handlePopupSave(id, container) {
+  const sheet = document.querySelector('.mobile-sheet');
+  const updates = {
+    title: sheet.querySelector('#ep-title').value.trim(),
+    rent: parseInt(sheet.querySelector('#ep-price').value) || 0,
+    price: parseInt(sheet.querySelector('#ep-price').value) || 0,
+    deposit: parseInt(sheet.querySelector('#ep-deposit').value) || 0,
+    room_type: sheet.querySelector('#ep-roomtype').value,
+    available_from: sheet.querySelector('#ep-date').value,
+    min_stay: sheet.querySelector('#ep-minstay').value,
+    utilities_included: sheet.querySelector('#ep-utilities').checked,
+    description: sheet.querySelector('#ep-desc').value.trim()
+  };
+
+  if (!updates.title) { alert('Title is required'); return false; }
+
+  await db.listings.update(id, updates);
+  // Re-init the page to show updates
+  init(container, { id });
+  return true;
+}
+
+function _esc(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
 }
 
 export const renderMobileListing = init;

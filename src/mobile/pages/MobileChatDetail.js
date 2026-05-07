@@ -94,7 +94,7 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
         ` : ''}
 
         <!-- Messages Area -->
-        <div id="chat-scroller" style="flex:1; overflow-y:auto; padding:16px 0;">
+        <div id="chat-scroller" style="flex:1; min-height:0; overflow-y:scroll; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; overscroll-behavior-y:contain; will-change:auto; padding:16px 0;">
           <div id="chat-msgs-container">
             ${_renderMessages(msgs)}
           </div>

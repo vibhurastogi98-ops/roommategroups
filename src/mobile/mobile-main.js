@@ -67,6 +67,7 @@ const ROUTE_LOADERS = {
   faq: () => import('./pages/MobileFAQ.js'),
   'saved-searches': () => import('./pages/MobileSavedSearches.js'),
   subscription: () => import('./pages/MobileSubscription.js'),
+  'profile-setup': () => import('./pages/MobileProfileSetup.js'),
 };
 
 // Route name → bottom-nav tab id (null = hide nav)
@@ -85,6 +86,7 @@ const ROUTE_TO_TAB = {
   'saved-searches': 'dashboard',
   subscription: 'dashboard',
   auth: null,
+  'profile-setup': null,
 };
 
 const ROUTE_TITLES = {
@@ -112,6 +114,7 @@ const ROUTE_TITLES = {
   verification: 'Trust & Verification',
   'saved-searches': 'Saved Searches',
   subscription: 'Subscription',
+  'profile-setup': 'Profile Setup',
 };
 
 // ── App shell refs ────────────────────────────────────────────
@@ -260,8 +263,8 @@ async function _renderRoute(route, params = {}, direction = 'forward') {
 
     const mod = await loader();
     const target = mod.default || mod;
-    const initFn = (typeof target === 'function') 
-      ? target 
+    const initFn = (typeof target === 'function')
+      ? target
       : (target.init || target[`renderMobile${_cap(route)}`] || target[`render${_cap(route)}`] || null);
 
     if (typeof initFn === 'function') {
@@ -333,6 +336,9 @@ export async function initMobile() {
 
   if (!user) {
     await navigate('auth');
+  } else if (!user.profileComplete) {
+    console.log('[MOBILE] Profile incomplete → setup');
+    await navigate('profile-setup');
   } else {
     await navigate('home');
   }

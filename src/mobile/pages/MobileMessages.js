@@ -44,7 +44,7 @@ export async function init(container) {
     });
 
     container.innerHTML = `
-      <div style="background:#f8fafc; min-height:100%; display:flex; flex-direction:column;">
+      <div style="background:#f8fafc; height:100%; display:flex; flex-direction:column;">
         <!-- Search Bar -->
         <div style="padding:12px 16px; background:#fff; border-bottom:1px solid #f1f5f9;">
           <div style="position:relative;">
@@ -64,7 +64,7 @@ export async function init(container) {
         </div>
 
         <!-- List -->
-        <div id="thread-list" style="flex:1; overflow-y:auto;">
+        <div id="thread-list" style="flex:1; min-height:0; overflow-y:scroll; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; overscroll-behavior-y:contain; will-change:auto;">
           ${filtered.length === 0 
             ? `<div style="padding:60px 40px; text-align:center; color:#94a3b8;">
                 <div style="font-size:3rem; margin-bottom:16px;">📭</div>

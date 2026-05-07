@@ -241,7 +241,7 @@ function _render(container) {
       </div>
 
       <!-- Content -->
-      <div style="flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:24px 20px 120px;">
+      <div style="flex:1; min-height:0; overflow-y:scroll; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; overscroll-behavior-y:contain; will-change:auto; padding:24px 20px 120px;">
         ${_getStepHTML(wizard.step)}
       </div>
 

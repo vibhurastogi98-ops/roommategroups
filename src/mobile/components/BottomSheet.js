@@ -14,7 +14,7 @@ let _isOpen   = false;
 
 // ── Public: showBottomSheet ───────────────────────────────────
 export function showBottomSheet({ title = '', content = '', actions = [], onClose } = {}) {
-  hideBottomSheet(); // close any existing one first
+  hideBottomSheet(true); // close any existing one immediately
 
   console.log('[MOBILE] BottomSheet:', title);
 
@@ -47,7 +47,7 @@ export function showBottomSheet({ title = '', content = '', actions = [], onClos
     <div class="mobile-sheet-handle" id="bs-handle" style="cursor:grab;"></div>
     ${title ? `<div class="mobile-sheet-title">${title}</div>` : ''}
     <div class="mobile-sheet-content" id="bs-content">${content}</div>
-    ${actionsHtml ? `<div style="padding:0 24px 8px;display:flex;flex-direction:column;gap:10px;">${actionsHtml}</div>` : ''}
+    ${actionsHtml ? `<div class="mobile-sheet-footer">${actionsHtml}</div>` : ''}
   `;
 
   document.body.appendChild(_sheet);
@@ -80,8 +80,15 @@ export function showBottomSheet({ title = '', content = '', actions = [], onClos
 }
 
 // ── Public: hideBottomSheet ───────────────────────────────────
-export function hideBottomSheet() {
-  if (!_isOpen || !_sheet || !_backdrop) return;
+export function hideBottomSheet(immediate = false) {
+  if (!_isOpen || !_sheet || !_backdrop) {
+    if (!immediate) return;
+    const oldSheet = document.querySelector('.mobile-sheet');
+    const oldBackdrop = document.querySelector('.mobile-sheet-backdrop');
+    if (oldSheet) oldSheet.remove();
+    if (oldBackdrop) oldBackdrop.remove();
+    return;
+  }
 
   _sheet.classList.remove('open');
   _backdrop.classList.remove('visible');
@@ -92,14 +99,18 @@ export function hideBottomSheet() {
   _sheet = null;
   _backdrop = null;
 
-  // ── Unlock background scroll ──
   const activePage = document.querySelector('.mobile-page:not(.exit)');
   if (activePage) activePage.classList.remove('no-scroll');
 
-  setTimeout(() => {
+  if (immediate) {
     sheet.remove();
     backdrop.remove();
-  }, 320);
+  } else {
+    setTimeout(() => {
+      if (sheet.parentNode) sheet.remove();
+      if (backdrop.parentNode) backdrop.remove();
+    }, 320);
+  }
 }
 
 // ── Drag gesture helper ───────────────────────────────────────

@@ -56,7 +56,7 @@ export function renderBottomNav(container, activeTab = 'home') {
           data-route="${tab.route}"
         >
           <span class="mobile-nav-tab-icon">${tab.icon}</span>
-          ${tab.id !== 'post' ? `<span class="mobile-nav-tab-label">${tab.label}</span>` : ''}
+          <span class="mobile-nav-tab-label">${tab.label}</span>
         </button>
       `).join('')}
     </div>
