@@ -83,7 +83,10 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
         ${listing ? `
           <div style="background:#fff; padding:10px 16px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:12px;">
             <div style="width:40px; height:40px; border-radius:8px; background:#f1f5f9; flex-shrink:0; overflow:hidden;">
-              ${listing.images ? `<img src="${getAssetUrl(JSON.parse(listing.images || '[]')[0])}" style="width:100%; height:100%; object-fit:cover;">` : '🏠'}
+              ${(() => {
+                try { return listing.images ? `<img src="${getAssetUrl(JSON.parse(listing.images || '[]')[0])}" style="width:100%; height:100%; object-fit:cover;">` : '🏠'; }
+                catch(e) { return '🏠'; }
+              })()}
             </div>
             <div style="flex:1; min-width:0;">
               <div style="font-size:0.85rem; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${_esc(listing.title)}</div>

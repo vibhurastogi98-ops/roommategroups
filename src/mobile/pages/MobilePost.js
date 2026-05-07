@@ -693,6 +693,9 @@ async function _wireStep(container) {
     navigator.geolocation.getCurrentPosition(async pos => {
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+        if (!res.ok) throw new Error('Network response was not ok');
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) throw new Error('Not JSON');
         const data = await res.json();
         if (data?.address?.road) {
           const addr = data.address.house_number ? `${data.address.house_number} ${data.address.road}` : data.address.road;

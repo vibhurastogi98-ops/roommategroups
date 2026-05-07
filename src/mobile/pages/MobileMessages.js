@@ -36,7 +36,8 @@ export async function init(container) {
     const filtered = threads.filter(t => {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
-      const parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]');
+      let parts = [];
+      try { parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]'); } catch(e) {}
       const otherId = parts.find(id => id !== user.user_id);
       const other = db.users.findById(otherId);
       const listing = db.listings.findById(t.listing_id);
@@ -92,7 +93,8 @@ export async function init(container) {
   }
 
   function _threadItem(t) {
-    const parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]');
+    let parts = [];
+    try { parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]'); } catch(e) {}
     const otherId = parts.find(id => id !== user.user_id);
     const other = db.users.findById(otherId);
     const listing = db.listings.findById(t.listing_id);
@@ -131,7 +133,8 @@ export async function init(container) {
       const filtered = threads.filter(t => {
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
-        const parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]');
+        let parts = [];
+        try { parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]'); } catch(e) {}
         const otherId = parts.find(id => id !== user.user_id);
         const other = db.users.findById(otherId);
         const listing = db.listings.findById(t.listing_id);

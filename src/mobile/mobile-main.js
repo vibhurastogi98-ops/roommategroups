@@ -65,6 +65,7 @@ const ROUTE_LOADERS = {
   'saved-searches': () => import('./pages/MobileSavedSearches.js'),
   subscription: () => import('./pages/MobileSubscription.js'),
   'profile-setup': () => import('./pages/MobileProfileSetup.js'),
+  about: () => import('./pages/MobileAbout.js'),
 };
 
 // Route name → bottom-nav tab id (null = hide nav)
@@ -206,7 +207,7 @@ async function _renderRoute(route, params = {}, direction = 'forward') {
 
   // ── Bottom nav ──
   const existingNav = _appEl.querySelector('.mobile-bottom-nav');
-  const hideNav = isAuth || route === 'post';
+  const hideNav = isAuth || route === 'post' || route === 'profile-setup';
 
   if (hideNav) {
     existingNav?.remove();

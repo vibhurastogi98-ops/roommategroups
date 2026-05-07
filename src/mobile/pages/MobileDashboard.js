@@ -53,7 +53,8 @@ export async function init(container) {
     const unread = getTotalUnread(dbUser.user_id);
 
     const threads = db.threads.find(t => {
-      const parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]');
+      let parts = [];
+      try { parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]'); } catch(e) {}
       return parts.includes(dbUser.user_id);
     });
 
@@ -65,7 +66,8 @@ export async function init(container) {
       .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))
       .slice(0, 3)
       .forEach(t => {
-        const parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]');
+        let parts = [];
+        try { parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]'); } catch(e) {}
         const senderId = parts.find(id => id !== dbUser.user_id);
         const sender = senderId ? db.users.findById(senderId) : null;
         const listing = db.listings.findById(t.listing_id);
@@ -179,7 +181,9 @@ export async function init(container) {
     // Activity items
     container.querySelectorAll('.dash-activity').forEach(el => {
       el.addEventListener('click', () => {
-        navigate(el.dataset.route, JSON.parse(el.dataset.params || '{}'));
+        let params = {};
+        try { params = JSON.parse(el.dataset.params || '{}'); } catch(e) {}
+        navigate(el.dataset.route, params);
       });
     });
   }

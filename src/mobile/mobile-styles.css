@@ -78,7 +78,7 @@ body, #mobile-app {
   z-index: 100;
   /* ANDROID/iOS FIX: touch-action:auto on the root app shell lets the browser
      correctly identify scroll targets. */
-  touch-action: auto;
+  touch-action: pan-x pan-y;
 }
 
 /* Container for pages to allow transitions */
@@ -90,7 +90,7 @@ body, #mobile-app {
   min-height: 0;
   overflow: hidden;
   /* ANDROID FIX: ensure touch events bubble up to find the real scroll target */
-  touch-action: auto;
+  touch-action: pan-x pan-y;
 }
 
 /* ── 4. Mobile Header ───────────────────────────────────────── */
@@ -537,9 +537,8 @@ body, #mobile-app {
   overflow-y: scroll;       /* Use scroll to ensure the container is always a scroll parent */
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  touch-action: auto;       /* Let browser handle touch naturally */
+  touch-action: pan-x pan-y;       /* Let browser handle touch naturally */
   scroll-behavior: smooth;
-  will-change: transform;   /* Help GPU compositing during transitions */
   z-index: 10;
 }
 
@@ -588,7 +587,7 @@ body, #mobile-app {
   overflow: hidden !important;
   /* ANDROID FIX: reset touch-action on the wrapper so it doesn't interfere
      with the inner .mobile-page-content scroll target */
-  touch-action: auto;
+  touch-action: pan-x pan-y;
 }
 
 .mobile-page-flex>.mobile-page-content {
