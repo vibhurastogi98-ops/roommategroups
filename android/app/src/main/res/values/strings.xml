@@ -1,7 +1,8 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RoommateGroups</string>
     <string name="title_activity_main">RoommateGroups</string>
     <string name="package_name">com.roommategroups.app</string>
     <string name="custom_url_scheme">com.roommategroups.app</string>
-</resources
+</resources>
+
