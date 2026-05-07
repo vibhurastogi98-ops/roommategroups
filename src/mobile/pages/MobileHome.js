@@ -46,7 +46,8 @@ export async function init(container) {
           animation: spin 0.8s linear infinite; 
         }
       </style>
-      <div style="padding-bottom:16px;">
+      <div class="mobile-page-content">
+        <div style="padding-bottom:1px;">
 
         <!-- Sticky search bar -->
         <div style="position:sticky;top:0;z-index:50;background:rgba(248,250,252,0.95);backdrop-filter:blur(12px);padding:12px 16px 8px;border-bottom:1px solid #e2e8f0;">
@@ -82,7 +83,7 @@ export async function init(container) {
               gap: 16px;
               overflow-x: auto;
               -webkit-overflow-scrolling: touch;
-              touch-action: pan-x;
+              touch-action: pan-x pan-y;
               overscroll-behavior-x: contain;
               scroll-snap-type: x mandatory;
               scrollbar-width: none; /* Firefox */
@@ -163,13 +164,13 @@ export async function init(container) {
           <div class="mobile-scroll-x" style="padding-bottom:12px; margin: 0 -16px; padding-left: 16px;">
             <div style="display:flex;gap:12px;width:max-content;padding-right:16px;">
               ${fbGroups.map(g => {
-      const memberLabel = g.total_members >= 1000000
-        ? (g.total_members / 1000000).toFixed(1) + 'M'
-        : g.total_members >= 1000
-          ? Math.round(g.total_members / 1000) + 'K'
-          : (g.total_members || 0).toString();
+                const memberLabel = g.total_members >= 1000000
+                  ? (g.total_members / 1000000).toFixed(1) + 'M'
+                  : g.total_members >= 1000
+                    ? Math.round(g.total_members / 1000) + 'K'
+                    : (g.total_members || 0).toString();
 
-      return `
+                return `
                 <div class="fb-group-card" data-fb-id="${g.fb_city_id}" style="width:220px;flex-shrink:0;cursor:pointer;background:#fff;border:1px solid #f1f5f9;border-radius:18px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
                   <div style="height:120px;background:url('${getAssetUrl(g.city_image) || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=400'}') center/cover;position:relative;">
                     <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 60%);"></div>
@@ -199,10 +200,10 @@ export async function init(container) {
           <h2 style="font-size:1.1rem; font-weight:900; text-align:center; margin-bottom:24px;">How It Works</h2>
           <div style="display:flex; flex-direction:column; gap:16px;">
             ${[
-        { step: 1, t: 'Search Listings', d: 'Browse verified rooms and roommates in your city.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>' },
-        { step: 2, t: 'Connect & Chat', d: 'Message potential roommates securely in the app.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>' },
-        { step: 3, t: 'Move In!', d: 'Find your perfect group and settle into your new home.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>' }
-      ].map(s => `
+              { step: 1, t: 'Search Listings', d: 'Browse verified rooms and roommates in your city.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>' },
+              { step: 2, t: 'Connect & Chat', d: 'Message potential roommates securely in the app.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>' },
+              { step: 3, t: 'Move In!', d: 'Find your perfect group and settle into your new home.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>' }
+            ].map(s => `
               <div style="display:flex; gap:16px; align-items:center; background:#fff; padding:16px; border-radius:14px; border:1px solid #f1f5f9;">
                 <div style="width:36px; height:36px; border-radius:50%; background:var(--mobile-accent-soft); color:var(--mobile-accent); display:flex; align-items:center; justify-content:center; font-size:0.9rem; font-weight:900; flex-shrink:0;">${s.step}</div>
                 <div>
@@ -222,10 +223,10 @@ export async function init(container) {
           <div class="mobile-scroll-x" style="padding-bottom:10px;">
             <div style="display:flex; gap:16px; width:max-content;">
               ${[
-        { n: 'Sarah K.', c: 'Austin, TX', q: 'Found my perfect roommate within a week!', r: 5 },
-        { n: 'Marcus T.', c: 'Berlin', q: 'Moving to a new city was scary, but this made it easy.', r: 5 },
-        { n: 'Emily R.', c: 'San Francisco', q: 'No scams, no fake posts. Just real people.', r: 5 }
-      ].map(t => `
+                { n: 'Sarah K.', c: 'Austin, TX', q: 'Found my perfect roommate within a week!', r: 5 },
+                { n: 'Marcus T.', c: 'Berlin', q: 'Moving to a new city was scary, but this made it easy.', r: 5 },
+                { n: 'Emily R.', c: 'San Francisco', q: 'No scams, no fake posts. Just real people.', r: 5 }
+              ].map(t => `
                 <div style="width:240px; padding:20px; border-radius:16px; background:#fff; border:1px solid #f1f5f9; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
                   <div style="color:#fbbf24; font-size:0.8rem; margin-bottom:12px;">${'★'.repeat(t.r)}</div>
                   <p style="font-size:0.8rem; color:#475569; line-height:1.5; font-style:italic; margin-bottom:12px;">"${t.q}"</p>
@@ -244,10 +245,10 @@ export async function init(container) {
           <h2 style="font-size:1.1rem; font-weight:900; margin-bottom:16px;">Got Questions?</h2>
           <div style="display:flex; flex-direction:column; gap:10px;">
             ${[
-        'Is RoommateGroups free to use?',
-        'How does ID verification work?',
-        'Can I list my room or entire apartment?'
-      ].map(q => `
+              'Is RoommateGroups free to use?',
+              'How does ID verification work?',
+              'Can I list my room or entire apartment?'
+            ].map(q => `
               <div class="home-faq-trigger" style="background:#fff; padding:16px; border-radius:12px; border:1px solid #f1f5f9; font-size:0.85rem; font-weight:700; color:#1e293b; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
                 ${q} <span style="color:#94a3b8; font-size:1.1rem;">›</span>
               </div>
@@ -257,6 +258,7 @@ export async function init(container) {
         </div>
 
       </div>
+    </div>
     `;
 
     _wireEvents(container, {

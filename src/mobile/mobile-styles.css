@@ -76,10 +76,8 @@ body, #mobile-app {
   background: var(--bg-light);
   overflow: hidden;
   z-index: 100;
-  /* ANDROID FIX: touch-action:auto on the root app shell lets Android
-     Chrome's touch dispatcher walk the tree correctly to find the real
-     scroll target. Any more restrictive value here (pan-y, none) causes
-     Android to short-circuit at this element and never reach .mobile-page */
+  /* ANDROID/iOS FIX: touch-action:auto on the root app shell lets the browser
+     correctly identify scroll targets. */
   touch-action: auto;
 }
 
@@ -88,10 +86,11 @@ body, #mobile-app {
   flex: 1;
   position: relative;
   width: 100%;
-  /* FIX: use 100% height with min-height:0 so flex children can scroll */
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  /* ANDROID FIX: ensure touch events bubble up to find the real scroll target */
+  touch-action: auto;
 }
 
 /* ── 4. Mobile Header ───────────────────────────────────────── */
@@ -534,14 +533,14 @@ body, #mobile-app {
   opacity: 1;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               opacity 0.3s ease;
-  height: 100vh;
-  overflow-y: scroll;
+  height: 100%;
+  overflow-y: scroll;       /* Use scroll to ensure the container is always a scroll parent */
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y;
-  overscroll-behavior-y: contain;
+  touch-action: auto;       /* Let browser handle touch naturally */
   scroll-behavior: smooth;
-  will-change: auto;
+  will-change: transform;   /* Help GPU compositing during transitions */
+  z-index: 10;
 }
 
 /* Fix for inputs causing page jump on focus (keyboard open) */
@@ -929,9 +928,9 @@ body, #mobile-app {
   display: flex;
   gap: 8px;
   padding-bottom: 4px;
-  /* ANDROID FIX: explicitly declare pan-x so Android doesn't block
-     horizontal swipes inside a vertically-scrolling parent */
-  touch-action: pan-x;
+  /* ANDROID/iOS FIX: Use pan-x pan-y to allow both horizontal scrolling of the
+     strip and vertical scrolling of the page. */
+  touch-action: pan-x pan-y;
   overscroll-behavior-x: contain;
 }
 

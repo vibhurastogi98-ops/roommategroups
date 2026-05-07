@@ -15,10 +15,7 @@ import { renderMobileHeader } from './components/MobileHeader.js';
 import { App } from '@capacitor/app';
 
 const TAB_ORDER = ['home', 'search', 'post', 'chat', 'profile'];
-const SWIPE_THRESHOLD = 80;
-const EDGE_ZONE = 40; // px from left edge
-let swipeStartX = 0, swipeStartY = 0, isSwiping = false;
-let tabSwipeStartX = 0, tabSwipeStartY = 0;
+let swipeStartX = 0, swipeStartY = 0;
 
 // ── Path → route name adapter (for legacy mobileNavigate calls) ─
 const PATH_TO_ROUTE = {
@@ -359,54 +356,16 @@ export async function initMobile() {
     }
   });
 
-  // 9. Gestures
+  // 9. Gestures (Disabled swipe-to-switch per user request, only click allowed)
   document.addEventListener('touchstart', (e) => {
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
-    isSwiping = swipeStartX < EDGE_ZONE;
-    tabSwipeStartX = e.touches[0].clientX;
-    tabSwipeStartY = e.touches[0].clientY;
   }, { passive: true });
 
-  document.addEventListener('touchmove', (e) => {
-    if (!isSwiping) return;
-    const deltaX = e.touches[0].clientX - swipeStartX;
-    const deltaY = Math.abs(e.touches[0].clientY - swipeStartY);
-    if (deltaX > 0 && deltaX > deltaY) {
-      const page = document.querySelector('.mobile-page');
-      if (page) page.style.transform = `translateX(${Math.min(deltaX * 0.4, 80)}px)`;
-    }
-  }, { passive: true });
+  // Note: touchmove and touchend swipe logic removed to prevent accidental tab/page switching
+  // Navigation is now strictly handled by icon clicks in the bottom nav or header buttons.
 
-  document.addEventListener('touchend', (e) => {
-    // Swipe back
-    if (isSwiping) {
-      const deltaX = e.changedTouches[0].clientX - swipeStartX;
-      const page = document.querySelector('.mobile-page');
-      if (deltaX > SWIPE_THRESHOLD && state.history.length > 1) {
-        goBack();
-      } else {
-        if (page) { page.style.transition = 'transform 0.2s ease'; page.style.transform = ''; }
-      }
-      isSwiping = false;
-    }
-
-    // Tab swipe
-    const tabDeltaX = e.changedTouches[0].clientX - tabSwipeStartX;
-    const tabDeltaY = Math.abs(e.changedTouches[0].clientY - tabSwipeStartY);
-    if (Math.abs(tabDeltaX) > 60 && tabDeltaY < 40 && TAB_ORDER.includes(state.current) && swipeStartX > EDGE_ZONE) {
-      const idx = TAB_ORDER.indexOf(state.current);
-      if (tabDeltaX < 0 && idx < TAB_ORDER.length - 1) navigate(TAB_ORDER[idx + 1]);
-      if (tabDeltaX > 0 && idx > 0) navigate(TAB_ORDER[idx - 1]);
-    }
-  }, { passive: true });
-
-  // 10. Scroll fixes
-  document.body.addEventListener('touchmove', (e) => {
-    if (e.target.closest('.mobile-page') || e.target.closest('.chat-messages-area')) return;
-    e.preventDefault(); // block body scroll
-  }, { passive: false });
-
+  // 10. Scroll fixes (Removed e.preventDefault() as it can block valid scrolling)
   window.addEventListener('resize', () => {
     const activeEl = document.activeElement;
     if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
