@@ -66,9 +66,9 @@ export async function init(container) {
         </div>
 
         <!-- LISTINGS FEED -->
-        <div style="padding:24px 16px 12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-            <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.01em;">Featured Listings</div>
+        <div style="padding:24px 0 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:0 16px;">
+            <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.01em;">Newest Listings</div>
             <div style="display:flex;align-items:center;gap:12px;">
               <button id="see-all-listings" style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;">See all</button>
               <button id="home-refresh" style="width:36px;height:36px;border-radius:10px;background:#f1f5f9;border:none;display:flex;align-items:center;justify-content:center;color:var(--mobile-accent);cursor:pointer;transition:transform 0.2s;">
@@ -76,14 +76,41 @@ export async function init(container) {
               </button>
             </div>
           </div>
-          <div id="home-feed" style="display:flex;flex-direction:column;gap:12px;">
-            ${_renderCards(filteredList, pageIndex)}
+          <style>
+            .listings-slider {
+              display: flex;
+              gap: 16px;
+              overflow-x: auto;
+              overscroll-behavior-x: contain;
+              scroll-snap-type: x mandatory;
+              scrollbar-width: none; /* Firefox */
+              padding: 0 16px 20px 16px; /* Space for box-shadow */
+            }
+            .listings-slider::-webkit-scrollbar {
+              display: none; /* Chrome/Safari */
+            }
+            .listings-slider .mobile-card {
+              width: 85vw; /* Show partial next card */
+              max-width: 320px;
+              scroll-snap-align: center;
+              margin-bottom: 0 !important; /* Override default vertical margin */
+            }
+            .empty-state {
+              padding: 32px 16px;
+              text-align: center;
+              color: #64748b;
+              font-size: 0.9rem;
+              background: #f8fafc;
+              border-radius: 16px;
+              margin: 0 16px;
+              width: calc(100% - 32px);
+            }
+          </style>
+          <div id="home-feed-container" style="position: relative;">
+            <div id="home-feed" class="listings-slider">
+              ${_renderCards(filteredList)}
+            </div>
           </div>
-          ${filteredList.length > PAGE_SIZE * (pageIndex + 1) ? `
-            <div style="padding:16px 0;text-align:center;">
-              <button id="load-more" class="mobile-btn mobile-btn-outline" style="width:auto;padding:12px 32px;">Load More</button>
-            </div>` : ''
-          }
         </div>
 
         <!-- POST CTA CARD -->
@@ -232,9 +259,19 @@ export async function init(container) {
 
     _wireEvents(container, {
       cities, allListings,
-      setSelectedType: (v) => { selectedType = v; pageIndex = 0; filteredList = _filterListings(allListings, selectedCity, selectedType); render(); },
-      setPageIndex: (v) => { pageIndex = v; },
-      getPageIndex: () => pageIndex,
+      setSelectedType: (v) => { 
+        selectedType = v; 
+        const feed = container.querySelector('#home-feed');
+        if (feed) {
+          feed.innerHTML = Array(3).fill(0).map(() => `
+            <div style="width:85vw; max-width:320px; height:300px; background:#f8fafc; border-radius:28px; border:1px solid #e2e8f0; flex-shrink:0; animation: skeleton-pulse 1.5s infinite ease-in-out;"></div>
+          `).join('');
+        }
+        setTimeout(() => {
+          filteredList = _filterListings(allListings, selectedCity, selectedType); 
+          render();
+        }, 300);
+      },
       getFiltered: () => filteredList,
       rerender: render,
       updateListings: () => {
@@ -270,16 +307,26 @@ function _filterListings(all, cityId, type) {
   let filtered = [...all];
   if (cityId && cityId !== 'all') filtered = filtered.filter(l => l.city === cityId || l.city_id === cityId);
   if (type && type !== 'all') filtered = filtered.filter(l => (l.room_type || l.category || '').toLowerCase().includes(type.toLowerCase()));
-  return filtered;
+  
+  // Order by created_at DESC (newest first) and limit to 10
+  return filtered
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 10);
 }
 
-function _renderCards(list, pageIdx) {
-  const visible = list.slice(0, PAGE_SIZE * (pageIdx + 1));
-  return visible.map(l => renderMobileCard(l)).join('');
+function _renderCards(list) {
+  if (!list || list.length === 0) {
+    return `<div class="empty-state">
+      <div style="font-size:2rem; margin-bottom:8px;">😕</div>
+      <div style="font-weight:700; color:#1e293b; margin-bottom:4px;">No listings found</div>
+      <p>Try adjusting your search or check back later.</p>
+    </div>`;
+  }
+  return list.map(l => renderMobileCard(l)).join('');
 }
 
 async function _wireEvents(container, ctx) {
-  const { rerender, setSelectedType, setPageIndex, getPageIndex, getFiltered } = ctx;
+  const { rerender, setSelectedType, getFiltered } = ctx;
   const { navigate } = await getMobile();
 
   container.querySelector('#home-search-btn')?.addEventListener('click', () => { navigate('search'); });
@@ -288,6 +335,14 @@ async function _wireEvents(container, ctx) {
   container.querySelector('#home-refresh')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.classList.add('refreshing');
+    
+    const feed = container.querySelector('#home-feed');
+    if (feed) {
+      feed.innerHTML = Array(3).fill(0).map(() => `
+        <div style="width:85vw; max-width:320px; height:300px; background:#f8fafc; border-radius:28px; border:1px solid #e2e8f0; flex-shrink:0; animation: skeleton-pulse 1.5s infinite ease-in-out;"></div>
+      `).join('');
+    }
+
     await initDB().catch(() => {});
     ctx.updateListings();
     setTimeout(() => {
@@ -303,7 +358,6 @@ async function _wireEvents(container, ctx) {
 
   const feed = container.querySelector('#home-feed');
   if (feed) attachMobileCardEvents(feed, (id) => { navigate('listing', { id }); });
-  container.querySelector('#load-more')?.addEventListener('click', () => { setPageIndex(getPageIndex() + 1); rerender(); });
 }
 
 function _skeletonHTML() {
