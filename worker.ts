@@ -450,33 +450,43 @@ app.post('/listings', async (c) => {
   }
 })
 
+const LISTING_COLUMNS = new Set([
+  'user_id', 'title', 'description', 'city', 'neighborhood_id', 'address',
+  'latitude', 'longitude', 'rent', 'rent_type', 'room_type', 'bathrooms',
+  'available_from', 'lease_term', 'amenities', 'tags', 'images', 'status',
+  'is_featured', 'view_count', 'updated_at', 'moderation_status',
+  'rejection_reason', 'bedrooms', 'size_sqft', 'preferredArea',
+  'moveInTimeline', 'budgetMin', 'budgetMax',
+])
+const LISTING_JSON_FIELDS = new Set(['images', 'amenities', 'tags'])
+
 app.put('/listings/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    // Serialize JSON array fields and normalize column name aliases
-    const jsonFields = ['images', 'photos', 'amenities', 'tags', 'lifestyle_tags']
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
-      if (jsonFields.includes(k)) {
-        mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
-      } else {
-        mapped[k] = v
-      }
+      // Field aliases
+      const col = k === 'price' ? 'rent'
+                : k === 'category' ? 'room_type'
+                : k === 'lease_duration' ? 'lease_term'
+                : k === 'neighborhood' ? 'neighborhood_id'
+                : k
+      if (!LISTING_COLUMNS.has(col)) continue
+      mapped[col] = LISTING_JSON_FIELDS.has(col)
+        ? (typeof v === 'string' ? v : JSON.stringify(v ?? []))
+        : v
     }
-    // Normalize price → rent alias if frontend sends old field name
-    if ('price' in mapped && !('rent' in mapped)) {
-      mapped['rent'] = mapped['price']
-      delete mapped['price']
-    }
-    if (Object.keys(mapped).length === 0) return dbJson(c, { success: true })
+    mapped['updated_at'] = new Date().toISOString()
+    if (Object.keys(mapped).length <= 1) return dbJson(c, { success: true })
     const sets = Object.keys(mapped).map(k => `${k} = ?`).join(', ')
     const vals = [...Object.values(mapped), id]
     await c.env.DB.prepare(`UPDATE listings SET ${sets} WHERE listing_id = ?`).bind(...vals).run()
     return dbJson(c, { success: true })
   } catch (err) {
-    const error = err as Error
-    return dbJson(c, { error: error.message }, 500)
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[API] PUT /listings/:id failed:', msg)
+    return dbJson(c, { error: msg || 'Unknown error' }, 500)
   }
 })
 
@@ -928,12 +938,15 @@ app.post('/threads', async (c) => {
   }
 })
 
+const THREAD_COLUMNS = new Set(['participants', 'listing_id', 'last_message_at', 'last_message_preview', 'is_archived'])
+
 app.put('/threads/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
+      if (!THREAD_COLUMNS.has(k)) continue
       if (k === 'participants') {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
       } else if (k === 'is_archived') {
@@ -948,8 +961,9 @@ app.put('/threads/:id', async (c) => {
     await c.env.DB.prepare(`UPDATE threads SET ${sets} WHERE thread_id = ?`).bind(...vals).run()
     return dbJson(c, { success: true })
   } catch (err) {
-    const error = err as Error
-    return dbJson(c, { error: error.message }, 500)
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[API] PUT /threads/:id failed:', msg)
+    return dbJson(c, { error: msg || 'Unknown error' }, 500)
   }
 })
 

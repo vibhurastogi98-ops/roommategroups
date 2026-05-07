@@ -43,6 +43,8 @@ const defaultWizard = {
   lifestyleTags: [],
 };
 let wizard = { ...defaultWizard };
+let isEdit = false;
+let editListingId = null;
 
 function loadDraft() {
   try {
@@ -50,8 +52,62 @@ function loadDraft() {
     if (s) wizard = { ...defaultWizard, ...JSON.parse(s) };
   } catch (e) { /* ignore */ }
 }
-function saveDraft() { localStorage.setItem(DRAFT_KEY, JSON.stringify(wizard)); }
+function saveDraft() {
+  if (!isEdit) localStorage.setItem(DRAFT_KEY, JSON.stringify(wizard));
+}
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); wizard = { ...defaultWizard }; }
+
+function loadListingIntoWizard(listing) {
+  let photos = [];
+  try {
+    const raw = typeof listing.images === 'string' ? JSON.parse(listing.images || '[]') : (listing.images || []);
+    photos = Array.isArray(raw) ? raw : [];
+  } catch (_) {}
+
+  let roommatePrefs = {};
+  try {
+    roommatePrefs = typeof listing.roommate_prefs === 'string'
+      ? JSON.parse(listing.roommate_prefs || '{}')
+      : (listing.roommate_prefs || {});
+  } catch (_) {}
+
+  const furnishedMap = { true: 'Yes', false: 'No', 1: 'Yes', 0: 'No' };
+  const furnishedStr = listing.furnished === true || listing.furnished === 1 ? 'Yes'
+    : listing.furnished === false || listing.furnished === 0 ? 'No'
+    : String(listing.furnished || '');
+
+  wizard = {
+    ...defaultWizard,
+    step: 1,
+    category:        listing.category         || '',
+    country:         listing.country          || 'country_us',
+    city:            listing.city             || '',
+    neighborhood:    listing.neighborhood     || '',
+    address:         listing.address          || '',
+    title:           listing.title            || '',
+    price:           String(listing.rent      || listing.price || ''),
+    currency:        listing.currency         || 'USD',
+    availableFrom:   listing.available_from   ? listing.available_from.slice(0, 10) : '',
+    leaseDuration:   listing.lease_duration   || '',
+    roomType:        listing.room_type        || '',
+    furnished:       furnishedStr,
+    bedrooms:        String(listing.bedrooms  || ''),
+    bathrooms:       String(listing.bathrooms || ''),
+    sizeSqft:        String(listing.size_sqft || ''),
+    budgetMin:       String(listing.budgetMin || listing.budget_min || ''),
+    budgetMax:       String(listing.budgetMax || listing.budget_max || ''),
+    preferredArea:   listing.preferredArea    || listing.preferred_area || '',
+    moveInTimeline:  listing.moveInTimeline   || listing.move_in_timeline || '',
+    amenities:       Array.isArray(listing.amenities) ? listing.amenities : [],
+    photos,
+    description:     listing.description      || '',
+    prefGender:      roommatePrefs.gender     || 'Any',
+    prefAgeMin:      roommatePrefs.ageMin     || 18,
+    prefAgeMax:      roommatePrefs.ageMax     || 99,
+    lifestyleTags:   roommatePrefs.tags       || [],
+    _termsAccepted:  true,
+  };
+}
 
 // ── Image processing (parity with web) ────────────────────────
 function resizeToBlob(img, maxW, maxH, quality) {
@@ -122,19 +178,35 @@ const CAT_CONFIG = {
 };
 
 // ── Entry ──────────────────────────────────────────────────────
-export async function init(container) {
+export async function init(container, params = {}) {
   const user = getCurrentUser();
   if (!user) { (await getMobile()).navigate('auth'); return; }
   await initDB().catch(() => {});
-  loadDraft();
 
   const { updateHeader, goBack } = await getMobile();
+
+  if (params.listingId) {
+    // ── Edit mode ──────────────────────────────────────────────
+    const existing = db.listings.findById(params.listingId);
+    if (!existing || existing.user_id !== user.user_id) {
+      goBack(); return;
+    }
+    isEdit = true;
+    editListingId = params.listingId;
+    loadListingIntoWizard(existing);
+  } else {
+    // ── Create mode ────────────────────────────────────────────
+    isEdit = false;
+    editListingId = null;
+    loadDraft();
+  }
+
   updateHeader({
-    title: 'Post Listing',
+    title: isEdit ? 'Edit Listing' : 'Post Listing',
     showBack: true,
     onBack: () => {
       if (wizard.step > 1) { wizard.step--; saveDraft(); _render(container); }
-      else { clearDraft(); goBack(); }
+      else { if (!isEdit) clearDraft(); goBack(); }
     }
   });
 
@@ -171,7 +243,7 @@ function _render(container) {
       <div id="wp-actions" style="position:fixed; bottom:0; left:0; width:100%; padding:16px 20px calc(16px + var(--mobile-safe-bottom,0px)); background:rgba(255,255,255,0.98); backdrop-filter:blur(12px); border-top:1px solid #f1f5f9; z-index:1000; display:${showActions ? 'flex' : 'none'}; gap:12px;">
         ${wizard.step > 1 ? `<button id="wp-back" class="mobile-btn mobile-btn-outline" style="flex:0.4;">Back</button>` : ''}
         <button id="wp-next" class="mobile-btn mobile-btn-accent" style="flex:1;">
-          ${wizard.step < TOTAL_STEPS ? 'Next Step →' : 'Publish Listing'}
+          ${wizard.step < TOTAL_STEPS ? 'Next Step →' : (isEdit ? 'Save Changes' : 'Publish Listing')}
         </button>
       </div>
     </div>
@@ -479,7 +551,7 @@ function _step6() {
   `;
 }
 
-// ── Step 7: Publish ───────────────────────────────────────────
+// ── Step 7: Publish / Review ──────────────────────────────────
 function _step7() {
   const isRoommate = wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted';
   const priceDisplay = isRoommate
@@ -488,11 +560,7 @@ function _step7() {
 
   const coverPhoto = wizard.photos[0] ? getPhotoSrc(wizard.photos[0]) : null;
 
-  return `
-    <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Ready to Publish!</h2>
-    <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Review your listing before it goes live.</p>
-
-    <!-- Preview Card -->
+  const previewCard = `
     <div style="border-radius:16px; border:1px solid #f1f5f9; overflow:hidden; margin-bottom:24px;">
       ${coverPhoto
         ? `<img src="${coverPhoto}" style="width:100%; height:160px; object-fit:cover;" alt="Cover photo">`
@@ -505,7 +573,23 @@ function _step7() {
         ${wizard.amenities.length > 0 ? `<div style="font-size:0.78rem; color:#94a3b8; margin-top:6px;">⭐ ${wizard.amenities.length} amenities selected</div>` : ''}
         ${wizard.description ? `<p style="font-size:0.82rem; color:#475569; margin-top:10px; line-height:1.5;">${_esc(wizard.description.slice(0, 160))}${wizard.description.length > 160 ? '…' : ''}</p>` : ''}
       </div>
-    </div>
+    </div>`;
+
+  if (isEdit) {
+    return `
+      <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Review Changes</h2>
+      <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Your changes will be saved and visible immediately.</p>
+      ${previewCard}
+      <label style="display:flex; align-items:flex-start; gap:12px; cursor:pointer; touch-action:manipulation;">
+        <input type="checkbox" id="wp-terms" ${wizard._termsAccepted ? 'checked' : ''} style="margin-top:2px; width:18px; height:18px; accent-color:var(--mobile-accent,#1a1a1a); flex-shrink:0;">
+        <span style="font-size:0.82rem; color:#475569; line-height:1.5;">I confirm this listing is accurate and complies with local housing laws.</span>
+      </label>`;
+  }
+
+  return `
+    <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Ready to Publish!</h2>
+    <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Review your listing before it goes live.</p>
+    ${previewCard}
 
     <!-- Publish Options -->
     <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
@@ -755,22 +839,23 @@ function _validateStep(step) {
 
 // ── Submit ────────────────────────────────────────────────────
 async function _handleSubmit(container) {
-  if (!wizard._termsAccepted) { _toast('Please accept the terms to publish', 'error'); return; }
+  if (!wizard._termsAccepted) {
+    _toast(isEdit ? 'Please confirm to save changes' : 'Please accept the terms to publish', 'error');
+    return;
+  }
   const btn = container.querySelector('#wp-next');
-  if (btn) { btn.textContent = 'Publishing…'; btn.disabled = true; }
+  if (btn) { btn.textContent = isEdit ? 'Saving…' : 'Publishing…'; btn.disabled = true; }
 
   try {
     const user = getCurrentUser();
-    const isFree = user.subscription_tier === 'free';
-    const selType = wizard._publishType || 'free';
-    const isFeatured = selType === 'featured' || selType === 'premium';
+    const isRoommate = wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted';
 
     const listingData = {
-      user_id: user.id,
+      user_id: user.user_id || user.id,
       category: wizard.category,
       title: wizard.title,
       description: wizard.description,
-      rent: (wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted') ? (parseInt(wizard.budgetMax) || 0) : (parseInt(wizard.price) || 0),
+      rent: isRoommate ? (parseInt(wizard.budgetMax) || 0) : (parseInt(wizard.price) || 0),
       currency: wizard.currency,
       country: wizard.country,
       city: wizard.city,
@@ -782,11 +867,7 @@ async function _handleSubmit(container) {
       furnished: wizard.furnished,
       amenities: wizard.amenities,
       images: JSON.stringify(wizard.photos),
-      roommate_prefs: { gender: wizard.prefGender, ageMin: wizard.prefAgeMin, ageMax: wizard.prefAgeMax, tags: wizard.lifestyleTags },
-      status: isFree ? 'pending' : 'active',
-      moderation_status: isFree ? 'pending' : 'approved',
-      is_featured: isFeatured,
-      view_count: 0,
+      roommate_prefs: JSON.stringify({ gender: wizard.prefGender, ageMin: wizard.prefAgeMin, ageMax: wizard.prefAgeMax, tags: wizard.lifestyleTags }),
       bedrooms: parseInt(wizard.bedrooms) || null,
       bathrooms: parseInt(wizard.bathrooms) || null,
       size_sqft: parseInt(wizard.sizeSqft) || null,
@@ -796,22 +877,39 @@ async function _handleSubmit(container) {
       moveInTimeline: wizard.moveInTimeline || null,
     };
 
-    const item = await db.listings.create(listingData);
-    await db.notifications.create({
-      user_id: user.id,
-      type: isFree ? 'moderation_pending' : 'listing_approved',
-      title: isFree ? 'Listing Pending Review' : 'Listing Published!',
-      description: isFree ? 'Your listing is pending admin approval and will go live once approved.' : 'Your listing is now live and visible to all users.',
-      website_url: `/listing/${item.listing_id}`,
-    });
+    if (isEdit) {
+      await db.listings.update(editListingId, listingData);
+      _toast('Listing updated successfully!');
+      setTimeout(async () => {
+        const mob = await getMobile();
+        mob.navigate('listing', { id: editListingId });
+      }, 1200);
+    } else {
+      const isFree = user.subscription_tier === 'free';
+      const selType = wizard._publishType || 'free';
+      const isFeatured = selType === 'featured' || selType === 'premium';
+      listingData.status = isFree ? 'pending' : 'active';
+      listingData.moderation_status = isFree ? 'pending' : 'approved';
+      listingData.is_featured = isFeatured;
+      listingData.view_count = 0;
 
-    clearDraft();
-    _toast(isFree ? 'Listing submitted for review!' : 'Listing published successfully!');
-    setTimeout(async () => { (await getMobile()).navigate('dashboard'); }, 1500);
+      const item = await db.listings.create(listingData);
+      await db.notifications.create({
+        user_id: user.user_id || user.id,
+        type: isFree ? 'moderation_pending' : 'listing_approved',
+        title: isFree ? 'Listing Pending Review' : 'Listing Published!',
+        description: isFree ? 'Your listing is pending admin approval and will go live once approved.' : 'Your listing is now live and visible to all users.',
+        website_url: `/listing/${item.listing_id}`,
+      });
+
+      clearDraft();
+      _toast(isFree ? 'Listing submitted for review!' : 'Listing published successfully!');
+      setTimeout(async () => { (await getMobile()).navigate('dashboard'); }, 1500);
+    }
   } catch (err) {
     console.error('[Post] Submit error:', err);
-    _toast('Failed to publish. Please try again.', 'error');
-    if (btn) { btn.textContent = 'Publish Listing'; btn.disabled = false; }
+    _toast(isEdit ? 'Failed to save changes. Please try again.' : 'Failed to publish. Please try again.', 'error');
+    if (btn) { btn.textContent = isEdit ? 'Save Changes' : 'Publish Listing'; btn.disabled = false; }
   }
 }
 

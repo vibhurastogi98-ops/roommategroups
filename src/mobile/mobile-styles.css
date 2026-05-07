@@ -115,6 +115,29 @@ body, #mobile-app {
   box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
 }
 
+.header-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  pointer-events: none;
+}
+
+.header-badge.hidden {
+  display: none;
+}
+
 .mobile-header-inner {
   width: 100%;
   display: grid;

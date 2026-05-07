@@ -165,7 +165,16 @@ const SEED_DATA = {
     ],
 };
 
-function getDB() { return JSON.parse(localStorage.getItem(DB_KEY) || '{}'); }
+function getDB() {
+    try {
+        const raw = localStorage.getItem(DB_KEY);
+        if (!raw) return {};
+        return JSON.parse(raw);
+    } catch (e) {
+        console.error('[DB] Error parsing localStorage:', e);
+        return {};
+    }
+}
 function saveDB(data) {
     try {
         localStorage.setItem(DB_KEY, JSON.stringify(data));

@@ -42,8 +42,9 @@ export async function init(container, params = {}) {
     }
   });
 
-  const user    = getCurrentUser();
-  const poster  = listing.user_id ? db.users.findById(listing.user_id) : null;
+  const user     = getCurrentUser();
+  const isOwner  = !!(user && listing.user_id && user.user_id === listing.user_id);
+  const poster   = listing.user_id ? db.users.findById(listing.user_id) : null;
   
   // Handle photos normalization
   let photoList = listing.images || listing.photos || [];
@@ -187,13 +188,17 @@ export async function init(container, params = {}) {
         style="width:48px;height:48px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform .2s cubic-bezier(.34,1.56,.64,1);">
         ${saved ? '❤️' : '🤍'}
       </button>
-      <button id="lst-search-jump" aria-label="Go to search"
-        style="width:48px;height:48px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:1.2rem;cursor:pointer;flex-shrink:0;">
-        🔍
-      </button>
-      ${listing.phone ? `
-        <a href="tel:${listing.phone}" class="mobile-btn mobile-btn-outline" style="flex:1;height:48px;text-decoration:none;">📞 Call</a>` : ''}
-      <button id="lst-message" class="mobile-btn mobile-btn-accent" style="flex:2;height:48px;">💬 Message</button>
+      ${isOwner ? `
+        <button id="lst-edit" class="mobile-btn mobile-btn-accent" style="flex:1;height:48px;">✏️ Edit Listing</button>
+      ` : `
+        <button id="lst-report" aria-label="Report listing"
+          style="width:48px;height:48px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:1.2rem;cursor:pointer;flex-shrink:0;">
+          🚩
+        </button>
+        ${listing.phone ? `
+          <a href="tel:${listing.phone}" class="mobile-btn mobile-btn-outline" style="flex:1;height:48px;text-decoration:none;">📞 Call</a>` : ''}
+        <button id="lst-message" class="mobile-btn mobile-btn-accent" style="flex:2;height:48px;">💬 Message</button>
+      `}
     </div>
   `;
 
@@ -202,8 +207,8 @@ export async function init(container, params = {}) {
     (await getMobile()).navigate('profile', { userId: listing.user_id });
   });
 
-  container.querySelector('#lst-search-jump')?.addEventListener('click', async () => {
-    (await getMobile()).navigate('search');
+  container.querySelector('#lst-edit')?.addEventListener('click', async () => {
+    (await getMobile()).navigate('post', { listingId: listing.listing_id });
   });
 
   // ── Gallery swipe ──────────────────────────────────────────
@@ -238,7 +243,13 @@ export async function init(container, params = {}) {
   // ── Message button ─────────────────────────────────────────
   container.querySelector('#lst-message')?.addEventListener('click', async () => {
     if (!user) { (await getMobile()).navigate('auth'); return; }
-    (await getMobile()).navigate('chat', { userId: listing.user_id });
+    (await getMobile()).navigate('chat-detail', { userId: listing.user_id, listingId: listing.listing_id });
+  });
+
+  // ── Report button ──────────────────────────────────────────
+  container.querySelector('#lst-report')?.addEventListener('click', () => {
+    if (!user) { getMobile().then(m => m.navigate('auth')); return; }
+    _openReportSheet(listing, user);
   });
 
   // ── Fullscreen photo tap ───────────────────────────────────
@@ -322,6 +333,53 @@ function _openShareSheet(listing, price) {
       navigator.clipboard.writeText(url);
       alert('Link copied to clipboard!');
       hideBottomSheet();
+    });
+  }, 100);
+}
+
+const REPORT_REASONS = [
+  'Misleading information',
+  'Fraudulent listing',
+  'Inappropriate content',
+  'Already rented / unavailable',
+  'Spam or duplicate',
+  'Other',
+];
+
+function _openReportSheet(listing, user) {
+  showBottomSheet({
+    title: 'Report this listing',
+    content: `
+      <div style="padding:8px 0;">
+        <p style="font-size:0.85rem;color:#64748b;margin:0 0 16px;">Select a reason for reporting:</p>
+        ${REPORT_REASONS.map(r => `
+          <button class="report-reason-btn" data-reason="${r}"
+            style="width:100%;text-align:left;padding:14px 16px;border:1.5px solid #e2e8f0;border-radius:12px;background:#fff;font-size:0.9rem;font-weight:600;color:#1e293b;margin-bottom:8px;cursor:pointer;">
+            ${r}
+          </button>`).join('')}
+      </div>`,
+  });
+
+  setTimeout(() => {
+    document.querySelectorAll('.report-reason-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const reason = btn.dataset.reason;
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+        try {
+          const { api: a } = await import('../../services/api.js');
+          await a.saveReport({
+            report_id: `rpt_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+            listing_id: listing.listing_id || listing.id,
+            reporter_id: user.user_id,
+            reason,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+          });
+        } catch (_) {}
+        hideBottomSheet();
+        alert('Thank you — your report has been submitted.');
+      });
     });
   }, 100);
 }

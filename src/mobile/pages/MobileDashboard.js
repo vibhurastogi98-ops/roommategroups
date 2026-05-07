@@ -75,7 +75,7 @@ export async function init(container) {
           bold: threadUnread > 0,
           text: `<strong>${_esc(sender?.display_name || 'Someone')}</strong> ${threadUnread > 0 ? 'sent a new message' : 'messaged you'} about <em>${_esc(listing?.title || 'a listing')}</em>`,
           time: _relTime(t.last_message_at),
-          route: 'chat', params: { threadId: t.thread_id },
+          route: 'chat-detail', params: { threadId: t.thread_id },
         });
       });
 

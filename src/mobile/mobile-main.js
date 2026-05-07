@@ -9,6 +9,7 @@
 import './mobile-styles.css';
 import { getCurrentUser } from '../services/auth.js';
 import { initDB } from '../services/db.js';
+import { getTotalUnread } from '../services/messaging.js';
 import { renderBottomNav, updateActiveTab } from './components/BottomNav.js';
 import { renderMobileHeader } from './components/MobileHeader.js';
 import { App } from '@capacitor/app';
@@ -47,7 +48,8 @@ const ROUTE_LOADERS = {
   search: () => import('./pages/MobileSearch.js'),
   listing: () => import('./pages/MobileListing.js'),
   post: () => import('./pages/MobilePost.js'),
-  chat: () => import('./pages/MobileChat.js'),
+  chat: () => import('./pages/MobileMessages.js'),
+  'chat-detail': () => import('./pages/MobileChatDetail.js'),
   profile: () => import('./pages/MobileProfile.js'),
   auth: () => import('./pages/MobileAuth.js'),
   pricing: () => import('./pages/MobilePricing.js'),
@@ -74,6 +76,7 @@ const ROUTE_TO_TAB = {
   faq: 'home',
   post: 'post',
   chat: 'messages',
+  'chat-detail': 'messages',
   profile: 'dashboard',
   dashboard: 'dashboard',
   settings: 'dashboard',
@@ -88,6 +91,7 @@ const ROUTE_TITLES = {
   listing: 'Listing',
   post: 'Post a Listing',
   chat: 'Messages',
+  'chat-detail': 'Chat',
   profile: 'Profile',
   auth: 'Welcome',
   pricing: 'Pricing Plans',
@@ -403,4 +407,12 @@ export async function initMobile() {
 
   console.log('[MOBILE] Gestures initialized');
   console.log('[MOBILE] Shell ready. Route:', state.current);
+
+  // 11. Global unread badge polling
+  setInterval(async () => {
+    const user = getCurrentUser();
+    if (!user || !_headerCtrl) return;
+    const count = getTotalUnread(user.user_id);
+    _headerCtrl.setRightBadge(count);
+  }, 10000);
 }

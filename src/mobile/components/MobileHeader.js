@@ -62,7 +62,10 @@ export function renderMobileHeader(container, {
         class="mobile-header-action${rightAction ? '' : ' hidden'}"
         aria-label="${rightAction ? escapeHtml(rightAction.label || 'Action') : 'Action'}"
         ${rightAction ? '' : 'tabindex="-1"'}
-      >${rightAction ? rightAction.icon : ''}</button>
+      >
+        ${rightAction ? rightAction.icon : ''}
+        <span id="mobile-header-right-badge" class="header-badge hidden"></span>
+      </button>
     </div>
   `;
 
@@ -141,6 +144,17 @@ export function renderMobileHeader(container, {
     }
   }
 
+  function setRightBadge(count) {
+    const badge = header.querySelector('#mobile-header-right-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 99 ? '99+' : count;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
   function showBackButton(show, handler) {
     const b = header.querySelector('#mobile-header-left');
     if (show) {
@@ -159,7 +173,7 @@ export function renderMobileHeader(container, {
     }
   }
 
-  return { el: header, setTitle, setLeftAction, setRightAction, showBackButton };
+  return { el: header, setTitle, setLeftAction, setRightAction, setRightBadge, showBackButton };
 }
 
 // ── Helpers ───────────────────────────────────────────────────

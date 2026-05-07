@@ -17,8 +17,23 @@ async function req(method, path, data, silent = false) {
 
             
         const res = await fetch(url, opts);
-        if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${res.statusText}`);
-        return await res.json();
+        if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`${method} ${path} → ${res.status}${errText ? ': ' + errText.slice(0, 200) : ''}`);
+        }
+
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            const body = await res.text().catch(() => '');
+            throw new Error(`${method} ${path} → expected JSON but got "${ct || 'no content-type'}"${body ? ': ' + body.slice(0, 100) : ''}`);
+        }
+
+        const text = await res.text();
+        try {
+            return text ? JSON.parse(text) : null;
+        } catch (e) {
+            throw new Error(`${method} ${path} → invalid JSON: ${e.message}`);
+        }
     } catch (err) {
         if (!silent) console.error(`[API ${method}] ${path}:`, err);
         throw err;

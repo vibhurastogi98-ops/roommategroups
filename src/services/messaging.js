@@ -21,7 +21,7 @@ let _pollingInterval = null;
 /**
  * Find existing thread for a listing between two users, or create one.
  */
-export function getOrCreateThread(senderId, recipientId, listingId) {
+export async function getOrCreateThread(senderId, recipientId, listingId) {
     const allThreads = db.threads.findAll();
 
     // Look for existing thread with same listing + same participants
@@ -33,7 +33,7 @@ export function getOrCreateThread(senderId, recipientId, listingId) {
     if (existing) return existing;
 
     // Create new thread
-    return db.threads.create({
+    return await db.threads.create({
         listing_id: listingId,
         participants: [senderId, recipientId],
         last_message_at: new Date().toISOString(),
@@ -90,9 +90,12 @@ export function sendMessage(threadId, senderId, content, photoUrl = null) {
     });
 
     // 6. Update thread metadata
+    const parts = typeof thread.participants === 'string' ? JSON.parse(thread.participants || '[]') : (thread.participants || []);
+    const ouId = parts.find(id => id !== senderId);
     db.threads.update(threadId, {
         last_message_at: new Date().toISOString(),
         last_message_preview: content.trim().substring(0, 80),
+        [`unread_count_${ouId}`]: (thread[`unread_count_${ouId}`] || 0) + 1,
     });
 
     // 7. Increment rate limit counter
@@ -110,16 +113,16 @@ export function sendMessage(threadId, senderId, content, photoUrl = null) {
 /**
  * Mark all messages in a thread as read for the given user.
  */
-export function markThreadRead(threadId, userId) {
+export async function markThreadRead(threadId, userId) {
     const msgs = db.messages.find(m => m.thread_id === threadId && m.sender_id !== userId && !m.is_read);
     const now = new Date().toISOString();
 
-    msgs.forEach(m => {
-        db.messages.update(m.message_id, { is_read: true, read_at: now });
-    });
+    await Promise.all(msgs.map(m => {
+        return db.messages.update(m.message_id, { is_read: true, read_at: now });
+    }));
 
     // Zero the unread count on the thread
-    db.threads.update(threadId, { [`unread_count_${userId}`]: 0 });
+    await db.threads.update(threadId, { [`unread_count_${userId}`]: 0 });
 }
 
 // ── Thread Actions ────────────────────────────────────────────
@@ -146,7 +149,12 @@ export function blockUser(blockerId, blockedId, threadId) {
 
 export function reportThread(threadId, reporterId, reason = 'inappropriate') {
     // We store reports in localStorage under a 'reports' key
-    const rawDB = JSON.parse(localStorage.getItem('rg_database') || '{}');
+    let rawDB = {};
+    try {
+        rawDB = JSON.parse(localStorage.getItem('rg_database') || '{}');
+    } catch (e) {
+        console.error('[MSG] Error parsing DB for report:', e);
+    }
     if (!rawDB.reports) rawDB.reports = [];
 
     rawDB.reports.push({
@@ -234,7 +242,13 @@ function checkRateLimit(userId) {
 
     const key = `rg_ratelimit_${userId}`;
     const now = Date.now();
-    let data = JSON.parse(localStorage.getItem(key) || '{"count":0,"windowStart":0}');
+    let data = { count: 0, windowStart: 0 };
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw) data = JSON.parse(raw);
+    } catch (e) {
+        console.error('[MSG] Rate limit parse error:', e);
+    }
 
     // Reset if outside window
     if (now - data.windowStart > windowMs) {
@@ -254,7 +268,13 @@ function incrementRateLimit(userId) {
     const key = `rg_ratelimit_${userId}`;
     const now = Date.now();
     const windowMs = 24 * 3600 * 1000;
-    let data = JSON.parse(localStorage.getItem(key) || '{"count":0,"windowStart":0}');
+    let data = { count: 0, windowStart: 0 };
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw) data = JSON.parse(raw);
+    } catch (e) {
+        console.error('[MSG] Rate limit parse error:', e);
+    }
 
     if (now - data.windowStart > windowMs) {
         data = { count: 1, windowStart: now };
