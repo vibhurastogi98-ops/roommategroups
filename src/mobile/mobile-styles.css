@@ -156,15 +156,23 @@ body, #mobile-app {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1.1rem;
   color: #ffffff;
-  transition: background var(--mobile-transition), transform 0.15s ease;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-header-back:active {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.08);
   transform: scale(0.92);
 }
+
+.mobile-header-back svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+/* Removed old :active rule */
 
 .mobile-header-back.hidden {
   visibility: hidden;
@@ -230,16 +238,18 @@ body, #mobile-app {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1.1rem;
   color: #ffffff;
-  transition: background var(--mobile-transition), transform 0.15s ease;
+  transition: all 0.2s ease;
   margin-left: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-header-action:active {
   background: rgba(0, 0, 0, 0.08);
   transform: scale(0.92);
 }
+
+/* Removed old :active rule */
 
 .mobile-header-action.hidden {
   visibility: hidden;

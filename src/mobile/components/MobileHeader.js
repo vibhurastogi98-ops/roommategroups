@@ -46,7 +46,7 @@ export function renderMobileHeader(container, {
         class="mobile-header-back${showLeft ? '' : ' hidden'}"
         aria-label="${showBack ? 'Go back' : (leftAction ? escapeHtml(leftAction.label || 'Action') : 'Action')}"
         ${showLeft ? '' : 'tabindex="-1"'}
-      >${showBack ? '&#8592;' : (leftAction ? leftAction.icon : '')}</button>
+      >${showBack ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>' : (leftAction ? leftAction.icon : '')}</button>
 
       <h1 class="mobile-header-title" id="mobile-header-title">
         ${title === 'LOGO' ? `
@@ -158,7 +158,7 @@ export function renderMobileHeader(container, {
   function showBackButton(show, handler) {
     const b = header.querySelector('#mobile-header-left');
     if (show) {
-      b.innerHTML = '&#8592;';
+      b.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
       b.classList.remove('hidden');
       b.removeAttribute('tabindex');
       b.setAttribute('aria-label', 'Go back');
