@@ -66,6 +66,7 @@ const ROUTE_LOADERS = {
   subscription: () => import('./pages/MobileSubscription.js'),
   'profile-setup': () => import('./pages/MobileProfileSetup.js'),
   about: () => import('./pages/MobileAbout.js'),
+  city: () => import('./pages/MobileCity.js'),
 };
 
 // Route name → bottom-nav tab id (null = hide nav)
@@ -73,6 +74,7 @@ const ROUTE_TO_TAB = {
   home: 'home',
   search: 'search',
   listing: 'home',
+  city: 'home',
   faq: 'home',
   post: 'post',
   chat: 'messages',
@@ -104,6 +106,7 @@ const ROUTE_TITLES = {
   saved: 'Saved Listings',
   about: 'About Us',
   faq: 'FAQ',
+  city: 'City',
   contact: 'Contact Us',
   dashboard: 'Dashboard',
   settings: 'Settings',
@@ -135,6 +138,9 @@ export async function navigate(routeOrPath, params = {}, direction = 'forward') 
     } else if (routeOrPath.startsWith('/profile/')) {
       route = 'profile';
       resolvedParams.userId = routeOrPath.split('/profile/')[1].split('?')[0];
+    } else if (routeOrPath.startsWith('/cities/')) {
+      route = 'city';
+      resolvedParams.slug = routeOrPath.split('/cities/')[1].split('?')[0];
     } else {
       route = PATH_TO_ROUTE[routeOrPath] || 'home';
     }

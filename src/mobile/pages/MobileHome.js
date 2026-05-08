@@ -144,23 +144,37 @@ export async function init(container) {
           </div>
         </div>
 
-        <!-- POPULAR CITIES -->
-        <div style="padding:24px 16px 10px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="font-size:1.1rem;font-weight:900;color:var(--text-primary);">Popular Cities</div>
-            <button id="see-all-cities" style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;">See all</button>
+        <!-- POPULAR CITIES (HORIZONTAL) -->
+        <div style="padding:24px 16px 20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div style="font-size:1.25rem;font-weight:900;color:#0f172a;letter-spacing:-0.02em;">Popular Cities</div>
+            <button id="see-all-cities" style="background:none;border:none;color:#7c3aed;font-size:0.85rem;font-weight:800;cursor:pointer;">See all</button>
           </div>
-          <div class="mobile-scroll-x" style="padding-bottom:8px;">
-            <div style="display:flex;gap:12px;width:max-content;">
-              ${popularCities.map(c => `
-                <div class="city-chip-card" data-slug="${c.slug}" style="width:140px;flex-shrink:0;cursor:pointer;">
-                  <div style="height:100px;border-radius:14px;background:url('${getAssetUrl(c.hero_image) || 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&q=80&w=400'}') center/cover;position:relative;overflow:hidden;">
-                    <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%);"></div>
-                    <div style="position:absolute;bottom:8px;left:10px;right:10px;color:#fff;font-weight:800;font-size:0.85rem;line-height:1.2;">${c.name}</div>
+          
+          <div class="mobile-scroll-x" style="margin: 0 -16px; padding: 0 16px 12px;">
+            <div style="display:flex; gap:16px; width:max-content;">
+              ${popularCities.map(c => {
+                const country = db.countries ? db.countries.findById(c.country) : null;
+                const subtitle = `${c.state_province ? c.state_province + ', ' : ''}${country ? country.name : ''}`;
+                return `
+                <div class="city-chip-card" data-slug="${c.slug}" style="width:280px; flex-shrink:0; background:#fff; border-radius:24px; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.05); border:1px solid #f1f5f9; cursor:pointer;">
+                  <div style="height:180px; background:url('${getAssetUrl(c.hero_image) || 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&q=80&w=400'}') center/cover;"></div>
+                  <div style="padding:16px 20px 20px;">
+                    <div style="font-size:1.15rem; font-weight:900; color:#1e293b; margin-bottom:4px; letter-spacing:-0.01em;">${c.name}</div>
+                    <div style="font-size:0.85rem; color:#94a3b8; font-weight:600; margin-bottom:16px;">${subtitle}</div>
+                    <div style="display:flex; gap:8px;">
+                      <div style="background:#f1f5f9; color:#475569; padding:6px 14px; border-radius:100px; font-size:0.75rem; font-weight:800; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-house" style="font-size:0.7rem; color:#94a3b8;"></i>
+                        ${getLiveListingCount(c.city_id)} listings
+                      </div>
+                      <div style="background:#f1f5f9; color:#475569; padding:6px 14px; border-radius:100px; font-size:0.75rem; font-weight:800; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-tag" style="font-size:0.7rem; color:#94a3b8;"></i>
+                        ~$${(c.avg_rent || 1000).toLocaleString()}/mo
+                      </div>
+                    </div>
                   </div>
-                  <div style="margin-top:6px;font-size:0.7rem;color:#94a3b8;font-weight:600;">${getLiveListingCount(c.city_id)} listings</div>
                 </div>
-              `).join('')}
+              `}).join('')}
             </div>
           </div>
         </div>
@@ -208,6 +222,74 @@ export async function init(container) {
             </div>
           </div>
         </div>
+        
+        <!-- FEATURE HIGHLIGHTS -->
+        <div style="padding: 32px 16px; background: #fff;">
+          <div style="margin-bottom: 40px;">
+            <div style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; color: #64748b; font-size: 0.65rem; font-weight: 800; padding: 6px 12px; border-radius: 100px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">
+              <i class="fa-solid fa-shield-halved" style="color: #7c3aed; font-size: 0.7rem;"></i>
+              Safe & Trusted Community
+            </div>
+            <h2 style="font-size: 1.4rem; font-weight: 900; color: #0f172a; line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.02em;">Find your perfect roommate with complete peace of mind.</h2>
+            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.6; margin-bottom: 20px;">We know finding a roommate can feel overwhelming. That's why every listing and profile on RoommateGroups is carefully moderated to keep you safe from scams and fraud.</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
+              ${[
+                'All listings manually moderated',
+                'Scam-free verified environment',
+                'Secure chat via Facebook Messenger',
+                'Active in 31+ cities worldwide'
+              ].map(item => `
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
+                  <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 1rem;"></i>
+                  ${item}
+                </div>
+              `).join('')}
+            </div>
+
+            <button id="cta-safety" style="background: none; border: none; padding: 0; color: #7c3aed; font-size: 0.9rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              Learn more about our community <i class="fa-solid fa-arrow-right" style="font-size: 0.75rem;"></i>
+            </button>
+            
+            <div style="margin-top: 32px; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
+              <img src="/assets/img/community.png" style="width: 100%; height: auto; display: block;" alt="Community">
+            </div>
+          </div>
+
+          <div style="margin-bottom: 8px; padding-top: 24px; border-top: 1px solid #f1f5f9;">
+            <div style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; color: #64748b; font-size: 0.65rem; font-weight: 800; padding: 6px 12px; border-radius: 100px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">
+              <i class="fa-solid fa-list-check" style="color: #7c3aed; font-size: 0.7rem;"></i>
+              Listings & Connections
+            </div>
+            <h2 style="font-size: 1.4rem; font-weight: 900; color: #0f172a; line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.02em;">Connect with 1,500,000+ community members looking for the same thing.</h2>
+            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.6; margin-bottom: 20px;">Whether you're a student, a working professional, or a landlord — our platform connects you with genuine, relevant matches fast. No endless scrolling, no wasted time.</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 24px;">
+              ${[
+                '10,000+ verified members',
+                'Students & professionals',
+                'Furnished room options',
+                'Budget-friendly matches',
+                'Landlord-friendly tools',
+                'Global city coverage'
+              ].map(item => `
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
+                  <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 1rem;"></i>
+                  ${item}
+                </div>
+              `).join('')}
+            </div>
+
+            <button id="cta-listings" style="background: none; border: none; padding: 0; color: #7c3aed; font-size: 0.9rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              Explore listings <i class="fa-solid fa-arrow-right" style="font-size: 0.75rem;"></i>
+            </button>
+
+            <div style="margin-top: 32px; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
+              <img src="/assets/img/mockup.png" style="width: 100%; height: auto; display: block;" alt="Mockup">
+            </div>
+          </div>
+        </div>
+
 
         <!-- HOW IT WORKS -->
         <div style="padding:32px 16px; background:#f8fafc; border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9;">
@@ -377,10 +459,12 @@ async function _wireEvents(container, ctx) {
       rerender();
     }, 600);
   });
-  container.querySelectorAll('.city-chip-card').forEach(el => el.addEventListener('click', () => { navigate('search', { city: el.dataset.slug }); }));
+  container.querySelectorAll('.city-chip-card').forEach(el => el.addEventListener('click', () => { navigate('city', { slug: el.dataset.slug }); }));
   container.querySelector('#see-all-cities')?.addEventListener('click', () => { navigate('search'); });
   container.querySelector('#see-all-listings')?.addEventListener('click', () => { navigate('search'); });
   container.querySelector('#see-all-fb')?.addEventListener('click', () => { navigate('fbGroups'); });
+  container.querySelector('#cta-safety')?.addEventListener('click', () => { navigate('safety'); });
+  container.querySelector('#cta-listings')?.addEventListener('click', () => { navigate('search'); });
   container.querySelectorAll('.fb-group-card').forEach(el => el.addEventListener('click', () => { navigate('fbGroupDetail', { id: el.dataset.fbId }); }));
   container.querySelectorAll('.home-faq-trigger, #home-view-all-faq').forEach(el => el.addEventListener('click', () => { navigate('faq'); }));
 
