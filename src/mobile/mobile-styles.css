@@ -933,6 +933,28 @@ body, #mobile-app {
   overscroll-behavior-x: contain;
 }
 
+/* Marquee for automatic scrolling */
+.marquee-track {
+  display: flex;
+  gap: 16px;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-50% - 8px)); }
+}
+
+.marquee-container {
+  overflow: hidden;
+  width: 100%;
+}
+
+.marquee-container:hover .marquee-track {
+  animation-play-state: paused;
+}
+
 .mobile-scroll-x::-webkit-scrollbar {
   display: none;
 }

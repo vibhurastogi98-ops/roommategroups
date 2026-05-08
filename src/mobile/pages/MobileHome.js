@@ -106,9 +106,8 @@ export async function init(container) {
               display: none; /* Chrome/Safari */
             }
             .listings-slider .mobile-card {
-              width: 85vw; /* Show partial next card */
-              max-width: 320px;
-              scroll-snap-align: center;
+              width: 220px;
+              scroll-snap-align: start;
               margin-bottom: 0 !important; /* Override default vertical margin */
             }
             .empty-state {
@@ -157,18 +156,18 @@ export async function init(container) {
                 const country = db.countries ? db.countries.findById(c.country) : null;
                 const subtitle = `${c.state_province ? c.state_province + ', ' : ''}${country ? country.name : ''}`;
                 return `
-                <div class="city-chip-card" data-slug="${c.slug}" style="width:280px; flex-shrink:0; background:#fff; border-radius:24px; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.05); border:1px solid #f1f5f9; cursor:pointer;">
-                  <div style="height:180px; background:url('${getAssetUrl(c.hero_image) || 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&q=80&w=400'}') center/cover;"></div>
-                  <div style="padding:16px 20px 20px;">
-                    <div style="font-size:1.15rem; font-weight:900; color:#1e293b; margin-bottom:4px; letter-spacing:-0.01em;">${c.name}</div>
-                    <div style="font-size:0.85rem; color:#94a3b8; font-weight:600; margin-bottom:16px;">${subtitle}</div>
-                    <div style="display:flex; gap:8px;">
-                      <div style="background:#f1f5f9; color:#475569; padding:6px 14px; border-radius:100px; font-size:0.75rem; font-weight:800; display:flex; align-items:center; gap:6px;">
-                        <i class="fa-solid fa-house" style="font-size:0.7rem; color:#94a3b8;"></i>
+                <div class="city-chip-card" data-slug="${c.slug}" style="width:220px; flex-shrink:0; background:#fff; border-radius:18px; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.05); border:1px solid #f1f5f9; cursor:pointer;">
+                  <div style="height:120px; background:url('${getAssetUrl(c.hero_image) || 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&q=80&w=400'}') center/cover;"></div>
+                  <div style="padding:12px 14px 14px;">
+                    <div style="font-size:0.95rem; font-weight:900; color:#1e293b; margin-bottom:4px; letter-spacing:-0.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.name}</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; font-weight:600; margin-bottom:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${subtitle}</div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                      <div style="background:#f1f5f9; color:#475569; padding:4px 10px; border-radius:100px; font-size:0.65rem; font-weight:800; display:flex; align-items:center; gap:6px; width:fit-content;">
+                        <i class="fa-solid fa-house" style="font-size:0.6rem; color:#94a3b8;"></i>
                         ${getLiveListingCount(c.city_id)} listings
                       </div>
-                      <div style="background:#f1f5f9; color:#475569; padding:6px 14px; border-radius:100px; font-size:0.75rem; font-weight:800; display:flex; align-items:center; gap:6px;">
-                        <i class="fa-solid fa-tag" style="font-size:0.7rem; color:#94a3b8;"></i>
+                      <div style="background:#f1f5f9; color:#475569; padding:4px 10px; border-radius:100px; font-size:0.65rem; font-weight:800; display:flex; align-items:center; gap:6px; width:fit-content;">
+                        <i class="fa-solid fa-tag" style="font-size:0.6rem; color:#94a3b8;"></i>
                         ~$${(c.avg_rent || 1000).toLocaleString()}/mo
                       </div>
                     </div>
@@ -316,22 +315,29 @@ export async function init(container) {
         <!-- TESTIMONIALS -->
         <div style="padding:32px 16px; background:linear-gradient(to bottom, #fff, #f8fafc);">
           <h2 style="font-size:1.1rem; font-weight:900; text-align:center; margin-bottom:24px;">What Users Say</h2>
-          <div class="mobile-scroll-x" style="padding-bottom:10px;">
-            <div style="display:flex; gap:16px; width:max-content;">
-              ${[
-        { n: 'Sarah K.', c: 'Austin, TX', q: 'Found my perfect roommate within a week!', r: 5 },
-        { n: 'Marcus T.', c: 'Berlin', q: 'Moving to a new city was scary, but this made it easy.', r: 5 },
-        { n: 'Emily R.', c: 'San Francisco', q: 'No scams, no fake posts. Just real people.', r: 5 }
-      ].map(t => `
-                <div style="width:240px; padding:20px; border-radius:16px; background:#fff; border:1px solid #f1f5f9; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
-                  <div style="color:#fbbf24; font-size:0.8rem; margin-bottom:12px;">${'★'.repeat(t.r)}</div>
-                  <p style="font-size:0.8rem; color:#475569; line-height:1.5; font-style:italic; margin-bottom:12px;">"${t.q}"</p>
-                  <div style="display:flex; align-items:center; gap:8px;">
-                    <img src="${t.a || `https://images.unsplash.com/photo-${t.n === 'Sarah K.' ? '1494790108377-be9c29b29330' : t.n === 'Marcus T.' ? '1507003211169-0a1dd7228f2d' : '1534528741775-53994a69daeb'}?auto=format&fit=crop&q=80&w=100`}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
-                    <div style="font-size:0.75rem; font-weight:800;">${t.n}</div>
+          <div class="marquee-container">
+            <div class="marquee-track">
+              ${(() => {
+          const items = [
+            { n: 'Sarah K.', c: 'Austin, TX', q: 'Found my perfect roommate within a week!', r: 5 },
+            { n: 'Marcus T.', c: 'Berlin', q: 'Moving to a new city was scary, but this made it easy.', r: 5 },
+            { n: 'Emily R.', c: 'San Francisco', q: 'No scams, no fake posts. Just real people.', r: 5 }
+          ];
+          // Duplicate items for seamless loop
+          return [...items, ...items].map(t => `
+                <div style="width:240px; padding:24px; border-radius:20px; background:#fff; border:1px solid #f1f5f9; box-shadow:0 10px 20px rgba(0,0,0,0.04); flex-shrink:0;">
+                  <div style="color:#fbbf24; font-size:0.9rem; margin-bottom:14px;">${'★'.repeat(t.r)}</div>
+                  <p style="font-size:0.85rem; color:#475569; line-height:1.6; font-style:italic; margin-bottom:16px; min-height:60px;">"${t.q}"</p>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${t.a || `https://images.unsplash.com/photo-${t.n === 'Sarah K.' ? '1494790108377-be9c29b29330' : t.n === 'Marcus T.' ? '1507003211169-0a1dd7228f2d' : '1534528741775-53994a69daeb'}?auto=format&fit=crop&q=80&w=100`}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    <div>
+                      <div style="font-size:0.8rem; font-weight:800; color:#0f172a;">${t.n}</div>
+                      <div style="font-size:0.65rem; color:#94a3b8; font-weight:600;">Verified User</div>
+                    </div>
                   </div>
                 </div>
-              `).join('')}
+              `).join('');
+        })()}
             </div>
           </div>
         </div>
@@ -341,12 +347,18 @@ export async function init(container) {
           <h2 style="font-size:1.1rem; font-weight:900; margin-bottom:16px;">Got Questions?</h2>
           <div style="display:flex; flex-direction:column; gap:10px;">
             ${[
-        'Is RoommateGroups free to use?',
-        'How does ID verification work?',
-        'Can I list my room or entire apartment?'
-      ].map(q => `
-              <div class="home-faq-trigger" style="background:#fff; padding:16px; border-radius:12px; border:1px solid #f1f5f9; font-size:0.85rem; font-weight:700; color:#1e293b; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
-                ${q} <span style="color:#94a3b8; font-size:1.1rem;">›</span>
+        { q: 'Is RoommateGroups free to use?', a: 'Our basic plan is completely free — you can browse listings, create a profile, and contact other members.' },
+        { q: 'How does ID verification work?', a: 'Our 4-level verification system starts with email, then phone, then Government ID and Community Verification.' },
+        { q: 'Can I list my room or entire apartment?', a: 'Yes! You can list a private room in a shared home, an entire apartment, or a room in a coliving space.' }
+      ].map(item => `
+              <div style="display:flex; gap:16px; padding:20px; background:#fff; border-radius:16px; border:1px solid #f1f5f9; margin-bottom:12px;">
+                <div style="width:40px; height:40px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; flex-shrink:0;">
+                  <i class="fa-solid fa-question" style="font-size:0.9rem;"></i>
+                </div>
+                <div>
+                  <div style="font-size:0.9rem; font-weight:800; color:#1e293b; margin-bottom:4px;">${item.q}</div>
+                  <div style="font-size:0.8rem; color:#64748b; line-height:1.5;">${item.a}</div>
+                </div>
               </div>
             `).join('')}
           </div>
