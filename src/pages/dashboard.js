@@ -442,8 +442,18 @@ function renderMyListings(container, user) {
     }
 
     function rerender() {
+        const activeCount = allListings.filter(l => l.status === 'active' && l.is_active !== false).length;
+        const pausedCount = allListings.filter(l => l.status === 'paused' || l.is_active === false).length;
+
         const tabs = container.querySelectorAll('.db-tab');
-        tabs.forEach(t => t.classList.toggle('active', t.dataset.filter === activeFilter));
+        tabs.forEach(t => {
+            const filter = t.dataset.filter;
+            t.classList.toggle('active', filter === activeFilter);
+            if (filter === 'all') t.textContent = 'All (' + allListings.length + ')';
+            if (filter === 'active') t.textContent = 'Active (' + activeCount + ')';
+            if (filter === 'paused') t.textContent = 'Paused (' + pausedCount + ')';
+        });
+
         const tableWrap = container.querySelector('.listings-table-container');
         if (tableWrap) tableWrap.innerHTML = buildRows(getFiltered());
         bindActions();
@@ -454,14 +464,15 @@ function renderMyListings(container, user) {
             btn.addEventListener('click', () => { navigate('/listing/' + btn.dataset.id); });
         });
         container.querySelectorAll('.action-toggle').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const l = db.listings.findById(btn.dataset.id);
                 if (!l) return;
                 const newStatus = l.status === 'active' ? 'paused' : 'active';
-                db.listings.update(btn.dataset.id, { status: newStatus });
+                const updates = { status: newStatus, is_active: newStatus === 'active' };
+                await db.listings.update(btn.dataset.id, updates);
                 // reflect change in local array
                 const idx = allListings.findIndex(x => x.listing_id === btn.dataset.id);
-                if (idx > -1) allListings[idx] = { ...allListings[idx], status: newStatus };
+                if (idx > -1) allListings[idx] = { ...allListings[idx], ...updates };
                 showToast('Listing ' + (newStatus === 'active' ? 'activated' : 'paused') + '.');
                 rerender();
             });
