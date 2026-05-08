@@ -50,7 +50,7 @@ export async function init(container) {
         <div style="padding-bottom:1px;">
 
         <!-- Sticky search bar -->
-        <div style="position:sticky;top:0;z-index:50;background:rgba(248,250,252,0.96);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:12px 16px 10px;border-bottom:1px solid rgba(226,232,240,0.8);">
+        <div id="home-sticky-search" style="position:sticky;top:0;z-index:50;background:rgba(248,250,252,0.96);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:12px 16px 10px;border-bottom:1px solid rgba(226,232,240,0.8);transition:transform 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;">
           <button id="home-search-btn" style="width:100%;height:46px;display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:0 14px;cursor:pointer;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
             <i class="fa-solid fa-magnifying-glass" style="color:#94a3b8;font-size:0.85rem;"></i>
             <span style="color:#94a3b8;font-size:0.88rem;font-weight:500;flex:1;">Search by city, area…</span>
@@ -482,6 +482,27 @@ async function _wireEvents(container, ctx) {
 
   const feed = container.querySelector('#home-feed');
   if (feed) attachMobileCardEvents(feed, (id) => { navigate('listing', { id }); });
+
+  // Scroll logic to hide/show search section (once per container)
+  if (!container._scrollHandlerAttached) {
+    container.addEventListener('scroll', () => {
+      const searchBar = container.querySelector('#home-sticky-search');
+      if (!searchBar) return;
+      
+      // Threshold to hide: when scrolled down past the search section (~100-120px)
+      // This slides it up under the main header.
+      if (container.scrollTop > 100) {
+        searchBar.style.transform = 'translateY(-110%)';
+        searchBar.style.opacity = '0';
+        searchBar.style.visibility = 'hidden';
+      } else {
+        searchBar.style.transform = 'translateY(0)';
+        searchBar.style.opacity = '1';
+        searchBar.style.visibility = 'visible';
+      }
+    }, { passive: true });
+    container._scrollHandlerAttached = true;
+  }
 }
 
 function _skeletonHTML() {
