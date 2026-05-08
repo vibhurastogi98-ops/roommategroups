@@ -63,7 +63,7 @@ export default async function init(container, params = {}) {
   });
 
   const { updateHeader, navigate } = await getMobile();
-  updateHeader({ title: 'Search', showBack: false });
+  updateHeader({ title: 'Search', showBack: true });
 
   const cities      = db.cities.findAll().filter(c => c.is_active !== false);
   const allCountries = db.countries ? db.countries.findAll().filter(c => c.is_active !== false) : [];
@@ -265,6 +265,29 @@ export default async function init(container, params = {}) {
   const countEl   = container.querySelector('#ms-count');
   const titleEl   = container.querySelector('#ms-title');
   const badge     = container.querySelector('#ms-filter-badge');
+  const topbar    = container.querySelector('.ms-topbar');
+  const scrollArea = container.querySelector('#ms-scroll');
+
+  // ── Scroll to hide topbar ───────────────────────────────────
+  let lastScrollY = 0;
+  scrollArea.addEventListener('scroll', () => {
+    const currentScrollY = scrollArea.scrollTop;
+    
+    // Always show at the very top
+    if (currentScrollY <= 10) {
+      topbar.classList.remove('hidden');
+    } 
+    // Scrolling down - hide
+    else if (currentScrollY > lastScrollY && currentScrollY > 60) {
+      topbar.classList.add('hidden');
+    }
+    // Scrolling up - show
+    else if (currentScrollY < lastScrollY) {
+      topbar.classList.remove('hidden');
+    }
+    
+    lastScrollY = currentScrollY;
+  }, { passive: true });
 
   // ── Sheet open / close ───────────────────────────────────────
   function openSheet() {
@@ -410,6 +433,14 @@ export default async function init(container, params = {}) {
 
   // ── Core filter + render ──────────────────────────────────────
   function applyFilters() {
+    // Reset scroll and show topbar when filters change
+    if (scrollArea) {
+      scrollArea.scrollTop = 0;
+    }
+    if (topbar) {
+      topbar.classList.remove('hidden');
+    }
+
     let results = db.listings.find(l => l.status === 'active');
 
     // Keyword search

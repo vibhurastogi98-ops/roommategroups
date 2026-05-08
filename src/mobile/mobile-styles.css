@@ -997,6 +997,16 @@ body, #mobile-app {
   flex-shrink: 0;
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  max-height: 300px;
+}
+
+.ms-topbar.hidden {
+  max-height: 0;
+  border-bottom-color: transparent;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .ms-search-row {
