@@ -50,30 +50,43 @@ export async function init(container) {
         <div style="padding-bottom:1px;">
 
         <!-- Sticky search bar -->
-        <div style="position:sticky;top:0;z-index:50;background:rgba(248,250,252,0.95);backdrop-filter:blur(12px);padding:12px 16px 8px;border-bottom:1px solid #e2e8f0;">
-          <button id="home-search-btn" style="width:100%;height:48px;display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:0 16px;cursor:pointer;text-align:left;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-            <i class="fa-solid fa-magnifying-glass" style="color:#94a3b8;font-size:0.9rem;"></i>
-            <span style="color:#94a3b8;font-size:0.9rem;font-weight:500;flex:1;">Search by city, area…</span>
+        <div style="position:sticky;top:0;z-index:50;background:rgba(248,250,252,0.96);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:12px 16px 10px;border-bottom:1px solid rgba(226,232,240,0.8);">
+          <button id="home-search-btn" style="width:100%;height:46px;display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:0 14px;cursor:pointer;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+            <i class="fa-solid fa-magnifying-glass" style="color:#94a3b8;font-size:0.85rem;"></i>
+            <span style="color:#94a3b8;font-size:0.88rem;font-weight:500;flex:1;">Search by city, area…</span>
+            <div style="background:#f1f5f9;border-radius:8px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:#64748b;">Filter</div>
           </button>
-          <div class="mobile-scroll-x" style="margin-top:12px; padding-bottom:8px; padding-right:20px;">
-            <div style="display:flex; gap:8px; width:max-content; padding-left:16px;">
-              ${['all', 'room', 'apartment', 'sublet', 'roommate_wanted', 'studio'].map(type => `
-                <div class="ms-chip ${selectedType === type ? 'active' : ''} type-chip" data-type="${type}" style="font-size:0.8rem; height:38px;">
-                  ${type === 'all' ? 'All' : type.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                </div>
-              `).join('')}
-            </div>
+          <div style="display:flex;gap:8px;margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;">
+            ${['all', 'room', 'apartment', 'sublet', 'roommate_wanted', 'studio'].map(type => `
+              <button class="type-chip" data-type="${type}" style="
+                flex-shrink:0;
+                height:34px;
+                padding:0 14px;
+                border-radius:100px;
+                font-size:0.78rem;
+                font-weight:700;
+                cursor:pointer;
+                border:1.5px solid ${selectedType === type ? '#1a1a1a' : '#e2e8f0'};
+                background:${selectedType === type ? '#1a1a1a' : '#fff'};
+                color:${selectedType === type ? '#fff' : '#475569'};
+                transition:all 0.2s ease;
+                white-space:nowrap;
+              ">${type === 'all' ? 'All' : type.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</button>
+            `).join('')}
           </div>
         </div>
 
         <!-- LISTINGS FEED -->
-        <div style="padding:24px 0 12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:0 16px;">
-            <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.01em;">Newest Listings</div>
-            <div style="display:flex;align-items:center;gap:12px;">
-              <button id="see-all-listings" style="background:none;border:none;color:var(--mobile-accent);font-size:0.8rem;font-weight:700;cursor:pointer;">See all</button>
-              <button id="home-refresh" style="width:36px;height:36px;border-radius:10px;background:#f1f5f9;border:none;display:flex;align-items:center;justify-content:center;color:var(--mobile-accent);cursor:pointer;transition:transform 0.2s;">
-                <i class="fa-solid fa-arrows-rotate" style="font-size:0.9rem;"></i>
+        <div style="padding:20px 0 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:0 16px;">
+            <div>
+              <div style="font-size:1.2rem;font-weight:900;color:#0f172a;letter-spacing:-0.02em;">Newest Listings</div>
+              <div style="font-size:0.72rem;color:#94a3b8;font-weight:600;margin-top:2px;">${filteredList.length} listing${filteredList.length !== 1 ? 's' : ''} available</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button id="see-all-listings" style="background:#f1f5f9;border:none;color:#1a1a1a;font-size:0.78rem;font-weight:800;cursor:pointer;padding:6px 12px;border-radius:8px;">See all</button>
+              <button id="home-refresh" style="width:34px;height:34px;border-radius:9px;background:#f1f5f9;border:none;display:flex;align-items:center;justify-content:center;color:#1a1a1a;cursor:pointer;">
+                <i class="fa-solid fa-arrows-rotate" style="font-size:0.85rem;"></i>
               </button>
             </div>
           </div>
@@ -117,15 +130,16 @@ export async function init(container) {
         </div>
 
         <!-- POST CTA CARD -->
-        <div style="padding:20px 16px 0;">
-          <div id="home-post-cta" style="background:linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius:16px; padding:20px; color:#fff; position:relative; overflow:hidden; cursor:pointer;">
+        <div style="padding:4px 16px 20px;">
+          <div id="home-post-cta" style="background:linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); border-radius:20px; padding:22px; color:#fff; position:relative; overflow:hidden; cursor:pointer; box-shadow:0 8px 24px rgba(15,23,42,0.2);">
             <div style="position:relative; z-index:2;">
-              <div style="font-size:1.1rem; font-weight:900; margin-bottom:4px;">Have a spare room?</div>
-              <p style="font-size:0.8rem; opacity:0.8; margin-bottom:12px; max-width:180px; line-height:1.4;">List it for free and find your perfect roommate in minutes.</p>
-              <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; color:#1e293b; padding:6px 14px; border-radius:10px; font-size:0.75rem; font-weight:800;">Post Listing <span>→</span></div>
+              <div style="font-size:0.65rem; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.5); margin-bottom:6px;">For Landlords & Hosts</div>
+              <div style="font-size:1.15rem; font-weight:900; margin-bottom:6px; letter-spacing:-0.01em;">Have a spare room? 🏠</div>
+              <p style="font-size:0.8rem; opacity:0.7; margin-bottom:14px; max-width:200px; line-height:1.5;">List it for free and find your perfect roommate in minutes.</p>
+              <div style="display:inline-flex; align-items:center; gap:6px; background:#fff; color:#0f172a; padding:8px 16px; border-radius:10px; font-size:0.78rem; font-weight:800;">Post a Listing <i class="fa-solid fa-arrow-right" style="font-size:0.7rem;"></i></div>
             </div>
-            <div style="position:absolute; right:-10px; bottom:-10px; opacity:0.1; transform:rotate(-15deg); color:#fff;">
-              <svg width="100" height="100" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            <div style="position:absolute; right:-20px; bottom:-20px; opacity:0.07;">
+              <svg width="130" height="130" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
             </div>
           </div>
         </div>
@@ -290,12 +304,12 @@ export async function init(container) {
     title: 'LOGO',
     showBack: false,
     leftAction: {
-      icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
       label: 'Profile',
       onClick: () => { navigate('settings'); },
     },
     rightAction: {
-      icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
       label: 'Notifications',
       onClick: () => { navigate('notifications'); },
     }

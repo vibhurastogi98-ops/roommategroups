@@ -78,7 +78,7 @@ export function renderMobileCard(listing) {
   const category = (listing.category || '').toLowerCase();
   const isRoommate = category.includes('roommate_wanted') || category.includes('room_wanted');
   
-  const price    = rent ? `₹${Number(rent).toLocaleString('en-IN')}` : 'Price TBC';
+  const price = rent ? `$${Number(rent).toLocaleString('en-US')}/mo` : null;
   const location = [area, city].filter(Boolean).join(', ') || 'Location TBC';
   
   // Poster info
@@ -139,13 +139,13 @@ export function renderMobileCard(listing) {
       </div>
 
       <!-- Card body -->
-      <div style="padding:20px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
-           <div style="font-size:1.2rem;font-weight:800;color:#000;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;letter-spacing:-0.01em;">${title}</div>
-           <div style="font-size:1.2rem;font-weight:900;color:#000;white-space:nowrap;">${price}</div>
+      <div style="padding:16px 18px 18px;">
+        <div style="margin-bottom:6px;">
+           <div style="font-size:1.05rem;font-weight:800;color:#000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-0.01em;margin-bottom:2px;">${title}</div>
+           ${price ? `<div style="font-size:1rem;font-weight:900;color:#000;">${price}</div>` : ''}
         </div>
         
-        <div style="display:flex;align-items:center;gap:6px;color:#64748b;font-size:0.85rem;margin-bottom:16px;font-weight:500;">
+        <div style="display:flex;align-items:center;gap:6px;color:#64748b;font-size:0.82rem;margin-bottom:14px;font-weight:500;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${location}</span>
         </div>

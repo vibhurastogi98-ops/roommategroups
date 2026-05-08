@@ -13,7 +13,16 @@ export async function init(container) {
   }
 
   const { updateHeader, goBack, navigate } = await getMobile();
-  updateHeader({ title: 'My Listings', showBack: true, onBack: goBack });
+  updateHeader({ 
+    title: 'My Listings', 
+    showBack: true, 
+    onBack: goBack,
+    rightAction: {
+      icon: '<i class="fa-solid fa-plus" style="font-size:1.1rem;"></i>',
+      label: 'Post New',
+      onClick: () => navigate('post')
+    }
+  });
 
   let activeFilter = 'all'; // 'all' | 'active' | 'paused'
 
@@ -32,15 +41,10 @@ export async function init(container) {
     const pausedCount = allListings.filter(l => l.status === 'paused' || l.is_active === false).length;
 
     container.innerHTML = `
-      <div style="padding: 16px; background: #fff; min-height: 100%; padding-bottom: 40px;">
+      <div style="padding: 16px; background: #f8fafc; min-height: 100%; padding-bottom: 40px;">
         
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <h2 style="font-size:1.4rem; font-weight:900; color:#1a1a1a;">My Listings</h2>
-            <button id="post-btn-top" class="mobile-btn-accent" style="padding:8px 16px; border-radius:12px; font-size:0.8rem; font-weight:800; border:none; cursor:pointer;">+ Post New</button>
-        </div>
-
         <!-- Filter Tabs -->
-        <div style="display: flex; gap: 8px; margin-bottom: 24px; padding-bottom: 4px; border-bottom: 1px solid #f1f5f9;">
+        <div style="display: flex; gap: 8px; margin-bottom: 24px; padding: 4px; background: #fff; border-radius: 12px; border: 1px solid #f1f5f9;">
             ${_renderTab('all', 'All', allListings.length, activeFilter === 'all')}
             ${_renderTab('active', 'Active', activeCount, activeFilter === 'active')}
             ${_renderTab('paused', 'Paused', pausedCount, activeFilter === 'paused')}
@@ -64,17 +68,19 @@ export async function init(container) {
   function _renderTab(id, label, count, active) {
       return `
         <button class="filter-tab" data-filter="${id}" style="
-            background: none;
-            color: ${active ? '#1a1a1a' : '#64748b'};
+            flex: 1;
+            background: ${active ? '#1a1a1a' : 'transparent'};
+            color: ${active ? '#fff' : '#64748b'};
             border: none;
-            padding: 8px 12px;
-            font-size: 0.85rem;
-            font-weight: 700;
+            padding: 10px 4px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 800;
             cursor: pointer;
-            position: relative;
+            transition: all 0.2s ease;
+            text-align: center;
         ">
-            ${label} (${count})
-            ${active ? `<div style="position:absolute; bottom:-1px; left:0; width:100%; height:2px; background:#1a1a1a;"></div>` : ''}
+            ${label} <span style="opacity:0.6; font-size:0.7rem; font-weight:600;">(${count})</span>
         </button>
       `;
   }
@@ -90,25 +96,30 @@ export async function init(container) {
     const photoUrl = Array.isArray(photoList) && photoList[0] ? (typeof photoList[0] === 'string' ? photoList[0] : photoList[0].thumb || photoList[0].full) : '';
 
     return `
-      <div style="display:flex; align-items:center; gap:12px; padding:12px; background:#f8fafc; border-radius:16px; border:1px solid #f1f5f9;">
-        <div style="width:50px; height:50px; border-radius:10px; background:#e2e8f0; overflow:hidden; flex-shrink:0;">
-            ${photoUrl ? `<img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#94a3b8;"><i class="fa-solid fa-house"></i></div>`}
-        </div>
-        <div style="flex:1; min-width:0;">
-            <div style="font-size:0.9rem; font-weight:800; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${l.title || 'Untitled'}</div>
-            <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
-                ${modStatus === 'pending' ? `<span style="font-size:0.65rem; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.1); padding:2px 8px; border-radius:20px;">Pending Review</span>` : ''}
-                ${modStatus === 'rejected' ? `<span style="font-size:0.65rem; font-weight:700; color:#ef4444; background:rgba(239,68,68,0.1); padding:2px 8px; border-radius:20px;">Rejected</span>` : ''}
-                ${modStatus === 'approved' ? `<span style="font-size:0.65rem; font-weight:700; color:${isActive ? '#10b981' : '#64748b'}; background:${isActive ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)'}; padding:2px 8px; border-radius:20px;">${isActive ? 'Active' : 'Paused'}</span>` : ''}
-                <div style="font-size:0.7rem; color:#94a3b8; display:flex; align-items:center; gap:4px;"><i class="fa-solid fa-eye" style="font-size:0.6rem;"></i> ${l.view_count || l.views_count || 0}</div>
-                <div style="font-size:0.7rem; color:#94a3b8; display:flex; align-items:center; gap:4px;"><i class="fa-solid fa-comment" style="font-size:0.6rem;"></i> ${msgCount}</div>
+      <div style="background:#fff; border-radius:20px; border:1px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.03); overflow:hidden; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:16px; padding:16px;">
+            <div style="width:64px; height:64px; border-radius:14px; background:#f1f5f9; overflow:hidden; flex-shrink:0;">
+                ${photoUrl ? `<img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:1.2rem;"><i class="fa-solid fa-house"></i></div>`}
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:1rem; font-weight:800; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px;">${l.title || 'Untitled'}</div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+                    ${modStatus === 'approved' ? `
+                        <span style="font-size:0.65rem; font-weight:800; color:${isActive ? '#10b981' : '#64748b'}; background:${isActive ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)'}; padding:2px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;">${isActive ? 'Active' : 'Paused'}</span>
+                    ` : `
+                        <span style="font-size:0.65rem; font-weight:800; color:${modStatus === 'pending' ? '#f59e0b' : '#ef4444'}; background:${modStatus === 'pending' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)'}; padding:2px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;">${modStatus}</span>
+                    `}
+                    <div style="font-size:0.75rem; color:#94a3b8; display:flex; align-items:center; gap:4px;"><i class="fa-solid fa-eye" style="font-size:0.65rem;"></i> ${l.view_count || l.views_count || 0}</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; display:flex; align-items:center; gap:4px;"><i class="fa-solid fa-comment" style="font-size:0.65rem;"></i> ${msgCount}</div>
+                </div>
             </div>
         </div>
-        <div style="display:flex; gap:6px;">
-            <button class="row-action action-view" data-id="${id}" style="width:32px; height:32px; border-radius:8px; background:#fff; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; color:#64748b; cursor:pointer;"><i class="fa-solid fa-eye" style="font-size:0.8rem;"></i></button>
-            <button class="row-action action-edit" data-id="${id}" style="width:32px; height:32px; border-radius:8px; background:#fff; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; color:#64748b; cursor:pointer;"><i class="fa-solid fa-pen" style="font-size:0.8rem;"></i></button>
-            <button class="row-action action-toggle" data-id="${id}" style="width:32px; height:32px; border-radius:8px; background:#fff; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; color:${isActive ? '#64748b' : '#10b981'}; cursor:pointer;"><i class="fa-solid fa-${isActive ? 'pause' : 'play'}" style="font-size:0.8rem;"></i></button>
-            <button class="row-action action-delete" data-id="${id}" style="width:32px; height:32px; border-radius:8px; background:#fff; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; color:#ef4444; cursor:pointer;"><i class="fa-solid fa-trash" style="font-size:0.8rem;"></i></button>
+        
+        <div style="display:flex; border-top:1px solid #f1f5f9; background:#fafafa;">
+            <button class="row-action action-view" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:#64748b; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-eye" style="font-size:0.75rem;"></i> View</button>
+            <button class="row-action action-edit" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:#64748b; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-pen" style="font-size:0.75rem;"></i> Edit</button>
+            <button class="row-action action-toggle" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:${isActive ? '#64748b' : '#10b981'}; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-${isActive ? 'pause' : 'play'}" style="font-size:0.75rem;"></i> ${isActive ? 'Pause' : 'Live'}</button>
+            <button class="row-action action-delete" data-id="${id}" style="flex:0.6; height:48px; border:none; background:transparent; color:#ef4444; font-size:0.85rem; display:flex; align-items:center; justify-content:center; cursor:pointer;"><i class="fa-solid fa-trash" style="font-size:0.75rem;"></i></button>
         </div>
       </div>
     `;
@@ -123,8 +134,6 @@ export async function init(container) {
             _render();
         });
     });
-
-    container.querySelector('#post-btn-top')?.addEventListener('click', () => navigate('post'));
 
     container.querySelectorAll('.action-view').forEach(btn => {
         btn.addEventListener('click', () => navigate('listing', { id: btn.dataset.id }));
