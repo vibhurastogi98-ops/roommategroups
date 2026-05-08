@@ -245,10 +245,27 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
           goBack();
         }
         if (action === 'block') {
-          if (confirm(`Block ${otherName}?`)) {
-            msgService.blockUser(user.user_id, otherId, threadId);
-            goBack();
-          }
+          showBottomSheet({
+            title: 'Block User',
+            content: `
+              <div style="padding: 10px 0; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 16px;">🚫</div>
+                <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Block ${otherName}?</div>
+                <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">You will no longer receive messages from this user, and they won't be able to see your listings.</div>
+              </div>
+            `,
+            actions: [
+              { 
+                label: 'Block User', 
+                variant: 'danger', 
+                onClick: () => {
+                  msgService.blockUser(user.user_id, otherId, threadId);
+                  goBack();
+                }
+              },
+              { label: 'Cancel', variant: 'outline', onClick: () => {} }
+            ]
+          });
         }
       });
     });

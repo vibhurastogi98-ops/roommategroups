@@ -184,9 +184,20 @@ export async function init(container) {
     container.querySelector('#btn-portal-billing')?.addEventListener('click', () => window.open(PORTAL_URL, '_blank'));
     container.querySelector('#btn-manage-sub')?.addEventListener('click', () => window.open(PORTAL_URL, '_blank'));
     container.querySelector('#btn-portal-cancel')?.addEventListener('click', () => {
-      if (confirm('This will open Stripe to cancel your subscription. Continue?')) {
-        window.open(PORTAL_URL, '_blank');
-      }
+      showBottomSheet({
+        title: 'Cancel Subscription',
+        content: `
+          <div style="padding: 10px 0; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 16px;">💳</div>
+            <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Cancel your subscription?</div>
+            <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">This will open the secure billing portal where you can manage or cancel your plan.</div>
+          </div>
+        `,
+        actions: [
+          { label: 'Continue to Portal', variant: 'danger', onClick: () => window.open(PORTAL_URL, '_blank') },
+          { label: 'Go Back', variant: 'outline', onClick: () => {} }
+        ]
+      });
     });
     container.querySelector('#btn-upgrade-plans')?.addEventListener('click', () => navigate('pricing'));
     container.querySelector('#btn-banner-upgrade')?.addEventListener('click', () => navigate('pricing'));

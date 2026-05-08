@@ -378,15 +378,15 @@ export function renderCityPage(app, params) {
                             <p style="color: #64748b; margin-top: 8px;">Everything you need to know about finding rooms and roommates in ${city.name}.</p>
                         </div>
                     </div>
-                    <div class="gd-faq-list">
+                    <div class="home-faq-list" style="background: transparent;">
                         ${faqs.map((faq, i) => `
-                            <div class="gd-faq-item">
-                                <div class="gd-faq-icon-box">
+                            <div class="home-faq-item" style="border-bottom: 1px solid #eef2f6;">
+                                <div class="home-faq-icon">
                                     <i class="fa-solid fa-question-circle"></i>
                                 </div>
-                                <div class="gd-faq-content">
-                                    <div class="gd-faq-q">${faq.q}</div>
-                                    <div class="gd-faq-a">${faq.a}</div>
+                                <div class="home-faq-content">
+                                    <div class="home-faq-q">${faq.q}</div>
+                                    <div class="home-faq-a">${faq.a}</div>
                                 </div>
                             </div>
                         `).join('')}

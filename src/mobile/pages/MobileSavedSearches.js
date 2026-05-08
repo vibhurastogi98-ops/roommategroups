@@ -73,12 +73,29 @@ export async function init(container) {
     container.querySelectorAll('.delete-search-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const idx = parseInt(btn.dataset.idx);
-            if (confirm('Delete this saved search?')) {
-                const newSearches = [...searches];
-                newSearches.splice(idx, 1);
-                db.users.update(dbUser.user_id, { saved_searches: newSearches });
-                navigate('dashboard'); // Refresh or re-render
-            }
+            showBottomSheet({
+                title: 'Delete Search',
+                content: `
+                    <div style="padding: 10px 0; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 16px;">🗑️</div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Delete this saved search?</div>
+                        <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">You will no longer receive notifications for new listings matching this search criteria.</div>
+                    </div>
+                `,
+                actions: [
+                    { 
+                        label: 'Yes, Delete', 
+                        variant: 'danger', 
+                        onClick: async () => {
+                            const newSearches = [...searches];
+                            newSearches.splice(idx, 1);
+                            await db.users.update(dbUser.user_id, { saved_searches: newSearches });
+                            init(container); // Re-render local page
+                        }
+                    },
+                    { label: 'Cancel', variant: 'outline', onClick: () => {} }
+                ]
+            });
         });
     });
   }

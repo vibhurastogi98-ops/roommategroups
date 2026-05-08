@@ -25,6 +25,11 @@ export async function init(container) {
   });
 
   let activeFilter = 'all'; // 'all' | 'active' | 'paused'
+  const _isActive = (l) => {
+    if (!l) return false;
+    // Match web dashboard logic: status must be 'active' and is_active must not be boolean false
+    return l.status === 'active' && l.is_active !== false;
+  };
 
   async function _render() {
     const allListings = (db.listings?.findAll?.() || []).filter(l =>
@@ -32,13 +37,13 @@ export async function init(container) {
     ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     const filtered = allListings.filter(l => {
-        if (activeFilter === 'active') return (l.status === 'active' || !l.status) && l.is_active !== false;
-        if (activeFilter === 'paused') return l.status === 'paused' || l.is_active === false;
+        if (activeFilter === 'active') return _isActive(l);
+        if (activeFilter === 'paused') return !_isActive(l);
         return true;
     });
 
-    const activeCount = allListings.filter(l => (l.status === 'active' || !l.status) && l.is_active !== false).length;
-    const pausedCount = allListings.filter(l => l.status === 'paused' || l.is_active === false).length;
+    const activeCount = allListings.filter(l => _isActive(l)).length;
+    const pausedCount = allListings.filter(l => !_isActive(l)).length;
 
     container.innerHTML = `
       <div style="padding: 16px; background: #f8fafc; min-height: 100%; padding-bottom: 40px;">
@@ -65,6 +70,21 @@ export async function init(container) {
     _wireEvents();
   }
 
+  // Register listener ONCE in init
+  const onSync = () => { if (container.isConnected) _render(); };
+  window.addEventListener('db-synced', onSync);
+  
+  // Cleanup
+  const observer = new MutationObserver(() => {
+    if (!container.isConnected) {
+      window.removeEventListener('db-synced', onSync);
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  _render();
+
   function _renderTab(id, label, count, active) {
       return `
         <button class="filter-tab" data-filter="${id}" style="
@@ -87,7 +107,7 @@ export async function init(container) {
 
   function _renderListingRow(l) {
     const id = l.listing_id || l.id;
-    const isActive = (l.status === 'active' || !l.status) && l.is_active !== false;
+    const isActive = _isActive(l);
     const modStatus = l.moderation_status || 'approved';
     const msgCount = (db.threads?.find?.(t => t.listing_id === id) || []).length;
     
@@ -147,17 +167,37 @@ export async function init(container) {
         btn.addEventListener('click', async () => {
             const l = db.listings.findById(btn.dataset.id);
             if (!l) return;
-            const newStatus = l.status === 'active' ? 'paused' : 'active';
-            await db.listings.update(btn.dataset.id, { status: newStatus });
+            const currentlyActive = _isActive(l);
+            const nextStatus = currentlyActive ? 'paused' : 'active';
+            const nextIsActive = !currentlyActive;
+            await db.listings.update(btn.dataset.id, { status: nextStatus, is_active: nextIsActive });
             _render();
         });
     });
 
     container.querySelectorAll('.action-delete').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            if (!confirm('Delete this listing?')) return;
-            await db.listings.delete(btn.dataset.id);
-            _render();
+        btn.addEventListener('click', () => {
+            showBottomSheet({
+                title: 'Delete Listing',
+                content: `
+                    <div style="padding: 10px 0; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 16px;">🗑️</div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Are you sure?</div>
+                        <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">This will permanently remove your listing. This action cannot be undone.</div>
+                    </div>
+                `,
+                actions: [
+                    { 
+                        label: 'Yes, Delete', 
+                        variant: 'danger', 
+                        onClick: async () => {
+                            await db.listings.delete(btn.dataset.id);
+                            // No need to call _render() manually as we have the db-synced listener now
+                        }
+                    },
+                    { label: 'Cancel', variant: 'outline', onClick: () => {} }
+                ]
+            });
         });
     });
   }

@@ -76,38 +76,35 @@ export async function init(container) {
         border-radius: 16px;
         border: 1px solid #f1f5f9;
         overflow: hidden;
-        transition: all 0.2s;
-      }
-      .faq-q-btn {
-        width: 100%;
-        padding: 18px 20px;
         display: flex;
-        justify-content: space-between;
+        gap: 16px;
+        padding: 20px;
+      }
+      .faq-icon-box-m {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #f1f5f9;
+        display: flex;
         align-items: center;
-        text-align: left;
-        background: none;
-        border: none;
+        justify-content: center;
+        color: #64748b;
+        flex-shrink: 0;
+      }
+      .faq-content-m {
+        flex: 1;
+      }
+      .faq-q-m {
         font-size: 0.9rem;
-        font-weight: 700;
+        font-weight: 800;
         color: #1e293b;
+        margin-bottom: 6px;
         line-height: 1.4;
       }
-      .faq-ans {
-        padding: 0 20px 18px;
+      .faq-a-m {
         font-size: 0.85rem;
         color: #64748b;
         line-height: 1.6;
-        display: none;
-      }
-      .faq-item-mobile.active .faq-ans {
-        display: block;
-      }
-      .faq-item-mobile.active .chevron {
-        transform: rotate(180deg);
-      }
-      .chevron {
-        transition: transform 0.2s;
-        color: #94a3b8;
       }
     </style>
 
@@ -125,11 +122,13 @@ export async function init(container) {
           </div>
           ${cat.faqs.map(faq => `
             <div class="faq-item-mobile">
-              <button class="faq-q-btn">
-                <span>${faq.q}</span>
-                <i class="fa-solid fa-chevron-down chevron" style="font-size: 0.8rem;"></i>
-              </button>
-              <div class="faq-ans">${faq.a}</div>
+              <div class="faq-icon-box-m">
+                <i class="fa-solid fa-question" style="font-size: 0.9rem;"></i>
+              </div>
+              <div class="faq-content-m">
+                <div class="faq-q-m">${faq.q}</div>
+                <div class="faq-a-m">${faq.a}</div>
+              </div>
             </div>
           `).join('')}
         `).join('')}
@@ -143,16 +142,7 @@ export async function init(container) {
     </div>
   `;
 
-  // Accordion Logic
-  container.querySelectorAll('.faq-q-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const item = btn.parentElement;
-      const isActive = item.classList.contains('active');
-      
-      if (!isActive) item.classList.add('active');
-      else item.classList.remove('active');
-    });
-  });
+
 
   // Search Logic
   const searchInput = container.querySelector('#faq-search');

@@ -106,15 +106,15 @@ export function renderFAQPage(app) {
                     <span>${cat.icon}</span>
                     <h2>${cat.category}</h2>
                 </div>
-                <div class="faq-list">
+                <div class="home-faq-list" style="background: transparent;">
                     ${cat.faqs.map((item, fi) => `
-                        <div class="faq-item" data-idx="${ci}-${fi}">
-                            <div class="faq-icon-box">
+                        <div class="home-faq-item" style="border-bottom: 1px solid #f1f5f9;">
+                            <div class="home-faq-icon">
                                 <i class="fas fa-question"></i>
                             </div>
-                            <div class="faq-content">
-                                <div class="faq-q">${item.q}</div>
-                                <div class="faq-a">${item.a}</div>
+                            <div class="home-faq-content">
+                                <div class="home-faq-q">${item.q}</div>
+                                <div class="home-faq-a">${item.a}</div>
                             </div>
                         </div>
                     `).join('')}

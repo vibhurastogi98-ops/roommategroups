@@ -204,18 +204,38 @@ export async function init(container) {
 
     // Log out
     container.querySelector('[data-action="do-logout"]')?.addEventListener('click', () => {
-      if (confirm('Are you sure you want to log out?')) {
-        logout();
-        navigate('auth');
-      }
+      showBottomSheet({
+        title: 'Log Out',
+        content: `
+          <div style="padding: 10px 0; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 16px;">🚪</div>
+            <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Log out of your account?</div>
+            <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">You will need to sign back in to access your listings and messages.</div>
+          </div>
+        `,
+        actions: [
+          { label: 'Yes, Log Out', variant: 'danger', onClick: () => { logout(); navigate('auth'); } },
+          { label: 'Cancel', variant: 'outline', onClick: () => {} }
+        ]
+      });
     });
 
     // Delete account
     container.querySelector('#delete-account-btn')?.addEventListener('click', () => {
-      if (confirm('This will permanently delete your account. Are you sure?')) {
-        logout();
-        navigate('auth');
-      }
+      showBottomSheet({
+        title: 'Delete Account',
+        content: `
+          <div style="padding: 10px 0; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 16px;">⚠️</div>
+            <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Permanently delete account?</div>
+            <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">This action is irreversible. All your listings, messages, and profile data will be permanently erased.</div>
+          </div>
+        `,
+        actions: [
+          { label: 'Permanently Delete', variant: 'danger', onClick: () => { logout(); navigate('auth'); } },
+          { label: 'Cancel', variant: 'outline', onClick: () => {} }
+        ]
+      });
     });
   }
 

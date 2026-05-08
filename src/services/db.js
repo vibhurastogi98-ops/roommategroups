@@ -13,7 +13,10 @@ const IS_PROD = window.location.hostname !== 'localhost' && !window.location.hos
 
 export function getLiveListingCount(cityId) {
     const listings = db.listings.findAll();
-    return listings.filter(l => (l.city === cityId || l.city_id === cityId) && l.is_active !== false).length;
+    return listings.filter(l => {
+        const isLoc = (l.city === cityId || l.city_id === cityId);
+        return isLoc && l.status === 'active' && l.is_active !== false;
+    }).length;
 }
 
 const SEED_DATA = {
@@ -346,34 +349,30 @@ export async function initDB() {
         const live = getDB();
         let liveUpdated = false;
         
-        // IMPORTANT: We overwrite local data even if the array is empty [].
-        // This ensures that if the admin deletes all data, all devices see an empty list.
-        if (Array.isArray(d1Users)) {
-            // Merge: D1 is authoritative, but preserve any locally-created users not yet synced to D1
-            const live2 = getDB();
-            const localUsers = live2.users || [];
-            const d1Ids = new Set(d1Users.map(u => u.user_id || u.id));
-            const localOnlyUsers = localUsers.filter(u => !d1Ids.has(u.user_id) && !d1Ids.has(u.id));
-            live.users = [...d1Users, ...localOnlyUsers];
+        const mergeCollection = (name, d1Data, idField) => {
+            if (!Array.isArray(d1Data)) return;
+            const liveData = getDB()[name] || [];
+            const d1Ids = new Set(d1Data.map(i => i[idField] || i.id));
+            const localOnly = liveData.filter(i => !d1Ids.has(i[idField]) && !d1Ids.has(i.id));
+            live[name] = [...d1Data, ...localOnly];
             liveUpdated = true;
-        }
+        };
 
-
-        if (Array.isArray(d1Cities))    { live.cities    = d1Cities;    liveUpdated = true; }
-        if (Array.isArray(d1Listings))  { live.listings  = d1Listings;  liveUpdated = true; }
-        if (Array.isArray(d1Posts))     { live.posts     = d1Posts;     liveUpdated = true; }
-        if (Array.isArray(d1FbCities))  { live.fb_cities = d1FbCities;  liveUpdated = true; }
-        if (Array.isArray(d1Categories)){ live.categories = d1Categories; liveUpdated = true; }
-        if (Array.isArray(d1FbCountries)){ live.fb_countries = d1FbCountries; liveUpdated = true; }
-        if (Array.isArray(d1Threads))   { live.threads = d1Threads; liveUpdated = true; }
-        if (Array.isArray(d1Messages))  { live.messages = d1Messages; liveUpdated = true; }
-        if (Array.isArray(d1Reports))   { live.reports = d1Reports; liveUpdated = true; }
-        if (Array.isArray(d1Notifications)){ live.notifications = d1Notifications; liveUpdated = true; }
-        if (Array.isArray(d1UserQueries)) { live.user_queries = d1UserQueries; liveUpdated = true; }
+        mergeCollection('users', d1Users, 'user_id');
+        mergeCollection('cities', d1Cities, 'city_id');
+        mergeCollection('listings', d1Listings, 'listing_id');
+        mergeCollection('posts', d1Posts, 'post_id');
+        mergeCollection('fb_cities', d1FbCities, 'fb_city_id');
+        mergeCollection('categories', d1Categories, 'category_id');
+        mergeCollection('fb_countries', d1FbCountries, 'fb_country_id');
+        mergeCollection('threads', d1Threads, 'thread_id');
+        mergeCollection('messages', d1Messages, 'message_id');
+        mergeCollection('reports', d1Reports, 'report_id');
+        mergeCollection('notifications', d1Notifications, 'notification_id');
+        mergeCollection('user_queries', d1UserQueries, 'query_id');
         
         if (liveUpdated) {
             saveDB(live);
-            // console.log('[DB] ✅ Loaded live data from D1 — all devices in sync.');
             return true;
         }
     } catch (err) {
@@ -400,42 +399,21 @@ export async function syncMessagesAndThreads() {
         const dbData = getDB();
         let changed = false;
 
-        if (Array.isArray(d1Users)) {
-            const old = JSON.stringify(dbData.users);
-            const next = JSON.stringify(d1Users);
-            if (old !== next) {
-                // Preserve locally-created users if any
-                const d1Ids = new Set(d1Users.map(u => u.user_id || u.id));
-                const localOnlyUsers = (dbData.users || []).filter(u => !d1Ids.has(u.user_id) && !d1Ids.has(u.id));
-                dbData.users = [...d1Users, ...localOnlyUsers];
-                changed = true;
-            }
-        }
-        if (Array.isArray(d1Listings)) {
-            const old = JSON.stringify(dbData.listings);
-            const next = JSON.stringify(d1Listings);
-            if (old !== next) { dbData.listings = d1Listings; changed = true; }
-        }
-        if (Array.isArray(d1Threads)) {
-            const old = JSON.stringify(dbData.threads);
-            const next = JSON.stringify(d1Threads);
-            if (old !== next) { dbData.threads = d1Threads; changed = true; }
-        }
-        if (Array.isArray(d1Messages)) {
-            const old = JSON.stringify(dbData.messages);
-            const next = JSON.stringify(d1Messages);
-            if (old !== next) { dbData.messages = d1Messages; changed = true; }
-        }
-        if (Array.isArray(d1Notifications)) {
-            const old = JSON.stringify(dbData.notifications);
-            const next = JSON.stringify(d1Notifications);
-            if (old !== next) { dbData.notifications = d1Notifications; changed = true; }
-        }
-        if (Array.isArray(d1Reports)) {
-            const old = JSON.stringify(dbData.reports);
-            const next = JSON.stringify(d1Reports);
-            if (old !== next) { dbData.reports = d1Reports; changed = true; }
-        }
+        const mergeInPlace = (name, d1Data, idField) => {
+            if (!Array.isArray(d1Data)) return;
+            const old = JSON.stringify(dbData[name]);
+            const d1Ids = new Set(d1Data.map(i => i[idField] || i.id));
+            const localOnly = (dbData[name] || []).filter(i => !d1Ids.has(i[idField]) && !d1Ids.has(i.id));
+            dbData[name] = [...d1Data, ...localOnly];
+            if (old !== JSON.stringify(dbData[name])) changed = true;
+        };
+
+        mergeInPlace('users', d1Users, 'user_id');
+        mergeInPlace('listings', d1Listings, 'listing_id');
+        mergeInPlace('threads', d1Threads, 'thread_id');
+        mergeInPlace('messages', d1Messages, 'message_id');
+        mergeInPlace('notifications', d1Notifications, 'notification_id');
+        mergeInPlace('reports', d1Reports, 'report_id');
 
         if (changed) {
             saveDB(dbData);

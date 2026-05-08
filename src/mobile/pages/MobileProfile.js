@@ -45,9 +45,10 @@ export async function init(container, params = {}) {
   // ── Main render ──
   async function _render() {
     const myListings   = (db.listings?.findAll?.() || []).filter(l =>
-      (l.user_id === user.user_id || l.user_id === user.id) && l.is_active !== false
+      (l.user_id === user.user_id || l.user_id === user.id) && l.status === 'active' && l.is_active !== false
     );
-    const savedIds     = user.saved_listings || [];
+    let savedIds = user.saved_listings || [];
+    if (typeof savedIds === 'string') { try { savedIds = JSON.parse(savedIds); } catch(e) { savedIds = []; } }
     const savedListings = savedIds.map(id => db.listings?.findById?.(id)).filter(Boolean);
     const allMessages  = (db.messages?.findAll?.() || []).filter(m =>
       m.sender_id === user.user_id || m.receiver_id === user.user_id

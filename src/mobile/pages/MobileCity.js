@@ -96,7 +96,7 @@ export async function init(container, params) {
       .city-scroll-x::-webkit-scrollbar { display: none; }
       
       /* Listing Card Small */
-      .m-listing-item { width: 260px; flex-shrink: 0; }
+      .m-listing-item { width: 220px; flex-shrink: 0; }
       
       /* Neighborhood Card */
       .nh-card-m { width: 220px; flex-shrink: 0; background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; }
@@ -107,7 +107,7 @@ export async function init(container, params) {
       .nh-card-rent strong { color: #1e293b; font-size: 0.9rem; }
       
       /* Roommate Card */
-      .rm-card-m { width: 200px; flex-shrink: 0; background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; }
+      .rm-card-m { width: 220px; flex-shrink: 0; background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; }
       .rm-card-img { height: 180px; background-size: cover; background-position: center; position: relative; }
       .rm-card-price { position: absolute; bottom: 8px; right: 8px; background: #fff; padding: 4px 8px; border-radius: 8px; font-weight: 800; font-size: 0.75rem; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
       .rm-card-body { padding: 12px; }
@@ -121,7 +121,7 @@ export async function init(container, params) {
       .feature-desc-m { font-size: 0.8rem; color: #64748b; line-height: 1.5; }
 
       /* Reviews */
-      .review-card-m { background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #e2e8f0; width: 260px; flex-shrink: 0; }
+      .review-card-m { background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #e2e8f0; width: 220px; flex-shrink: 0; }
       .review-stars-m { color: #f59e0b; font-size: 0.7rem; margin-bottom: 8px; }
       .review-text-m { font-size: 0.78rem; font-style: italic; color: #475569; line-height: 1.5; margin-bottom: 12px; }
       .review-user-m { display: flex; align-items: center; gap: 8px; }
@@ -279,9 +279,14 @@ export async function init(container, params) {
         <h2 class="section-title">Common Questions</h2>
         <div style="margin-top:16px;">
           ${faqs.map(f => `
-            <div class="faq-item-m">
-              <div class="faq-q-m">${f.q}</div>
-              <div class="faq-a-m">${f.a}</div>
+            <div style="display:flex; gap:16px; padding:20px; background:#fff; border-radius:16px; border:1px solid #f1f5f9; margin-bottom:12px;">
+              <div style="width:40px; height:40px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; flex-shrink:0;">
+                <i class="fa-solid fa-question" style="font-size:0.9rem;"></i>
+              </div>
+              <div>
+                <div style="font-size:0.9rem; font-weight:800; color:#1e293b; margin-bottom:4px;">${f.q}</div>
+                <div style="font-size:0.8rem; color:#64748b; line-height:1.5;">${f.a}</div>
+              </div>
             </div>
           `).join('')}
         </div>

@@ -46,16 +46,19 @@ export async function init(container) {
       return;
     }
 
-    const userListings = db.listings.find(l => l.user_id === dbUser.user_id);
-    const activeListings = userListings.filter(l => (l.status === 'active' || !l.status) && l.is_active !== false).length;
+    const userListings = db.listings.find(l => l.user_id === dbUser.user_id || l.user_id === dbUser.id);
+    const _isActive = (l) => l && l.status === 'active' && l.is_active !== false;
+    const activeListings = userListings.filter(_isActive).length;
     const totalViews = userListings.reduce((s, l) => s + (l.view_count || l.views_count || 0), 0);
-    const savedCount = (dbUser.saved_listings || []).length;
-    const unread = getTotalUnread(dbUser.user_id);
+    let savedIds = dbUser.saved_listings || [];
+    if (typeof savedIds === 'string') { try { savedIds = JSON.parse(savedIds); } catch(e) { savedIds = []; } }
+    const savedCount = savedIds.length;
+    const unread = getTotalUnread(dbUser.user_id || dbUser.id);
 
     const threads = db.threads.find(t => {
       let parts = [];
       try { parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]'); } catch(e) {}
-      return parts.includes(dbUser.user_id);
+      return parts.includes(dbUser.user_id) || parts.includes(dbUser.id);
     });
 
     // ── Activity items ──
@@ -68,10 +71,10 @@ export async function init(container) {
       .forEach(t => {
         let parts = [];
         try { parts = Array.isArray(t.participants) ? t.participants : JSON.parse(t.participants || '[]'); } catch(e) {}
-        const senderId = parts.find(id => id !== dbUser.user_id);
+        const senderId = parts.find(id => id !== dbUser.user_id && id !== dbUser.id);
         const sender = senderId ? db.users.findById(senderId) : null;
         const listing = db.listings.findById(t.listing_id);
-        const threadUnread = getUnreadCountForThread(t.thread_id, dbUser.user_id);
+        const threadUnread = getUnreadCountForThread(t.thread_id, dbUser.user_id || dbUser.id);
         activityItems.push({
           icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
           bold: threadUnread > 0,
@@ -162,6 +165,22 @@ export async function init(container) {
 
     _wireEvents();
   }
+
+  // 1. Register sync listener ONCE in init
+  const onSync = () => { if (container.isConnected) _render(); };
+  window.addEventListener('db-synced', onSync);
+
+  // 2. Clean up when page is destroyed
+  const observer = new MutationObserver(() => {
+    if (!container.isConnected) {
+      window.removeEventListener('db-synced', onSync);
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  _render();
+  startTimer();
 
   async function _wireEvents() {
     const { navigate } = await getMobile();
