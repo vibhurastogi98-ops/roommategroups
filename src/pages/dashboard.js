@@ -240,7 +240,7 @@ function showToast(message, type = 'success') {
 
 function renderOverview(container, user) {
     const userListings = db.listings.find(l => l.user_id === user.user_id);
-    const activeListingsCount = userListings.filter(l => l.status === 'active').length;
+    const activeListingsCount = userListings.filter(l => l.status === 'active' && l.is_active !== false).length;
     const totalViews = userListings.reduce((sum, l) => sum + (l.view_count || l.views_count || 0), 0);
     const savedCount = (user.saved_listings || []).length;
     const threads = db.threads.find(t => {
@@ -396,7 +396,8 @@ function renderMyListings(container, user) {
                 const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
                 return t.listing_id === l.listing_id && parts.includes(user.user_id);
             }).length;
-            const isActive = l.status === 'active';
+            const isActive = l.status === 'active' && l.is_active !== false;
+            const isPaused = l.status === 'paused' || l.is_active === false;
             const _imgs = l.images || l.photos || [];
             const parsedImgs = typeof _imgs === 'string' ? JSON.parse(_imgs || '[]') : _imgs;
             const rawPhoto = parsedImgs && parsedImgs[0];
@@ -416,7 +417,10 @@ function renderMyListings(container, user) {
                     if (modStatus === 'pending') return '<span class="badge badge-warning" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-clock"></i> Pending Review</span>';
                     if (modStatus === 'rejected') return '<div class="status-reject-wrap"><span class="badge badge-danger" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-circle-xmark"></i> Rejected</span><div class="reject-reason-tip">' + escapeHtml(l.rejection_reason || 'Guidelines violation') + '</div></div>';
                     if (modStatus === 'flagged') return '<span class="badge badge-warning" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-flag"></i> Flagged</span>';
-                    return '<span class="badge ' + (isActive ? 'badge-success' : l.status === 'paused' ? 'badge-warning' : 'badge-gray') + '" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">' + l.status.charAt(0).toUpperCase() + l.status.slice(1) + '</span>';
+                    
+                    if (isActive) return '<span class="badge badge-success" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">Active</span>';
+                    if (isPaused) return '<span class="badge badge-warning" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">Paused</span>';
+                    return '<span class="badge badge-gray" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">' + (l.status || 'Inactive').charAt(0).toUpperCase() + (l.status || 'Inactive').slice(1) + '</span>';
                 })() + '</td>',
                 '<td><div class="td-stats"><span><i class="fa-solid fa-eye"></i> ' + (l.view_count || l.views_count || 0) + '</span><span><i class="fa-solid fa-message"></i> ' + msgCount + '</span></div></td>',
                 '<td><div class="td-actions">',
@@ -432,8 +436,8 @@ function renderMyListings(container, user) {
     }
 
     function getFiltered() {
-        if (activeFilter === 'active') return allListings.filter(l => l.status === 'active');
-        if (activeFilter === 'paused') return allListings.filter(l => l.status === 'paused');
+        if (activeFilter === 'active') return allListings.filter(l => l.status === 'active' && l.is_active !== false);
+        if (activeFilter === 'paused') return allListings.filter(l => l.status === 'paused' || l.is_active === false);
         return allListings;
     }
 
@@ -508,8 +512,8 @@ function renderMyListings(container, user) {
         document.body.style.overflow = '';
     }
 
-    const activeCount = allListings.filter(l => l.status === 'active').length;
-    const pausedCount = allListings.filter(l => l.status === 'paused').length;
+    const activeCount = allListings.filter(l => l.status === 'active' && l.is_active !== false).length;
+    const pausedCount = allListings.filter(l => l.status === 'paused' || l.is_active === false).length;
 
     container.innerHTML = [
         '<div class="dashboard-header-bar"><h2>My Listings</h2><a href="/post-listing" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Post New</a></div>',

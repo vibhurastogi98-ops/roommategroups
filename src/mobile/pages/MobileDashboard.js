@@ -47,7 +47,7 @@ export async function init(container) {
     }
 
     const userListings = db.listings.find(l => l.user_id === dbUser.user_id);
-    const activeListings = userListings.filter(l => l.status === 'active' || l.is_active !== false).length;
+    const activeListings = userListings.filter(l => (l.status === 'active' || !l.status) && l.is_active !== false).length;
     const totalViews = userListings.reduce((s, l) => s + (l.view_count || l.views_count || 0), 0);
     const savedCount = (dbUser.saved_listings || []).length;
     const unread = getTotalUnread(dbUser.user_id);

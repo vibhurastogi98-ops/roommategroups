@@ -23,12 +23,12 @@ export async function init(container) {
     ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     const filtered = allListings.filter(l => {
-        if (activeFilter === 'active') return l.status === 'active' || l.is_active !== false;
+        if (activeFilter === 'active') return (l.status === 'active' || !l.status) && l.is_active !== false;
         if (activeFilter === 'paused') return l.status === 'paused' || l.is_active === false;
         return true;
     });
 
-    const activeCount = allListings.filter(l => l.status === 'active' || l.is_active !== false).length;
+    const activeCount = allListings.filter(l => (l.status === 'active' || !l.status) && l.is_active !== false).length;
     const pausedCount = allListings.filter(l => l.status === 'paused' || l.is_active === false).length;
 
     container.innerHTML = `
@@ -81,7 +81,7 @@ export async function init(container) {
 
   function _renderListingRow(l) {
     const id = l.listing_id || l.id;
-    const isActive = l.status === 'active' || l.is_active !== false;
+    const isActive = (l.status === 'active' || !l.status) && l.is_active !== false;
     const modStatus = l.moderation_status || 'approved';
     const msgCount = (db.threads?.find?.(t => t.listing_id === id) || []).length;
     
