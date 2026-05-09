@@ -8,6 +8,7 @@ import { getCurrentUser, logout, updateProfile } from '../../services/auth.js';
 import { db } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
 import { showBottomSheet } from '../components/BottomSheet.js';
+import { getAvatarUrl } from '../../services/assets.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -82,7 +83,7 @@ export async function init(container) {
         <!-- Profile Header -->
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;background:#fff;padding:20px;border-radius:24px;border:1px solid #f1f5f9;">
           <div style="position:relative;flex-shrink:0;">
-            <img id="profile-photo-img" src="${dbUser.profile_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(dbUser.display_name || 'User')}&background=1B4F72&color=fff&size=128`}"
+            <img id="profile-photo-img" src="${getAvatarUrl(dbUser.profile_photo, dbUser.display_name)}"
               style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid #f1f5f9;">
             <label for="photo-file-input" style="position:absolute;bottom:0;right:0;background:#1a1a1a;color:white;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;border:2px solid #fff;cursor:pointer;touch-action:manipulation;">
               📷
@@ -161,7 +162,8 @@ export async function init(container) {
       _toast('Uploading photo…');
       try {
         const url = await uploadImage(file, 'profile.webp');
-        await updateProfile(dbUser.user_id, { profile_photo: url, profilePhoto: url });
+        const cacheBustedUrl = `${url}?ts=${Date.now()}`;
+        await updateProfile(dbUser.user_id, { profile_photo: cacheBustedUrl, profilePhoto: cacheBustedUrl });
         _render();
         _toast('Photo updated!');
       } catch { _toast('Upload failed', 'error'); }

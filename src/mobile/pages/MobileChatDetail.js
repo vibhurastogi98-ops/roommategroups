@@ -6,7 +6,7 @@
 import { getCurrentUser } from '../../services/auth.js';
 import { db, initDB, syncMessagesAndThreads } from '../../services/db.js';
 import * as msgService from '../../services/messaging.js';
-import { getAssetUrl } from '../../services/assets.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -168,7 +168,7 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
         <div style="display:flex; padding:4px 16px; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
           ${!isMe ? `
             <div style="width:32px; height:32px; border-radius:10px; background:#f1f5f9; flex-shrink:0; margin-right:8px; margin-top:2px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800; color:#64748b; border:1px solid #f1f5f9;">
-              ${otherAvatar ? `<img src="${getAssetUrl(otherAvatar)}" style="width:100%; height:100%; object-fit:cover;">` : otherName.charAt(0)}
+              <img src="${getAvatarUrl(otherAvatar, otherName)}" style="width:100%; height:100%; object-fit:cover;">
             </div>
           ` : ''}
           <div style="max-width:75%;">

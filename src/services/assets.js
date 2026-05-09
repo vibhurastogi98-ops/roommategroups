@@ -8,6 +8,10 @@ import { Capacitor } from '@capacitor/core';
  */
 
 export function getAssetUrl(path) {
+    return getImageUrl(path);
+}
+
+export function getImageUrl(path) {
     if (!path) {
         return 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=400';
     }

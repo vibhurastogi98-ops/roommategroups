@@ -147,7 +147,8 @@ async function processImageUpload(file) {
               uploadImage(fullBlob, 'full.webp'),
               uploadImage(fullBlob, 'full.webp'),
             ]);
-            resolve({ thumb: thumbUrl, medium: medUrl, full: fullUrl });
+            const ts = Date.now();
+            resolve({ thumb: thumbUrl + '?ts=' + ts, medium: medUrl + '?ts=' + ts, full: fullUrl + '?ts=' + ts });
           } catch {
             const toBase64 = b => new Promise(r => { const fr = new FileReader(); fr.onload = ev => r(ev.target.result); fr.readAsDataURL(b); });
             const [t, m, f] = await Promise.all([toBase64(thumbBlob), toBase64(medBlob), toBase64(fullBlob)]);

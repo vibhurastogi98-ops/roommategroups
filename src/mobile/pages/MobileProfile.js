@@ -172,12 +172,13 @@ export async function init(container, params = {}) {
       try {
         const url = await uploadImage(file);
         if (url) {
-          const fullUrl = getAssetUrl(url);
+          const cacheBustedUrl = `${url}?ts=${Date.now()}`;
+          const fullUrl = getAssetUrl(cacheBustedUrl);
           const img = container.querySelector('#avatar-img');
           const avatarEl = container.querySelector('#profile-avatar');
           if (img) img.src = fullUrl;
           else avatarEl.innerHTML = `<img id="avatar-img" src="${fullUrl}" style="width:100%;height:100%;object-fit:cover;">`;
-          await db.users?.update?.(user.user_id, { profile_photo: url });
+          await db.users?.update?.(user.user_id, { profile_photo: cacheBustedUrl });
         }
       } catch (err) { console.log('[MOBILE] Avatar upload error:', err); }
     });

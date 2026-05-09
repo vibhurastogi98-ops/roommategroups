@@ -9,7 +9,7 @@
 import { db, initDB } from '../../services/db.js';
 import { getCurrentUser, getVerificationBadge } from '../../services/auth.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
-import { getAssetUrl } from '../../services/assets.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -226,7 +226,7 @@ export async function init(container, params) {
               const u = r.user_details || { display_name: 'User', profile_photo: 'https://i.pravatar.cc/150' };
               return `
                 <div class="rm-card-m" data-id="${r.listing_id}">
-                  <div class="rm-card-img" style="background-image:url('${u.profile_photo}')">
+                  <div class="rm-card-img" style="background-image:url('${getAvatarUrl(u.profile_photo, u.display_name)}')">
                     <div class="rm-card-price">$${r.rent || r.budgetMax}/mo</div>
                   </div>
                   <div class="rm-card-body">

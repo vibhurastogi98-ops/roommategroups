@@ -7,6 +7,7 @@ import { getCurrentUser, updateProfile } from '../../services/auth.js';
 import { db } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
 import { Camera, CameraResultType } from '@capacitor/camera';
+import { getAvatarUrl, getImageUrl } from '../../services/assets.js';
 
 const lifestyleTags = [
     { id: 'clean', label: 'Clean', icon: 'fa-broom' },
@@ -181,7 +182,7 @@ export async function init(container) {
 
     // Pre-load photo
     if (user.profile_photo) {
-        photoPreview.innerHTML = `<img src="${user.profile_photo}" style="width:100%; height:100%; object-fit:cover;">`;
+        photoPreview.innerHTML = `<img src="${getAvatarUrl(user.profile_photo, user.display_name || user.fullName)}" style="width:100%; height:100%; object-fit:cover;">`;
         photoPreview.dataset.photo = user.profile_photo;
     }
 
@@ -195,8 +196,9 @@ export async function init(container) {
                 const file = new File([blob], 'profile.jpg', { type: 'image/jpeg' });
                 try {
                     const url = await uploadImage(file, 'profile.jpg');
-                    photoPreview.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:cover;">`;
-                    photoPreview.dataset.photo = url;
+                    const cacheBustedUrl = `${url}?ts=${Date.now()}`;
+                    photoPreview.innerHTML = `<img src="${getAvatarUrl(cacheBustedUrl)}" style="width:100%; height:100%; object-fit:cover;">`;
+                    photoPreview.dataset.photo = cacheBustedUrl;
                 } catch (err) {
                     console.warn('[PROFILE] Upload failed, using webPath', err);
                     photoPreview.innerHTML = `<img src="${image.webPath}" style="width:100%; height:100%; object-fit:cover;">`;
@@ -214,8 +216,9 @@ export async function init(container) {
         photoPreview.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:var(--mobile-accent);"></i>';
         try {
             const url = await uploadImage(file, 'profile.jpg');
-            photoPreview.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:cover;">`;
-            photoPreview.dataset.photo = url;
+            const cacheBustedUrl = `${url}?ts=${Date.now()}`;
+            photoPreview.innerHTML = `<img src="${getAvatarUrl(cacheBustedUrl)}" style="width:100%; height:100%; object-fit:cover;">`;
+            photoPreview.dataset.photo = cacheBustedUrl;
         } catch (err) {
             const reader = new FileReader();
             reader.onload = (rv) => {

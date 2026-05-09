@@ -6,7 +6,7 @@
 import { getCurrentUser } from '../../services/auth.js';
 import { db, initDB, syncMessagesAndThreads } from '../../services/db.js';
 import * as msgService from '../../services/messaging.js';
-import { getAssetUrl } from '../../services/assets.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -108,7 +108,7 @@ export async function init(container) {
       <div class="thread-row" data-tid="${t.thread_id}" style="display:flex; align-items:center; gap:12px; padding:16px; background:#fff; border-bottom:1px solid #f8fafc; cursor:pointer; touch-action:manipulation;">
         <div style="position:relative; flex-shrink:0;">
           <div style="width:52px; height:52px; border-radius:16px; background:#f1f5f9; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:700; color:#64748b; border:1px solid #f1f5f9;">
-            ${avatar ? `<img src="${getAssetUrl(avatar)}" style="width:100%; height:100%; object-fit:cover;">` : name.charAt(0)}
+            <img src="${getAvatarUrl(avatar, name)}" style="width:100%; height:100%; object-fit:cover;">
           </div>
           ${unread > 0 ? `<div style="position:absolute; -top:2px; -right:2px; width:14px; height:14px; background:#ef4444; border:2px solid #fff; border-radius:50%;"></div>` : ''}
         </div>
