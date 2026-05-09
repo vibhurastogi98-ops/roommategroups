@@ -42,11 +42,16 @@ export async function init(container) {
           from { transform: rotate(0deg); } 
           to { transform: rotate(360deg); } 
         }
-        .refreshing i { 
-          animation: spin 0.8s linear infinite; 
+        .refreshing i, .ptr-spin { 
+          animation: spin 0.8s linear infinite !important; 
         }
       </style>
-      <div class="mobile-page-content">
+      <div class="mobile-page-content" style="position:relative;">
+        <div id="ptr-indicator" style="height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; transition: height 0.2s ease, opacity 0.2s ease; opacity: 0;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; color: #1a1a1a;">
+            <i class="fa-solid fa-arrows-rotate ptr-icon" style="transition: transform 0.1s ease; font-size: 0.9rem;"></i>
+          </div>
+        </div>
         <div style="padding-bottom:1px;">
 
         <!-- Sticky search bar -->
@@ -398,12 +403,12 @@ export async function init(container) {
     title: 'LOGO',
     showBack: false,
     leftAction: {
-      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
+      icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
       label: 'Profile',
       onClick: () => { navigate('settings'); },
     },
     rightAction: {
-      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
+      icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
       label: 'Notifications',
       onClick: () => { navigate('notifications'); },
     }
@@ -502,6 +507,87 @@ async function _wireEvents(container, ctx) {
       }
     }, { passive: true });
     container._scrollHandlerAttached = true;
+  }
+
+  // Pull-to-refresh logic
+  if (!container._ptrHandlerAttached) {
+    let startY = 0;
+    let isPulling = false;
+    let isRefreshing = false;
+    const PTR_THRESHOLD = 60;
+
+    container.addEventListener('touchstart', (e) => {
+      if (container.scrollTop <= 0 && !isRefreshing) {
+        startY = e.touches[0].clientY;
+        isPulling = true;
+        const ptr = container.querySelector('#ptr-indicator');
+        if (ptr) {
+          ptr.style.transition = 'none';
+        }
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!isPulling || isRefreshing) return;
+      const y = e.touches[0].clientY;
+      const dy = y - startY;
+      
+      if (dy > 0 && container.scrollTop <= 0) {
+        const ptr = container.querySelector('#ptr-indicator');
+        const icon = container.querySelector('.ptr-icon');
+        if (ptr) {
+          const height = Math.min(dy * 0.5, 90);
+          ptr.style.height = height + 'px';
+          ptr.style.opacity = Math.min(height / 40, 1).toString();
+          if (icon) {
+            icon.style.transform = `rotate(${height * 4}deg)`;
+          }
+        }
+      } else {
+        isPulling = false;
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', async () => {
+      if (!isPulling || isRefreshing) return;
+      isPulling = false;
+      
+      const ptr = container.querySelector('#ptr-indicator');
+      const icon = container.querySelector('.ptr-icon');
+      
+      if (ptr && parseInt(ptr.style.height || '0') >= PTR_THRESHOLD) {
+        isRefreshing = true;
+        ptr.style.transition = 'height 0.3s ease, opacity 0.3s ease';
+        ptr.style.height = '50px';
+        ptr.style.opacity = '1';
+        
+        if (icon) {
+          icon.style.transition = 'none';
+          icon.classList.add('ptr-spin');
+        }
+        
+        const feed = container.querySelector('#home-feed');
+        if (feed) {
+          feed.innerHTML = Array(3).fill(0).map(() => `
+            <div style="width:85vw; max-width:320px; height:300px; background:#f8fafc; border-radius:28px; border:1px solid #e2e8f0; flex-shrink:0; animation: skeleton-pulse 1.5s infinite ease-in-out;"></div>
+          `).join('');
+        }
+
+        await initDB().catch(() => { });
+        ctx.updateListings();
+        
+        setTimeout(() => {
+          ctx.rerender(); 
+          isRefreshing = false;
+        }, 600);
+      } else if (ptr) {
+        ptr.style.transition = 'height 0.3s ease, opacity 0.3s ease';
+        ptr.style.height = '0px';
+        ptr.style.opacity = '0';
+      }
+    });
+
+    container._ptrHandlerAttached = true;
   }
 }
 

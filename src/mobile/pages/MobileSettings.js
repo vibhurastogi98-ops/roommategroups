@@ -7,6 +7,7 @@
 import { getCurrentUser, logout, updateProfile } from '../../services/auth.js';
 import { db } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
+import { showBottomSheet } from '../components/BottomSheet.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -121,9 +122,9 @@ export async function init(container) {
           <div>
             <h3 style="${SECTION_TITLE}">Notifications</h3>
             <div style="${CARD}">
-              ${_toggle('🔔', 'Messages', notifPrefs.messages !== false, 'notif-messages')}
-              ${_toggle('✨', 'Listing Matches', notifPrefs.matches !== false, 'notif-matches')}
-              ${_toggle('📉', 'Price Drops', notifPrefs.price_drops !== false, 'notif-price-drops')}
+              ${_toggle('🔔', 'Messages', notifPrefs.messages !== false, 'messages')}
+              ${_toggle('✨', 'Listing Matches', notifPrefs.matches !== false, 'matches')}
+              ${_toggle('📉', 'Price Drops', notifPrefs.price_drops !== false, 'price_drops')}
             </div>
           </div>
 
@@ -232,7 +233,7 @@ export async function init(container) {
           </div>
         `,
         actions: [
-          { label: 'Permanently Delete', variant: 'danger', onClick: () => { logout(); navigate('auth'); } },
+          { label: 'Permanently Delete', variant: 'danger', onClick: async () => { await db.users.delete(dbUser.user_id); logout(); navigate('auth'); } },
           { label: 'Cancel', variant: 'outline', onClick: () => {} }
         ]
       });
