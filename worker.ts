@@ -267,7 +267,7 @@ app.get('/users', async (c) => {
       if ('emailVerified' in user) user.emailVerified = !!user.emailVerified
       
       // Parse JSON fields if they are strings
-      const jsonFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users']
+      const jsonFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens']
       jsonFields.forEach(f => {
         if (typeof user[f] === 'string') {
           try { user[f] = JSON.parse(user[f]); } catch(e) { user[f] = []; }
@@ -289,7 +289,7 @@ app.post('/users', async (c) => {
     for (const [k, v] of Object.entries(body)) {
       if (k === 'passwordHash') {
         mapped['password_hash'] = v
-      } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users'].includes(k)) {
+      } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens'].includes(k)) {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
       } else {
         mapped[k] = v
@@ -301,7 +301,7 @@ app.post('/users', async (c) => {
       'saved_listings', 'saved_searches', 'blocked_users', 'password_hash', 'role', 
       'is_active', 'profileComplete', 'emailVerified', 'created_at', 'last_active',
       'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline',
-      'id_verified', 'id_status', 'id_reject_reason', 'verification_id_photo', 'verification_selfie', 'phone_verified'
+      'id_verified', 'id_status', 'id_reject_reason', 'verification_id_photo', 'verification_selfie', 'phone_verified', 'push_tokens'
     ]
 
     const filtered: Record<string, any> = {}
@@ -331,7 +331,7 @@ app.put('/users/:id', async (c) => {
     for (const [k, v] of Object.entries(body)) {
       if (k === 'passwordHash') {
         mapped['password_hash'] = v
-      } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users'].includes(k)) {
+      } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens'].includes(k)) {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
       } else {
         mapped[k] = v
@@ -347,7 +347,8 @@ app.put('/users/:id', async (c) => {
       'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
       'saved_listings', 'saved_searches', 'blocked_users', 'password_hash', 'role', 
       'is_active', 'profileComplete', 'emailVerified', 'created_at', 'last_active',
-      'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline'
+      'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline', 'push_tokens',
+      'id_verified', 'id_status', 'id_reject_reason', 'verification_id_photo', 'verification_selfie', 'phone_verified'
     ]
     const filtered: Record<string, any> = {}
     for (const col of validCols) {

@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS users (
   moveInTimeline   TEXT,
   created_at       TEXT DEFAULT (datetime('now')),
   last_active      TEXT,
-  updated_at       TEXT DEFAULT (datetime('now'))
+  updated_at       TEXT DEFAULT (datetime('now')),
+  push_tokens      TEXT
 );
 
 -- ── 2. listings ─────────────────────────────────────────────

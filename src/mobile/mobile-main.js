@@ -8,9 +8,9 @@
 
 import './mobile-styles.css';
 import { getCurrentUser } from '../services/auth.js';
-import { initDB } from '../services/db.js';
+import { initDB, db } from '../services/db.js';
 import { getTotalUnread } from '../services/messaging.js';
-import { renderBottomNav, updateActiveTab } from './components/BottomNav.js';
+import { renderBottomNav, updateActiveTab, updateMessageBadge } from './components/BottomNav.js';
 import { renderMobileHeader } from './components/MobileHeader.js';
 import { App } from '@capacitor/app';
 
@@ -301,6 +301,83 @@ function _render404(container, route, err) {
   container.querySelector('#back-btn-404')?.addEventListener('click', goBack);
 }
 
+// ── Push Notifications ────────────────────────────────────────
+async function initPushNotifications() {
+  const PushNotifications = window.Capacitor?.Plugins?.PushNotifications;
+  if (!PushNotifications) {
+    console.warn('[MOBILE] PushNotifications plugin not found');
+    return;
+  }
+  
+  try {
+    let permStatus = await PushNotifications.checkPermissions();
+
+    if (permStatus.receive === 'prompt') {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+
+    if (permStatus.receive !== 'granted') {
+      console.warn('[MOBILE] User denied push permission');
+      return;
+    }
+
+    await PushNotifications.register();
+
+    PushNotifications.addListener('registration', token => {
+      console.info('[MOBILE] Push registration success, token:', token.value);
+      const user = getCurrentUser();
+      if (user) {
+        let tokens = [];
+        try { tokens = Array.isArray(user.push_tokens) ? user.push_tokens : JSON.parse(user.push_tokens || '[]'); } catch(e){}
+        if (!tokens.includes(token.value)) {
+          tokens.push(token.value);
+          user.push_tokens = JSON.stringify(tokens);
+          // Only update if db and users exist, fail gracefully
+          if (db && db.users) {
+            db.users.update(user.user_id || user.id, { push_tokens: user.push_tokens }).catch(e => console.error('[MOBILE] Failed to save push token:', e));
+          }
+        }
+      }
+    });
+
+    PushNotifications.addListener('registrationError', err => {
+      console.error('[MOBILE] Push registration error:', err.error);
+    });
+
+    PushNotifications.addListener('pushNotificationReceived', notification => {
+      console.log('[MOBILE] Push received:', notification);
+      // Update global unread count
+      const user = getCurrentUser();
+      if (user && _headerCtrl) {
+        _headerCtrl.setRightBadge(getTotalUnread(user.user_id));
+      }
+    });
+
+    PushNotifications.addListener('pushNotificationActionPerformed', notification => {
+      console.log('[MOBILE] Push action performed:', notification);
+      const data = notification.notification.data || {};
+      
+      if (data.type === 'message' || data.type === 'new_message') {
+        if (data.threadId) {
+          navigate('chat-detail', { threadId: data.threadId });
+        } else if (data.senderId) {
+          navigate('chat-detail', { userId: data.senderId });
+        } else {
+          navigate('chat');
+        }
+      } else if (data.listingId) {
+        navigate('listing', { id: data.listingId });
+      } else if (data.url) {
+        navigate(data.url);
+      } else {
+        navigate('notifications');
+      }
+    });
+  } catch (err) {
+    console.error('[MOBILE] Push setup failed:', err);
+  }
+}
+
 // ── initMobile ────────────────────────────────────────────────
 export async function initMobile() {
   console.log('[MOBILE] Initializing mobile layer…');
@@ -386,8 +463,21 @@ export async function initMobile() {
   // 11. Global unread badge polling
   setInterval(async () => {
     const user = getCurrentUser();
-    if (!user || !_headerCtrl) return;
-    const count = getTotalUnread(user.user_id);
-    _headerCtrl.setRightBadge(count);
+    if (!user) return;
+    
+    // Update message tab badge
+    const msgCount = getTotalUnread(user.user_id);
+    updateMessageBadge(msgCount);
+
+    // Update header notification badge
+    if (_headerCtrl) {
+      const notifs = (db.notifications?.findAll?.() || []).filter(n => n.user_id === user.user_id && !n.is_read);
+      _headerCtrl.setRightBadge(notifs.length);
+    }
   }, 10000);
+
+  // 12. Initialize push notifications
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    initPushNotifications();
+  }
 }

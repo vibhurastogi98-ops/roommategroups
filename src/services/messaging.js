@@ -98,7 +98,19 @@ export function sendMessage(threadId, senderId, content, photoUrl = null) {
         [`unread_count_${ouId}`]: (thread[`unread_count_${ouId}`] || 0) + 1,
     });
 
-    // 7. Increment rate limit counter
+    // 7. Create notification for recipient
+    const sender = db.users.findById(senderId);
+    const senderName = sender?.display_name || 'Someone';
+    db.notifications.create({
+        user_id: ouId,
+        type: 'new_message',
+        title: 'New Message',
+        description: `${senderName} sent you a message: "${content.trim().substring(0, 40)}${content.trim().length > 40 ? '...' : ''}"`,
+        thread_id: threadId,
+        sender_id: senderId
+    }).catch(e => console.error('[MSG] Failed to create notification:', e));
+
+    // 8. Increment rate limit counter
     incrementRateLimit(senderId);
 
     return {

@@ -55,7 +55,10 @@ export function renderBottomNav(container, activeTab = 'home') {
           data-tab="${tab.id}"
           data-route="${tab.route}"
         >
-          <span class="mobile-nav-tab-icon">${tab.icon}</span>
+          <span class="mobile-nav-tab-icon" style="position: relative; display: inline-flex;">
+            ${tab.icon}
+            ${tab.id === 'messages' ? '<span id="mobile-nav-badge-messages" style="display:none; position:absolute; top:-4px; right:-8px; background:#ef4444; color:#fff; font-size:0.6rem; font-weight:800; padding:1px 5px; border-radius:10px; border:2px solid #fff; min-width:16px; text-align:center;">0</span>' : ''}
+          </span>
           <span class="mobile-nav-tab-label">${tab.label}</span>
         </button>
       `).join('')}
@@ -96,6 +99,22 @@ export function updateActiveTab(tabId) {
     btn.classList.toggle('active', isActive);
     btn.setAttribute('aria-selected', String(isActive));
   });
+}
+
+/**
+ * Updates the message tab badge count.
+ * @param {number} count 
+ */
+export function updateMessageBadge(count) {
+  if (!_navEl) return;
+  const badge = _navEl.querySelector('#mobile-nav-badge-messages');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 /**
