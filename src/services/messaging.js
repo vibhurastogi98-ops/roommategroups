@@ -50,7 +50,7 @@ export async function getOrCreateThread(senderId, recipientId, listingId) {
 /**
  * Send a message in a thread. Returns { success, error, message, warning }.
  */
-export function sendMessage(threadId, senderId, content, photoUrl = null) {
+export async function sendMessage(threadId, senderId, content, photoUrl = null) {
     // 1. Rate limit check
     const rateLimitResult = checkRateLimit(senderId);
     if (!rateLimitResult.allowed) {
@@ -78,27 +78,40 @@ export function sendMessage(threadId, senderId, content, photoUrl = null) {
         return { success: false, error: 'You cannot send messages in a blocked conversation.' };
     }
 
-    // 5. Create message
-    const message = db.messages.create({
-        thread_id: threadId,
-        sender_id: senderId,
-        content: content.trim(),
-        photo_url: photoUrl,
-        is_read: false,
-        read_at: null,
-        created_at: new Date().toISOString()
-    });
+    // 5. Create message — await so callers receive the actual object, not a Promise
+    let message;
+    try {
+        message = await db.messages.create({
+            thread_id: threadId,
+            sender_id: senderId,
+            content: content.trim(),
+            photo_url: photoUrl,
+            is_read: false,
+            read_at: null,
+            created_at: new Date().toISOString()
+        });
+    } catch (syncErr) {
+        // D1 sync failed but item was already written to localStorage; retrieve it
+        const allMsgs = db.messages.findAll();
+        message = allMsgs[allMsgs.length - 1] || {
+            message_id: `msg_${Date.now()}`,
+            thread_id: threadId, sender_id: senderId,
+            content: content.trim(), photo_url: photoUrl,
+            is_read: false, created_at: new Date().toISOString()
+        };
+        console.warn('[MSG] D1 sync failed for message, using local copy:', syncErr);
+    }
 
-    // 6. Update thread metadata
+    // 6. Update thread metadata (fire-and-forget D1 sync)
     const parts = typeof thread.participants === 'string' ? JSON.parse(thread.participants || '[]') : (thread.participants || []);
     const ouId = parts.find(id => id !== senderId);
     db.threads.update(threadId, {
         last_message_at: new Date().toISOString(),
         last_message_preview: content.trim().substring(0, 80),
         [`unread_count_${ouId}`]: (thread[`unread_count_${ouId}`] || 0) + 1,
-    });
+    }).catch(e => console.warn('[MSG] Thread update sync failed:', e));
 
-    // 7. Create notification for recipient
+    // 7. Create notification for recipient (fire-and-forget)
     const sender = db.users.findById(senderId);
     const senderName = sender?.display_name || 'Someone';
     db.notifications.create({

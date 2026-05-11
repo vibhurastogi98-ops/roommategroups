@@ -121,20 +121,15 @@ async function resolve() {
             }
         });
     } else {
-
-        // Fallback to home
         window.scrollTo(0, 0);
-        const homeRoute = routes['/'];
-        if (homeRoute) {
-            for (const middlewareFn of middleware) {
-                const result = await middlewareFn('/', {});
-                if (result === false) return;
-            }
-            for (const middlewareFn of homeRoute.middleware) {
-                const result = await middlewareFn('/', {});
-                if (result === false) return;
-            }
-            homeRoute.handler(appElement, {});
+        if (appElement) {
+            appElement.innerHTML = `
+              <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px;font-family:system-ui,sans-serif;background:#f8fafc;">
+                <div style="font-size:5rem;font-weight:900;color:#1a1a1a;line-height:1;">404</div>
+                <p style="color:#64748b;margin:0;font-size:1rem;">Page not found: <code style="background:#f1f5f9;padding:2px 8px;border-radius:6px;font-size:0.9rem;">${cleanPath}</code></p>
+                <a href="/" style="margin-top:8px;padding:10px 24px;background:#1a1a1a;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.95rem;">Go Home</a>
+              </div>
+            `;
         }
     }
 }

@@ -310,6 +310,27 @@ CREATE TABLE IF NOT EXISTS images (
 );
 
 -- ============================================================
+-- Indexes (performance — frequently queried columns)
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_listings_user_id        ON listings (user_id);
+CREATE INDEX IF NOT EXISTS idx_listings_city            ON listings (city);
+CREATE INDEX IF NOT EXISTS idx_listings_status          ON listings (status);
+CREATE INDEX IF NOT EXISTS idx_listings_created_at      ON listings (created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_thread_id       ON messages (thread_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id       ON messages (sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_is_read         ON messages (is_read);
+CREATE INDEX IF NOT EXISTS idx_threads_listing_id       ON threads (listing_id);
+CREATE INDEX IF NOT EXISTS idx_threads_last_message_at  ON threads (last_message_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id    ON notifications (user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read    ON notifications (is_read);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter_id      ON reports (reporter_id);
+CREATE INDEX IF NOT EXISTS idx_reports_status           ON reports (status);
+CREATE INDEX IF NOT EXISTS idx_user_queries_status      ON user_queries (status);
+CREATE INDEX IF NOT EXISTS idx_posts_is_published       ON posts (is_published);
+CREATE INDEX IF NOT EXISTS idx_posts_published_date     ON posts (published_date);
+
+-- ============================================================
 -- Seed Data
 -- ============================================================
 

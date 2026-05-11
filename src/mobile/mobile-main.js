@@ -69,13 +69,20 @@ const ROUTE_LOADERS = {
   city: () => import('./pages/MobileCity.js'),
 };
 
-// Route name → bottom-nav tab id (null = hide nav)
+// Route name → bottom-nav tab id (null = hide nav, undefined falls back to 'home')
 const ROUTE_TO_TAB = {
   home: 'home',
   search: 'search',
   listing: 'home',
   city: 'home',
   faq: 'home',
+  about: 'home',
+  safety: 'home',
+  blog: 'home',
+  fbGroups: 'home',
+  fbGroupDetail: 'home',
+  pricing: 'home',
+  contact: 'home',
   post: 'post',
   chat: 'messages',
   'chat-detail': 'messages',
@@ -85,6 +92,9 @@ const ROUTE_TO_TAB = {
   verification: 'dashboard',
   'saved-searches': 'dashboard',
   subscription: 'dashboard',
+  'my-listings': 'dashboard',
+  saved: 'dashboard',
+  notifications: 'dashboard',
   auth: null,
   'profile-setup': null,
 };

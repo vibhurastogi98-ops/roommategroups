@@ -543,6 +543,8 @@ body, #mobile-app {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y;       /* Let browser handle touch naturally */
+  overscroll-behavior-y: contain;  /* Prevent iOS rubber-band from stealing gestures */
+  will-change: auto;               /* Avoid permanent GPU layer; set by animation classes instead */
   scroll-behavior: smooth;
   z-index: 10;
 }

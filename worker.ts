@@ -257,15 +257,14 @@ app.get('/users', async (c) => {
     // Map D1 snake_case back to camelCase for frontend compatibility
     const mapped = results.map((u: any) => {
       const user = { ...u }
-      if ('password_hash' in user) {
-        user.passwordHash = user.password_hash
-        delete user.password_hash
-      }
+      // Never expose password hashes to clients
+      delete user.password_hash
+      delete user.passwordHash
       // Normalize booleans for SQLite (0/1 -> true/false)
       if ('is_active' in user) user.is_active = !!user.is_active
       if ('profileComplete' in user) user.profileComplete = !!user.profileComplete
       if ('emailVerified' in user) user.emailVerified = !!user.emailVerified
-      
+
       // Parse JSON fields if they are strings
       const jsonFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens']
       jsonFields.forEach(f => {
@@ -1321,6 +1320,15 @@ app.put('/user_queries/:id', async (c) => {
   } catch (err) {
     const error = err as Error
     return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.delete('/user_queries/:id', async (c) => {
+  try {
+    await c.env.DB.prepare('DELETE FROM user_queries WHERE query_id = ?').bind(c.req.param('id')).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Delete failed' }, 500)
   }
 })
 

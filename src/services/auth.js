@@ -80,7 +80,7 @@ export async function login(email, password) {
     const normalizedEmail = email.toLowerCase();
 
     // ── Master Admin Bootstrap (local only) ──
-    if (normalizedEmail === 'hello@roommategroups.com' && password === 'Vibhu$12345') {
+    if (normalizedEmail === 'hello@roommategroups.com' && simpleHash(password) === 'h_sa5p9x') {
         let adminUser = db.users.findOne(u => u.email.toLowerCase() === normalizedEmail);
         const pwHash = simpleHash(password);
         if (!adminUser) {
@@ -179,8 +179,7 @@ export function isLoggedIn() {
 
 export function isAdmin() {
     const user = getCurrentUser();
-    // Simplified check: only email is required for master admin, others must have 'admin' role
-    return user !== null && (user.role === 'admin' || user.email === 'hello@roommategroups.com');
+    return user !== null && user.role === 'admin';
 }
 
 // ── Password Strength ──

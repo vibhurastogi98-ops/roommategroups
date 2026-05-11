@@ -352,9 +352,19 @@ export async function initDB() {
         const mergeCollection = (name, d1Data, idField) => {
             if (!Array.isArray(d1Data)) return;
             const liveData = getDB()[name] || [];
+            const localMap = new Map(liveData.map(i => [i[idField] || i.id, i]));
             const d1Ids = new Set(d1Data.map(i => i[idField] || i.id));
             const localOnly = liveData.filter(i => !d1Ids.has(i[idField]) && !d1Ids.has(i.id));
-            live[name] = [...d1Data, ...localOnly];
+            // For users: server strips password_hash for security; restore from local copy so login keeps working
+            const mergedD1 = name === 'users'
+                ? d1Data.map(item => {
+                    const local = localMap.get(item[idField] || item.id);
+                    const localHash = local?.passwordHash || local?.password_hash;
+                    if (localHash && !item.passwordHash) return { ...item, passwordHash: localHash };
+                    return item;
+                  })
+                : d1Data;
+            live[name] = [...mergedD1, ...localOnly];
             liveUpdated = true;
         };
 
@@ -402,9 +412,18 @@ export async function syncMessagesAndThreads() {
         const mergeInPlace = (name, d1Data, idField) => {
             if (!Array.isArray(d1Data)) return;
             const old = JSON.stringify(dbData[name]);
+            const localMap = new Map((dbData[name] || []).map(i => [i[idField] || i.id, i]));
             const d1Ids = new Set(d1Data.map(i => i[idField] || i.id));
             const localOnly = (dbData[name] || []).filter(i => !d1Ids.has(i[idField]) && !d1Ids.has(i.id));
-            dbData[name] = [...d1Data, ...localOnly];
+            const mergedD1 = name === 'users'
+                ? d1Data.map(item => {
+                    const local = localMap.get(item[idField] || item.id);
+                    const localHash = local?.passwordHash || local?.password_hash;
+                    if (localHash && !item.passwordHash) return { ...item, passwordHash: localHash };
+                    return item;
+                  })
+                : d1Data;
+            dbData[name] = [...mergedD1, ...localOnly];
             if (old !== JSON.stringify(dbData[name])) changed = true;
         };
 
