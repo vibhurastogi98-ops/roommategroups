@@ -59,7 +59,6 @@ export async function init(container) {
           <button id="home-search-btn" style="width:100%;height:46px;display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:0 14px;cursor:pointer;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
             <i class="fa-solid fa-magnifying-glass" style="color:#94a3b8;font-size:0.85rem;"></i>
             <span style="color:#94a3b8;font-size:0.88rem;font-weight:500;flex:1;">Search by city, area…</span>
-            <div style="background:#f1f5f9;border-radius:8px;padding:4px 10px;font-size:0.7rem;font-weight:700;color:#64748b;">Filter</div>
           </button>
           <div style="display:flex;gap:8px;margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;">
             ${['all', 'room', 'apartment', 'sublet', 'roommate_wanted', 'studio'].map(type => `

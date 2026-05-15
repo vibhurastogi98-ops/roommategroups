@@ -43,8 +43,8 @@ export function renderMobileHeader(container, {
   // Build right-side HTML
   const rightHTML = homeRightActions
     ? `<div id="mobile-header-home-actions" style="display:flex;align-items:center;gap:10px;">
-        <button id="mobile-header-bell" aria-label="Notifications" style="position:relative;width:44px;height:44px;border-radius:12px;background:#1a1a1a;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <button id="mobile-header-bell" aria-label="Notifications" style="position:relative;width:44px;height:44px;border-radius:12px;background:#f1f5f9;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
           <span id="mobile-header-bell-badge" class="header-badge hidden"></span>
         </button>
         <button id="mobile-header-avatar" aria-label="Profile" style="width:44px;height:44px;border-radius:12px;background:none;border:2.5px solid #f5c842;padding:0;cursor:pointer;overflow:hidden;flex-shrink:0;">
@@ -207,8 +207,8 @@ export function renderMobileHeader(container, {
       homeActionsEl.id = 'mobile-header-home-actions';
       homeActionsEl.style.cssText = 'display:flex;align-items:center;gap:10px;';
       homeActionsEl.innerHTML = `
-        <button id="mobile-header-bell" aria-label="Notifications" style="position:relative;width:44px;height:44px;border-radius:12px;background:#1a1a1a;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <button id="mobile-header-bell" aria-label="Notifications" style="position:relative;width:44px;height:44px;border-radius:12px;background:#f1f5f9;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
           <span id="mobile-header-bell-badge" class="header-badge hidden"></span>
         </button>
         <button id="mobile-header-avatar" aria-label="Profile" style="width:44px;height:44px;border-radius:12px;background:none;border:2.5px solid #f5c842;padding:0;cursor:pointer;overflow:hidden;flex-shrink:0;">

@@ -171,12 +171,12 @@ body, #mobile-app {
   height: 44px;
   border-radius: 50%;
   border: none;
-  background: #000000;
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #ffffff;
+  color: #000000;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
@@ -253,12 +253,12 @@ body, #mobile-app {
   height: 44px;
   border-radius: 50%;
   border: none;
-  background: #000000;
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #ffffff;
+  color: #000000;
   transition: all 0.2s ease;
   margin-left: auto;
   -webkit-tap-highlight-color: transparent;
