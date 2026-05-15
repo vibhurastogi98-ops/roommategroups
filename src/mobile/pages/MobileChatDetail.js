@@ -7,6 +7,7 @@ import { getCurrentUser } from '../../services/auth.js';
 import { db, initDB, syncMessagesAndThreads } from '../../services/db.js';
 import * as msgService from '../../services/messaging.js';
 import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
+import { uploadImage } from '../../services/upload.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -65,9 +66,9 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
     showBack: true,
     onBack: () => { msgService.stopPolling(); goBack(); },
     rightAction: {
-      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 4.6a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+      icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>`,
       label: 'Options',
-      onClick: () => _showOptions()
+      onClick: (e) => _toggleDropdown(e)
     }
   });
 
@@ -75,75 +76,124 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
 
   async function _render() {
     const msgs = msgService.getMessagesForThread(threadId);
-    
     container.innerHTML = `
-      <div style="height:100%; display:flex; flex-direction:column; background:#f8fafc;">
+      <div style="width: 100% !important; height: 100% !important; display: flex !important; flex-direction: column !important; background: #f8fafc; justify-content: flex-start !important; align-items: stretch !important; margin: 0 !important; padding: 0 !important;">
         
         <!-- Listing Info Bar -->
         ${listing ? `
-          <div style="background:#fff; padding:10px 16px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:12px;">
-            <div style="width:40px; height:40px; border-radius:8px; background:#f1f5f9; flex-shrink:0; overflow:hidden;">
+          <div style="background: #fff; padding: 10px 16px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: #f1f5f9; flex-shrink: 0; overflow: hidden;">
               ${(() => {
                 try { return listing.images ? `<img src="${getAssetUrl(JSON.parse(listing.images || '[]')[0])}" style="width:100%; height:100%; object-fit:cover;">` : '🏠'; }
                 catch(e) { return '🏠'; }
               })()}
             </div>
-            <div style="flex:1; min-width:0;">
-              <div style="font-size:0.85rem; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${_esc(listing.title)}</div>
-              <div style="font-size:0.75rem; color:#64748b;">$${listing.rent || listing.price || '?'}/mo &bull; ${listing.room_type?.replace('_', ' ') || 'Room'}</div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 0.85rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${_esc(listing.title)}</div>
+              <div style="font-size: 0.75rem; color: #64748b;">$${listing.rent || listing.price || '?'}/mo &bull; ${listing.room_type?.replace('_', ' ') || 'Room'}</div>
             </div>
-            <button id="view-listing-btn" style="background:#f1f5f9; border:none; border-radius:8px; padding:6px 12px; font-size:0.75rem; font-weight:700; color:#475569;">View</button>
+            <button id="view-listing-btn" style="background: #f1f5f9; border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; cursor: pointer;">View</button>
           </div>
         ` : ''}
 
         <!-- Messages Area -->
-        <div id="chat-scroller" style="flex:1; min-height:0; overflow-y:scroll; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; overscroll-behavior-y:contain; will-change:auto; padding:16px 0;">
-          <div id="chat-msgs-container">
+        <div id="chat-scroller" style="flex: 1 1 auto; width: 100% !important; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0; display: flex !important; flex-direction: column !important; align-items: stretch !important;">
+          <div id="chat-msgs-container" class="chat-messages" style="width: 100% !important; flex: 0 0 auto !important;">
             ${_renderMessages(msgs)}
           </div>
         </div>
 
         <!-- Quick Replies -->
-        <div style="background:#fff; border-top:1px solid #f1f5f9; padding:8px 0;">
-          <div class="mobile-scroll-x" style="padding:0 12px;">
-            <div style="display:flex; gap:8px; width:max-content; padding-bottom:4px;">
+        <div style="background: #fff; border-top: 1px solid #f1f5f9; padding: 8px 0; flex-shrink: 0;">
+          <div class="mobile-scroll-x" style="padding: 0 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+            <div style="display: flex; gap: 8px; width: max-content;">
               ${msgService.QUICK_REPLIES.map(q => `
-                <button class="qr-chip" data-text="${_esc(q)}" style="background:#f1f5f9; border:1px solid #e2e8f0; border-radius:12px; padding:6px 12px; font-size:0.75rem; color:#475569; font-weight:600; white-space:nowrap; cursor:pointer;">${_esc(q)}</button>
+                <button class="qr-chip" data-text="${_esc(q)}" style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; padding: 6px 12px; font-size: 0.75rem; color: #475569; font-weight: 600; white-space: nowrap; cursor: pointer;">${_esc(q)}</button>
               `).join('')}
             </div>
           </div>
         </div>
 
         <!-- Input Bar -->
-        <div style="background:#fff; border-top:1px solid #f1f5f9; padding:10px 12px calc(10px + var(--mobile-safe-bottom)); display:flex; align-items:flex-end; gap:10px;">
+        <div style="background: #fff; border-top: 1px solid #f1f5f9; padding: 10px 12px; display: flex; align-items: flex-end; gap: 10px; flex-shrink: 0;">
+          <input type="file" id="chat-photo-input" accept="image/*" style="display: none;" />
+          <button id="chat-photo-btn" style="width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          </button>
           <textarea id="chat-input" placeholder="Message..." rows="1" 
-            style="flex:1; background:#f1f5f9; border:1.5px solid #e2e8f0; border-radius:20px; padding:10px 16px; font-size:0.92rem; font-family:inherit; outline:none; resize:none; max-height:120px;"></textarea>
-          <button id="chat-send" style="width:44px; height:44px; border-radius:50%; border:none; background:#1a1a1a; color:#fff; display:flex; align-items:center; justify-content:center; opacity:0.4;" disabled>
+            style="flex: 1; background: #f1f5f9; border: 1.5px solid #e2e8f0; border-radius: 20px; padding: 10px 16px; font-size: 0.92rem; font-family: inherit; outline: none; resize: none; max-height: 120px; margin: 0;"></textarea>
+          <button id="chat-send" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: #1a1a1a; color: #fff; display: flex; align-items: center; justify-content: center; opacity: 0.4; flex-shrink: 0; cursor: pointer;" disabled>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
         </div>
       </div>
 
-      <!-- Options Sheet (hidden by default) -->
-      <div id="options-sheet" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:2000; align-items:flex-end; justify-content:center;">
-        <div style="background:#fff; width:100%; border-radius:24px 24px 0 0; padding:24px; animation:slideUp 0.3s ease;">
-          <div style="width:40px; height:4px; background:#e2e8f0; border-radius:2px; margin:0 auto 24px;"></div>
-          <button class="opt-btn" data-action="profile" style="width:100%; text-align:left; padding:16px; border:none; background:none; font-size:1rem; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:12px;">
-            <span style="font-size:1.2rem;">👤</span> View Profile
-          </button>
-          <button class="opt-btn" data-action="archive" style="width:100%; text-align:left; padding:16px; border:none; background:none; font-size:1rem; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:12px;">
-            <span style="font-size:1.2rem;">📦</span> ${thread.is_archived ? 'Unarchive' : 'Archive'} Chat
-          </button>
-          <button class="opt-btn" data-action="block" style="width:100%; text-align:left; padding:16px; border:none; background:none; font-size:1rem; font-weight:700; color:#ef4444; display:flex; align-items:center; gap:12px;">
-            <span style="font-size:1.2rem;">🚫</span> Block User
-          </button>
-          <button id="close-options" style="width:100%; margin-top:12px; padding:16px; border-radius:16px; border:none; background:#f1f5f9; font-size:0.95rem; font-weight:800; color:#1e293b;">Cancel</button>
-        </div>
+      <!-- Dropdown Overlay & Menu -->
+      <div id="chat-dropdown-overlay" class="chat-dropdown-overlay hidden"></div>
+      <div id="chat-dropdown" class="chat-dropdown hidden">
+        <button class="chat-dropdown-item" data-action="profile">
+          <span class="icon">👤</span> View Profile
+        </button>
+        <button class="chat-dropdown-item" data-action="archive">
+          <span class="icon">📁</span> Archive Chat
+        </button>
+        <button class="chat-dropdown-item" data-action="block" style="color: #ef4444;">
+          <span class="icon">🚫</span> Block User
+        </button>
+        <button class="chat-dropdown-item" data-action="delete" style="color: #ef4444;">
+          <span class="icon">🗑️</span> Delete Chat
+        </button>
       </div>
+
       <style>
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .chat-dropdown-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 2900;
+          background: transparent;
+          display: block;
+        }
+        .chat-dropdown-overlay.hidden { display: none; }
+        
+        .chat-dropdown {
+          position: fixed;
+          top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 4px);
+          right: 12px;
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+          border: 1px solid #f1f5f9;
+          z-index: 3000;
+          min-width: 180px;
+          overflow: hidden;
+          animation: dropdownIn 0.15s ease-out;
+        }
+        .chat-dropdown.hidden { display: none; }
+        .chat-dropdown-item {
+          width: 100%;
+          text-align: left;
+          padding: 12px 16px;
+          border: none;
+          background: none;
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #1e293b;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .chat-dropdown-item:active { background: #f8fafc; }
+        .chat-dropdown-item .icon { font-size: 1.1rem; width: 20px; text-align: center; }
+        @keyframes dropdownIn {
+          from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
       </style>
     `;
+
 
     _wireEvents();
     _scrollToBottom(false);
@@ -165,17 +215,24 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
       
       return `
         ${dateHeader}
-        <div style="display:flex; padding:4px 16px; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
+        <div class="chat-bubble-row ${isMe ? 'sent' : 'received'}">
           ${!isMe ? `
-            <div style="width:32px; height:32px; border-radius:10px; background:#f1f5f9; flex-shrink:0; margin-right:8px; margin-top:2px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800; color:#64748b; border:1px solid #f1f5f9;">
+            <div style="width:32px; height:32px; border-radius:10px; background:#f1f5f9; flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:800; color:#64748b; border:1px solid #f1f5f9; margin-bottom:20px;">
               <img src="${getAvatarUrl(otherAvatar, otherName)}" style="width:100%; height:100%; object-fit:cover;">
             </div>
           ` : ''}
-          <div style="max-width:75%;">
-            <div style="background:${isMe ? '#1a1a1a' : '#fff'}; color:${isMe ? '#fff' : '#1e293b'}; padding:10px 14px; border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; box-shadow:0 1px 2px rgba(0,0,0,0.05); font-size:0.9rem; line-height:1.45; word-break:break-word;">
+          <div class="chat-bubble">
+            ${m.photo_url ? `
+              <div style="margin-bottom:4px; border-radius:${isMe ? '18px 4px 18px 18px' : '4px 18px 18px 18px'}; overflow:hidden; border:1px solid #e2e8f0;">
+                <img src="${getAssetUrl(m.photo_url)}" style="width:100%; max-height:200px; object-fit:cover; display:block;">
+              </div>
+            ` : ''}
+            ${m.content ? `
+            <div style="background:${isMe ? '#1a1a1a' : '#fff'}; color:${isMe ? '#fff' : '#1e293b'}; padding:10px 14px; border-radius:${isMe ? '18px 4px 18px 18px' : '4px 18px 18px 18px'}; box-shadow:0 1px 2px rgba(0,0,0,0.05); font-size:0.9rem; line-height:1.45; word-break:break-word;">
               ${_escHtml(m.content)}
             </div>
-            <div style="font-size:0.65rem; color:#94a3b8; font-weight:700; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">
+            ` : ''}
+            <div class="chat-time" style="font-size:0.65rem; color:#94a3b8; font-weight:700; margin-top:4px;">
               ${time} ${isMe ? (m.is_read ? ' &bull; Read' : ' &bull; Sent') : ''}
             </div>
           </div>
@@ -187,6 +244,8 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
   function _wireEvents() {
     const input = container.querySelector('#chat-input');
     const sendBtn = container.querySelector('#chat-send');
+    const photoBtn = container.querySelector('#chat-photo-btn');
+    const photoInput = container.querySelector('#chat-photo-input');
 
     input.addEventListener('input', () => {
       input.style.height = 'auto';
@@ -196,32 +255,56 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
       sendBtn.style.opacity = hasText ? '1' : '0.4';
     });
 
-    const doSend = async () => {
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = '';
-      input.style.height = '';
-      sendBtn.disabled = true;
-      sendBtn.style.opacity = '0.4';
+    const doSend = async (textOverride = null, photoUrl = null) => {
+      const text = textOverride !== null ? textOverride : input.value.trim();
+      if (!text && !photoUrl) return;
+      if (textOverride === null) {
+        input.value = '';
+        input.style.height = '';
+        sendBtn.disabled = true;
+        sendBtn.style.opacity = '0.4';
+      }
 
-      const res = msgService.sendMessage(threadId, user.user_id, text);
+      const res = await msgService.sendMessage(threadId, user.user_id, text, photoUrl);
       if (res.success) {
         _partialUpdate();
       } else {
-        alert(res.error);
+        alert(res.error || 'Failed to send message');
       }
     };
 
-    sendBtn.addEventListener('click', doSend);
+    photoBtn.addEventListener('click', () => {
+      photoInput.click();
+    });
+
+    photoInput.addEventListener('change', async (e) => {
+      if (!e.target.files || !e.target.files.length) return;
+      const file = e.target.files[0];
+      
+      const originalIcon = photoBtn.innerHTML;
+      photoBtn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid #ccc;border-top-color:#1a1a1a;border-radius:50%;animation:spin 1s linear infinite;"></div>';
+      photoBtn.disabled = true;
+      
+      try {
+        const url = await uploadImage(file);
+        await doSend('', url);
+      } catch (err) {
+        alert(err.message || 'Failed to upload image');
+      } finally {
+        photoBtn.innerHTML = originalIcon;
+        photoBtn.disabled = false;
+        photoInput.value = '';
+      }
+    });
+
+    sendBtn.addEventListener('click', () => doSend());
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
     });
 
     container.querySelectorAll('.qr-chip').forEach(btn => {
       btn.addEventListener('click', () => {
-        input.value = btn.dataset.text;
-        input.dispatchEvent(new Event('input'));
-        input.focus();
+        doSend(btn.dataset.text);
       });
     });
 
@@ -229,38 +312,83 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
       navigate('listing', { id: thread.listing_id });
     });
 
-    // Options sheet
-    container.querySelector('#close-options')?.addEventListener('click', () => {
-      container.querySelector('#options-sheet').style.display = 'none';
-    });
+    // Dropdown events
+    const dropdown = container.querySelector('#chat-dropdown');
+    const overlay = container.querySelector('#chat-dropdown-overlay');
+    const closeDropdown = () => {
+      dropdown?.classList.add('hidden');
+      overlay?.classList.add('hidden');
+    };
 
-    container.querySelectorAll('.opt-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+    overlay?.addEventListener('click', closeDropdown);
+
+    container.querySelectorAll('.chat-dropdown-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
         const action = btn.dataset.action;
-        container.querySelector('#options-sheet').style.display = 'none';
-        if (action === 'profile') navigate('profile', { userId: otherId });
-        if (action === 'archive') {
-          if (thread.is_archived) msgService.unarchiveThread(threadId);
-          else msgService.archiveThread(threadId, user.user_id);
-          goBack();
-        }
-        if (action === 'block') {
+        closeDropdown();
+        
+        const { api } = await import('../../services/api.js');
+        const { showBottomSheet } = await getMobile();
+
+        if (action === 'profile') {
+          navigate('profile', { userId: otherId });
+        } else if (action === 'archive') {
+          try {
+            await api.archiveThread(threadId);
+            msgService.archiveThread(threadId, user.user_id); // Sync local state
+            goBack();
+          } catch (err) {
+            alert('Failed to archive chat');
+          }
+        } else if (action === 'block') {
           showBottomSheet({
             title: 'Block User',
             content: `
               <div style="padding: 10px 0; text-align: center;">
                 <div style="font-size: 3rem; margin-bottom: 16px;">🚫</div>
                 <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Block ${otherName}?</div>
-                <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">You will no longer receive messages from this user, and they won't be able to see your listings.</div>
+                <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">You will no longer receive messages from this user.</div>
               </div>
             `,
             actions: [
               { 
                 label: 'Block User', 
                 variant: 'danger', 
-                onClick: () => {
-                  msgService.blockUser(user.user_id, otherId, threadId);
-                  goBack();
+                onClick: async () => {
+                  try {
+                    await api.blockUser(otherId);
+                    msgService.blockUser(user.user_id, otherId, threadId); // Sync local state
+                    goBack();
+                  } catch (err) {
+                    alert('Failed to block user');
+                  }
+                }
+              },
+              { label: 'Cancel', variant: 'outline', onClick: () => {} }
+            ]
+          });
+        } else if (action === 'delete') {
+          showBottomSheet({
+            title: 'Delete Chat',
+            content: `
+              <div style="padding: 10px 0; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 16px;">🗑️</div>
+                <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Delete conversation?</div>
+                <div style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">This will permanently remove this chat from your history. This action cannot be undone.</div>
+              </div>
+            `,
+            actions: [
+              { 
+                label: 'Delete Chat', 
+                variant: 'danger', 
+                onClick: async () => {
+                  try {
+                    await api.deleteThread(threadId);
+                    // Local delete if needed, but goBack() is usually enough if it syncs
+                    goBack();
+                  } catch (err) {
+                    alert('Failed to delete chat');
+                  }
                 }
               },
               { label: 'Cancel', variant: 'outline', onClick: () => {} }
@@ -271,8 +399,20 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
     });
   }
 
-  function _showOptions() {
-    container.querySelector('#options-sheet').style.display = 'flex';
+  function _toggleDropdown(e) {
+    if (e) e.stopPropagation();
+    const dropdown = container.querySelector('#chat-dropdown');
+    const overlay = container.querySelector('#chat-dropdown-overlay');
+    if (dropdown && overlay) {
+      const isHidden = dropdown.classList.contains('hidden');
+      if (isHidden) {
+        dropdown.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+      } else {
+        dropdown.classList.add('hidden');
+        overlay.classList.add('hidden');
+      }
+    }
   }
 
   function _scrollToBottom(smooth = true) {
