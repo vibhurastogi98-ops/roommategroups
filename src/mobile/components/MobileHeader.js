@@ -156,12 +156,21 @@ export function renderMobileHeader(container, {
   }
 
   function setRightAction(newAction) {
-    // If home dual-actions are mounted, ignore single-action calls
-    if (header.querySelector('#mobile-header-home-actions')) return;
-    const btn = header.querySelector('#mobile-header-right');
-    if (!btn) return;
+    // Remove dual home actions if they were mounted
+    const homeActions = header.querySelector('#mobile-header-home-actions');
+    if (homeActions) homeActions.remove();
+
+    // Ensure the single right button exists (it might have been removed by setHomeRightActions)
+    let btn = header.querySelector('#mobile-header-right');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'mobile-header-right';
+      const inner = header.querySelector('.mobile-header-inner');
+      if (inner) inner.appendChild(btn);
+    }
+
     if (newAction) {
-      btn.innerHTML = newAction.icon || '';
+      btn.innerHTML = (newAction.icon || '') + '<span id="mobile-header-right-badge" class="header-badge hidden"></span>';
       btn.setAttribute('aria-label', newAction.label || 'Action');
       btn.className = 'mobile-header-action';
       btn.removeAttribute('tabindex');

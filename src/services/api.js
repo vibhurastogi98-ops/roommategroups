@@ -10,12 +10,20 @@ import { API_URL } from './config.js';
 
 async function req(method, path, data, silent = false) {
     try {
-        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        const session = JSON.parse(localStorage.getItem('rg_session') || 'null');
+        const token = session?.userId || '';
+
+        const opts = { 
+            method, 
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            } 
+        };
         if (data !== undefined) opts.body = JSON.stringify(data);
         
         const url = `${API_URL}${path}`;
 
-            
         const res = await fetch(url, opts);
         if (!res.ok) {
             const errText = await res.text().catch(() => '');
@@ -52,6 +60,7 @@ export const api = {
     createUser:   (data)     => req('POST', '/users', data),
     updateUser:   (id, d)    => req('PUT',    `/users/${id}`, d),
     deleteUser:   (id)       => req('DELETE', `/users/${id}`),
+    blockUser:    (id)       => req('POST',   `/users/${id}/block`),
 
     // ── Listings ─────────────────────────────────────────────
     getListings:    ()       => req('GET',    '/listings'),
@@ -88,6 +97,7 @@ export const api = {
     saveThread:       (item) => req('POST',   '/threads', item),
     updateThread:     (id, d)=> req('PUT',    `/threads/${id}`, d),
     deleteThread:     (id)   => req('DELETE', `/threads/${id}`),
+    archiveThread:    (id)   => req('PUT',    `/threads/${id}/archive`),
 
     // ── Messages ─────────────────────────────────────────────
     getMessages:      (tid)  => req('GET',    tid ? `/messages?thread_id=${tid}` : '/messages'),

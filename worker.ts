@@ -375,6 +375,33 @@ app.delete('/users/:id', async (c) => {
   }
 })
 
+app.post('/users/:id/block', async (c) => {
+  try {
+    const blockedId = c.req.param('id')
+    const auth = c.req.header('Authorization')
+    const blockerId = auth?.startsWith('Bearer ') ? auth.slice(7) : null
+    
+    if (!blockerId) return dbJson(c, { error: 'Unauthorized' }, 401)
+    
+    const user = await c.env.DB.prepare('SELECT blocked_users FROM users WHERE user_id = ?').bind(blockerId).first()
+    let blocked: string[] = []
+    if (user && user.blocked_users) {
+      try { 
+        blocked = typeof user.blocked_users === 'string' ? JSON.parse(user.blocked_users) : (user.blocked_users || [])
+      } catch(e) {}
+    }
+    if (!blocked.includes(blockedId)) {
+      blocked.push(blockedId)
+      await c.env.DB.prepare('UPDATE users SET blocked_users = ? WHERE user_id = ?')
+        .bind(JSON.stringify(blocked), blockerId).run()
+    }
+    
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: err instanceof Error ? err.message : 'Block failed' }, 500)
+  }
+})
+
 // ── D1: Listings ─────────────────────────────────────────────
 app.get('/listings', async (c) => {
   try {
@@ -974,6 +1001,16 @@ app.delete('/threads/:id', async (c) => {
     return dbJson(c, { success: true })
   } catch (err) {
     return dbJson(c, { error: 'Delete failed' }, 500)
+  }
+})
+
+app.put('/threads/:id/archive', async (c) => {
+  try {
+    const id = c.req.param('id')
+    await c.env.DB.prepare('UPDATE threads SET is_archived = 1 WHERE thread_id = ?').bind(id).run()
+    return dbJson(c, { success: true })
+  } catch (err) {
+    return dbJson(c, { error: 'Archive failed' }, 500)
   }
 })
 
