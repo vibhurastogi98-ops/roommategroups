@@ -1,0 +1,23 @@
+
+> roommategroups@0.0.0 build
+> vite build
+
+vite v7.3.2 building client environment for production...
+transforming...
+✓ 35 modules transformed.
+✗ Build failed in 164ms
+error during build:
+[vite]: Rollup failed to resolve import "@capacitor/push-notifications" from "/Users/vibhurastogi/REPO/roommategroups/src/mobile/mobile-main.js".
+This is most likely unintended because it can break your application at runtime.
+If you do want to externalize this module explicitly add it to
+`build.rollupOptions.external`
+    at viteLog (file:///Users/vibhurastogi/REPO/roommategroups/node_modules/vite/dist/node/chunks/config.js:33639:57)
+    at file:///Users/vibhurastogi/REPO/roommategroups/node_modules/vite/dist/node/chunks/config.js:33673:73
+    at onwarn (file:///Users/vibhurastogi/REPO/roommategroups/node_modules/@vitejs/plugin-react/dist/index.js:76:7)
+    at file:///Users/vibhurastogi/REPO/roommategroups/node_modules/vite/dist/node/chunks/config.js:33673:28
+    at onRollupLog (file:///Users/vibhurastogi/REPO/roommategroups/node_modules/vite/dist/node/chunks/config.js:33668:63)
+    at onLog (file:///Users/vibhurastogi/REPO/roommategroups/node_modules/vite/dist/node/chunks/config.js:33471:4)
+    at file:///Users/vibhurastogi/REPO/roommategroups/node_modules/rollup/dist/es/shared/node-entry.js:20981:32
+    at Object.logger [as onLog] (file:///Users/vibhurastogi/REPO/roommategroups/node_modules/rollup/dist/es/shared/node-entry.js:22968:9)
+    at ModuleLoader.handleInvalidResolvedId (file:///Users/vibhurastogi/REPO/roommategroups/node_modules/rollup/dist/es/shared/node-entry.js:21712:26)
+    at file:///Users/vibhurastogi/REPO/roommategroups/node_modules/rollup/dist/es/shared/node-entry.js:21670:26

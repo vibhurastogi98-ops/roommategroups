@@ -138,10 +138,32 @@ body, #mobile-app {
 
 .mobile-header-inner {
   width: 100%;
-  display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Left slot — fixed 44px so it balances the right side on non-home pages */
+#mobile-header-left {
+  flex-shrink: 0;
+}
+
+/* Title — grows to fill remaining space, centred */
+#mobile-header-title {
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Right action (single-button pages) */
+#mobile-header-right {
+  flex-shrink: 0;
+}
+
+/* Home dual-action container */
+#mobile-header-home-actions {
+  flex-shrink: 0;
 }
 
 .mobile-header-back {

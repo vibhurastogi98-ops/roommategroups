@@ -180,7 +180,14 @@ export function updateHeader(opts = {}) {
   if (opts.title !== undefined) _headerCtrl.setTitle(opts.title);
   if (opts.showBack !== undefined) _headerCtrl.showBackButton(opts.showBack, opts.onBack || goBack);
   if (opts.leftAction !== undefined) _headerCtrl.setLeftAction(opts.leftAction);
+  if (opts.homeRightActions !== undefined) _headerCtrl.setHomeRightActions(opts.homeRightActions);
   if (opts.rightAction !== undefined) _headerCtrl.setRightAction(opts.rightAction);
+}
+
+// ── Public: updateBellBadge(count) ───────────────────────────
+// Lets any page directly set (or clear) the notification bell badge.
+export function updateBellBadge(count) {
+  if (_headerCtrl) _headerCtrl.setRightBadge(count);
 }
 
 // ── Public: goBack() ─────────────────────────────────────────
@@ -218,6 +225,11 @@ async function _renderRoute(route, params = {}, direction = 'forward') {
   if (_headerCtrl && !isAuth) {
     _headerCtrl.setTitle(title);
     _headerCtrl.showBackButton(hasBack, hasBack ? goBack : null);
+    // Remove home dual-action area when not on home route
+    if (route !== 'home') {
+      const homeActions = _appEl.querySelector('#mobile-header-home-actions');
+      if (homeActions) homeActions.remove();
+    }
     _headerCtrl.setRightAction(null);
   }
 
@@ -432,6 +444,10 @@ export async function initMobile() {
     await navigate('profile-setup');
   } else {
     await navigate('home');
+    // Seed bell badge immediately after first render (don't wait 10s)
+    const unread = (db.notifications?.findAll?.() || [])
+      .filter(n => (n.user_id === user.user_id || n.userId === user.user_id) && !n.is_read);
+    if (_headerCtrl) _headerCtrl.setRightBadge(unread.length);
   }
 
   // 7. Fade out the branded splash now that the first page is rendered
@@ -470,7 +486,7 @@ export async function initMobile() {
   console.log('[MOBILE] Gestures initialized');
   console.log('[MOBILE] Shell ready. Route:', state.current);
 
-  // 11. Global unread badge polling
+  // 11. Global unread badge polling (every 10s)
   setInterval(async () => {
     const user = getCurrentUser();
     if (!user) return;
@@ -479,9 +495,10 @@ export async function initMobile() {
     const msgCount = getTotalUnread(user.user_id);
     updateMessageBadge(msgCount);
 
-    // Update header notification badge
+    // Update header notification badge (handle both field name variants)
     if (_headerCtrl) {
-      const notifs = (db.notifications?.findAll?.() || []).filter(n => n.user_id === user.user_id && !n.is_read);
+      const notifs = (db.notifications?.findAll?.() || [])
+        .filter(n => (n.user_id === user.user_id || n.userId === user.user_id) && !n.is_read);
       _headerCtrl.setRightBadge(notifs.length);
     }
   }, 10000);

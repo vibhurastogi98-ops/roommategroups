@@ -7,7 +7,7 @@
 import { db, initDB, getLiveListingCount } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
-import { getAssetUrl } from '../../services/assets.js';
+import { getAssetUrl, getAvatarUrl } from '../../services/assets.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -399,19 +399,25 @@ export async function init(container) {
   };
 
   const { updateHeader, navigate } = await getMobile();
+  const currentUser = getCurrentUser();
+  const avatarSrc = getAvatarUrl(
+    currentUser?.profile_photo || currentUser?.avatar || null,
+    currentUser?.display_name || currentUser?.first_name || 'U'
+  );
   updateHeader({
-    title: 'LOGO',
+    title: '',
     showBack: false,
-    leftAction: {
-      icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
-      label: 'Profile',
-      onClick: () => { navigate('settings'); },
+    leftAction: null,
+    homeRightActions: {
+      bell: {
+        onClick: () => { navigate('notifications'); },
+      },
+      avatar: {
+        src: avatarSrc,
+        name: currentUser?.display_name || currentUser?.first_name || 'U',
+        onClick: () => { navigate('settings'); },
+      },
     },
-    rightAction: {
-      icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
-      label: 'Notifications',
-      onClick: () => { navigate('notifications'); },
-    }
   });
 
   filteredList = _filterListings(allListings, selectedCity, selectedType);

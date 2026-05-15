@@ -15,12 +15,17 @@ export async function init(container) {
     return;
   }
 
-  const { updateHeader } = await getMobile();
+  const { updateHeader, updateBellBadge } = await getMobile();
   updateHeader({ title: 'Notifications', showBack: true });
 
-  const notifications = (db.notifications?.findAll?.() || [])
-    .filter(n => n.user_id === user.user_id)
+  const allNotifs = (db.notifications?.findAll?.() || []);
+  const notifications = allNotifs
+    .filter(n => (n.user_id === user.user_id) || (n.userId === user.user_id))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  // Immediately clear the bell badge now that the user has opened the page
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  if (typeof updateBellBadge === 'function') updateBellBadge(0);
 
   function _render() {
     if (notifications.length === 0) {
@@ -41,7 +46,15 @@ export async function init(container) {
             const bodyText = n.message || n.description || n.body || '';
             const titleText = n.title || 'Notification';
             return `
-            <div class="notif-row" data-id="${n.id || n.notification_id}" data-type="${n.type}" data-thread="${n.thread_id || n.threadId || ''}" data-listing="${n.listing_id || n.listingId || ''}" data-sender="${n.sender_id || n.senderId || ''}" data-url="${n.website_url || ''}" style="background: ${n.is_read ? '#fff' : 'var(--mobile-accent-soft)'}; border-radius: 16px; padding: 16px; border: 1px solid #f1f5f9; display: flex; gap: 12px; align-items: flex-start; cursor: pointer;">
+            <div class="notif-row"
+              data-id="${n.notification_id || n.id}"
+              data-type="${n.type}"
+              data-thread="${n.thread_id || n.threadId || ''}"
+              data-listing="${n.listing_id || n.listingId || ''}"
+              data-sender="${n.sender_id || n.senderId || ''}"
+              data-url="${n.website_url || ''}"
+              style="background: ${n.is_read ? '#fff' : 'var(--mobile-accent-soft)'}; border-radius: 16px; padding: 16px; border: 1px solid #f1f5f9; display: flex; gap: 12px; align-items: flex-start; cursor: pointer;"
+            >
               <div style="width: 40px; height: 40px; border-radius: 12px; background: #fff; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
                 ${_getIcon(n.type)}
               </div>
@@ -59,6 +72,7 @@ export async function init(container) {
 
     container.querySelectorAll('.notif-row').forEach(row => {
       row.addEventListener('click', async () => {
+        // Resolve correct ID — D1 uses notification_id as primary key
         const id = row.dataset.id;
         const type = row.dataset.type;
         const threadId = row.dataset.thread;
@@ -66,11 +80,16 @@ export async function init(container) {
         const senderId = row.dataset.sender;
         const url = row.dataset.url;
         
-        await db.notifications.update(id, { is_read: true });
+        // Mark as read locally and on server
+        try { await db.notifications.update(id, { is_read: true }); } catch(e) { console.warn('[Notif] mark-read failed', e); }
         
         // Update local array for instant UI feedback
-        const nIdx = notifications.findIndex(n => (n.id || n.notification_id) === id);
+        const nIdx = notifications.findIndex(n => (n.notification_id === id) || (n.id === id));
         if (nIdx !== -1) notifications[nIdx].is_read = true;
+
+        // Update bell badge immediately
+        const stillUnread = notifications.filter(n => !n.is_read).length;
+        if (typeof updateBellBadge === 'function') updateBellBadge(stillUnread);
         
         // Deep linking logic
         if (type === 'message' || type === 'new_message') {
