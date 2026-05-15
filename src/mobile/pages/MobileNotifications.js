@@ -16,7 +16,6 @@ export async function init(container) {
   }
 
   const { updateHeader, updateBellBadge } = await getMobile();
-  updateHeader({ title: 'Notifications', showBack: true });
 
   const allNotifs = (db.notifications?.findAll?.() || []);
   const notifications = allNotifs
@@ -27,7 +26,33 @@ export async function init(container) {
   const unreadCount = notifications.filter(n => !n.is_read).length;
   if (typeof updateBellBadge === 'function') updateBellBadge(0);
 
+  function _updateHeaderState() {
+    updateHeader({
+      title: 'Notifications',
+      showBack: true,
+      rightAction: notifications.length > 0 ? {
+        icon: '<span style="font-size:0.85rem; font-weight:600; color:#ef4444; padding:0 8px;">Clear All</span>',
+        label: 'Clear All',
+        onClick: async () => {
+          if (confirm('Are you sure you want to clear all notifications?')) {
+            try {
+              for (const n of notifications) {
+                await db.notifications.delete(n.notification_id || n.id);
+              }
+            } catch (err) {
+              console.warn('[Notif] clear all failed', err);
+            }
+            notifications.length = 0;
+            _render();
+          }
+        }
+      } : null
+    });
+  }
+
   function _render() {
+    _updateHeaderState();
+
     if (notifications.length === 0) {
       container.innerHTML = `
         <div class="mobile-empty" style="padding: 100px 24px; text-align: center;">
@@ -53,17 +78,18 @@ export async function init(container) {
               data-listing="${n.listing_id || n.listingId || ''}"
               data-sender="${n.sender_id || n.senderId || ''}"
               data-url="${n.website_url || ''}"
-              style="background: ${n.is_read ? '#fff' : 'var(--mobile-accent-soft)'}; border-radius: 16px; padding: 16px; border: 1px solid #f1f5f9; display: flex; gap: 12px; align-items: flex-start; cursor: pointer;"
+              style="position: relative; background: ${n.is_read ? '#fff' : 'var(--mobile-accent-soft)'}; border-radius: 16px; padding: 16px; border: 1px solid #f1f5f9; display: flex; gap: 12px; align-items: flex-start; cursor: pointer;"
             >
-              <div style="width: 40px; height: 40px; border-radius: 12px; background: #fff; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
+              <div style="position: relative; width: 40px; height: 40px; border-radius: 12px; background: #fff; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">
                 ${_getIcon(n.type)}
+                ${!n.is_read ? `<div style="position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--mobile-accent); border: 2px solid #fff;"></div>` : ''}
               </div>
-              <div style="flex: 1;">
+              <div style="flex: 1; padding-right: 24px;">
                 <div style="font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">${titleText}</div>
                 <div style="font-size: 0.8rem; color: #64748b; line-height: 1.4;">${bodyText}</div>
                 <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 8px; font-weight: 600;">${_formatTime(n.created_at)}</div>
               </div>
-              ${!n.is_read ? `<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--mobile-accent); margin-top: 6px;"></div>` : ''}
+              <button class="notif-delete-btn" aria-label="Delete Notification" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 1.2rem; color: #cbd5e1; padding: 4px; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
             </div>
           `}).join('')}
         </div>
@@ -71,6 +97,22 @@ export async function init(container) {
     `;
 
     container.querySelectorAll('.notif-row').forEach(row => {
+      const deleteBtn = row.querySelector('.notif-delete-btn');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = row.dataset.id;
+          try {
+            await db.notifications.delete(id);
+          } catch (err) {
+            console.warn('[Notif] delete failed', err);
+          }
+          const idx = notifications.findIndex(n => (n.notification_id === id) || (n.id === id));
+          if (idx !== -1) notifications.splice(idx, 1);
+          _render();
+        });
+      }
+
       row.addEventListener('click', async () => {
         // Resolve correct ID — D1 uses notification_id as primary key
         const id = row.dataset.id;
@@ -136,3 +178,4 @@ export async function init(container) {
 }
 
 export const renderMobileNotifications = init;
+
