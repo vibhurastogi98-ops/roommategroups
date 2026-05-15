@@ -228,91 +228,165 @@ export async function init(container) {
         </div>
         
         <!-- FEATURE HIGHLIGHTS -->
-        <div style="padding: 32px 16px; background: #fff;">
-          <div style="margin-bottom: 40px;">
-            <div style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; color: #64748b; font-size: 0.65rem; font-weight: 800; padding: 6px 12px; border-radius: 100px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">
-              <i class="fa-solid fa-shield-halved" style="color: #7c3aed; font-size: 0.7rem;"></i>
-              Safe & Trusted Community
+        <div style="background: #fff;">
+
+          <!-- Safe & Trusted Community -->
+          <div style="padding: 36px 20px 40px;">
+            <div style="display: inline-flex; align-items: center; gap: 7px; background: #ede9fe; color: #7c3aed; font-size: 0.62rem; font-weight: 800; padding: 6px 14px; border-radius: 100px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.08em;">
+              <i class="fa-solid fa-shield-halved" style="font-size: 0.72rem;"></i>
+              Safe &amp; Trusted Community
             </div>
-            <h2 style="font-size: 1.4rem; font-weight: 900; color: #0f172a; line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.02em;">Find your perfect roommate with complete peace of mind.</h2>
-            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.6; margin-bottom: 20px;">We know finding a roommate can feel overwhelming. That's why every listing and profile on RoommateGroups is carefully moderated to keep you safe from scams and fraud.</p>
-            
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
-              ${[
+            <h2 style="font-size: 1.65rem; font-weight: 900; color: #0f172a; line-height: 1.18; margin: 0 0 14px; letter-spacing: -0.03em;">Find your perfect roommate with complete peace of mind.</h2>
+            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.65; margin: 0 0 24px;">We know finding a roommate can feel overwhelming. That's why every listing and profile on RoommateGroups is carefully moderated to keep you safe from scams and fraud.</p>
+
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px;">
+              ${
+                [
                 'All listings manually moderated',
                 'Scam-free verified environment',
                 'Secure chat via Facebook Messenger',
                 'Active in 31+ cities worldwide'
               ].map(item => `
-                <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
-                  <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 1rem;"></i>
+                <div style="display: flex; align-items: center; gap: 12px; font-size: 0.92rem; font-weight: 600; color: #1e293b;">
+                  <span style="width:26px;height:26px;border-radius:50%;background:#10b981;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fa-solid fa-check" style="color:#fff;font-size:0.7rem;"></i>
+                  </span>
                   ${item}
                 </div>
               `).join('')}
             </div>
 
-            <button id="cta-safety" style="background: none; border: none; padding: 0; color: #7c3aed; font-size: 0.9rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-              Learn more about our community <i class="fa-solid fa-arrow-right" style="font-size: 0.75rem;"></i>
+            <button id="cta-safety" style="background: none; border: none; padding: 0; color: #7c3aed; font-size: 0.95rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 32px;">
+              Learn more about our community <i class="fa-solid fa-arrow-right" style="font-size: 0.78rem;"></i>
             </button>
-            
-            <div style="margin-top: 32px; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
-              <img src="/assets/img/community.png" style="width: 100%; height: auto; display: block;" alt="Community">
+
+            <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.12);">
+              <img src="/assets/img/community.png" style="width: 100%; height: auto; display: block; object-fit: cover;" alt="Happy roommates in a shared home">
             </div>
           </div>
 
-          <div style="margin-bottom: 8px; padding-top: 24px; border-top: 1px solid #f1f5f9;">
-            <div style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; color: #64748b; font-size: 0.65rem; font-weight: 800; padding: 6px 12px; border-radius: 100px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">
-              <i class="fa-solid fa-list-check" style="color: #7c3aed; font-size: 0.7rem;"></i>
-              Listings & Connections
+          <!-- Listings & Connections -->
+          <div style="padding: 36px 20px 40px; border-top: 1px solid #f1f5f9;">
+            <div style="display: inline-flex; align-items: center; gap: 7px; background: #ede9fe; color: #7c3aed; font-size: 0.62rem; font-weight: 800; padding: 6px 14px; border-radius: 100px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.08em;">
+              <i class="fa-solid fa-list-check" style="font-size: 0.72rem;"></i>
+              Listings &amp; Connections
             </div>
-            <h2 style="font-size: 1.4rem; font-weight: 900; color: #0f172a; line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.02em;">Connect with 1,500,000+ community members looking for the same thing.</h2>
-            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.6; margin-bottom: 20px;">Whether you're a student, a working professional, or a landlord — our platform connects you with genuine, relevant matches fast. No endless scrolling, no wasted time.</p>
-            
-            <div style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 24px;">
-              ${[
+            <h2 style="font-size: 1.65rem; font-weight: 900; color: #0f172a; line-height: 1.18; margin: 0 0 14px; letter-spacing: -0.03em;">Connect with 1,500,000+ community members looking for the same thing.</h2>
+            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.65; margin: 0 0 24px;">Whether you're a student, a working professional, or a landlord — our platform connects you with genuine, relevant matches fast. No endless scrolling, no wasted time.</p>
+
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px;">
+              ${
+                [
                 '10,000+ verified members',
-                'Students & professionals',
+                'Students &amp; professionals',
                 'Furnished room options',
                 'Budget-friendly matches',
                 'Landlord-friendly tools',
                 'Global city coverage'
               ].map(item => `
-                <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
-                  <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 1rem;"></i>
+                <div style="display: flex; align-items: center; gap: 12px; font-size: 0.92rem; font-weight: 600; color: #1e293b;">
+                  <span style="width:26px;height:26px;border-radius:50%;background:#10b981;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fa-solid fa-check" style="color:#fff;font-size:0.7rem;"></i>
+                  </span>
                   ${item}
                 </div>
               `).join('')}
             </div>
 
-            <button id="cta-listings" style="background: none; border: none; padding: 0; color: #7c3aed; font-size: 0.9rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-              Explore listings <i class="fa-solid fa-arrow-right" style="font-size: 0.75rem;"></i>
+            <button id="cta-listings" style="background: none; border: none; padding: 0; color: #7c3aed; font-size: 0.95rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 32px;">
+              Explore listings <i class="fa-solid fa-arrow-right" style="font-size: 0.78rem;"></i>
             </button>
 
-            <div style="margin-top: 32px; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
-              <img src="/assets/img/mockup.png" style="width: 100%; height: auto; display: block;" alt="Mockup">
+            <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.12);">
+              <img src="/assets/img/mockup.png" style="width: 100%; height: auto; display: block; object-fit: cover;" alt="RoommateGroups platform mockup">
             </div>
           </div>
         </div>
 
 
-        <!-- HOW IT WORKS -->
-        <div style="padding:32px 16px; background:#f8fafc; border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9;">
-          <h2 style="font-size:1.1rem; font-weight:900; text-align:center; margin-bottom:24px;">How It Works</h2>
-          <div style="display:flex; flex-direction:column; gap:16px;">
-            ${[
-        { step: 1, t: 'Search Listings', d: 'Browse verified rooms and roommates in your city.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>' },
-        { step: 2, t: 'Connect & Chat', d: 'Message potential roommates securely in the app.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>' },
-        { step: 3, t: 'Move In!', d: 'Find your perfect group and settle into your new home.', i: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>' }
-      ].map(s => `
-              <div style="display:flex; gap:16px; align-items:center; background:#fff; padding:16px; border-radius:14px; border:1px solid #f1f5f9;">
-                <div style="width:36px; height:36px; border-radius:50%; background:var(--mobile-accent-soft); color:var(--mobile-accent); display:flex; align-items:center; justify-content:center; font-size:0.9rem; font-weight:900; flex-shrink:0;">${s.step}</div>
-                <div>
-                  <div style="font-size:0.85rem; font-weight:800; color:#1e293b;">${s.t}</div>
-                  <div style="font-size:0.7rem; color:#64748b;">${s.d}</div>
-                </div>
-                <div style="font-size:1.1rem; margin-left:auto;">${s.i}</div>
+        <!-- WHY IT WORKS — Alternating feature cards (matches screenshot design) -->
+        <div style="padding: 32px 20px 40px; background: #fff;">
+          <h2 style="font-size: 1.55rem; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; margin: 0 0 28px;">Why RoommateGroups works</h2>
+
+          <style>
+            .rg-feature-card {
+              position: relative;
+              border-radius: 22px;
+              border: 2px solid #7c3aed;
+              overflow: visible;
+              margin-bottom: 28px;
+            }
+            .rg-feature-card-inner {
+              border-radius: 20px;
+              padding: 24px 20px 24px;
+              overflow: hidden;
+            }
+            .rg-feature-img {
+              position: absolute;
+              width: 130px;
+              height: 130px;
+              border-radius: 50%;
+              object-fit: cover;
+              top: 50%;
+              transform: translateY(-50%);
+              background: #ede9fe;
+              border: 3px solid #fff;
+              box-shadow: 0 4px 20px rgba(124,58,237,0.15);
+              z-index: 2;
+            }
+            .rg-feature-img-left {
+              left: -30px;
+            }
+            .rg-feature-img-right {
+              right: -30px;
+            }
+            .rg-feature-text-right {
+              margin-left: 116px;
+              min-height: 100px;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+            }
+            .rg-feature-text-left {
+              margin-right: 116px;
+              min-height: 100px;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+            }
+          </style>
+
+          <!-- Card 1: Image LEFT, text RIGHT, white bg -->
+          <div class="rg-feature-card">
+            <img class="rg-feature-img rg-feature-img-left" src="/assets/img/feature_browse.png" alt="Browse Listings">
+            <div class="rg-feature-card-inner" style="background: #fff;">
+              <div class="rg-feature-text-right">
+                <div style="font-size: 1.05rem; font-weight: 900; color: #0f172a; margin-bottom: 8px; line-height: 1.25;">Verified listings only</div>
+                <div style="font-size: 0.83rem; color: #64748b; line-height: 1.6;">Every room and roommate listing is manually reviewed before going live on our platform.</div>
               </div>
-            `).join('')}
+            </div>
+          </div>
+
+          <!-- Card 2: Image RIGHT, text LEFT, lavender bg -->
+          <div class="rg-feature-card">
+            <img class="rg-feature-img rg-feature-img-right" src="/assets/img/feature_chat.png" alt="Secure Chat">
+            <div class="rg-feature-card-inner" style="background: #ede9fe;">
+              <div class="rg-feature-text-left">
+                <div style="font-size: 1.05rem; font-weight: 900; color: #0f172a; margin-bottom: 8px; line-height: 1.25;">Secure & private chat</div>
+                <div style="font-size: 0.83rem; color: #4c1d95; line-height: 1.6;">Message verified roommates safely through our encrypted in-app messaging.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Image LEFT, text RIGHT, white bg -->
+          <div class="rg-feature-card" style="margin-bottom: 0;">
+            <img class="rg-feature-img rg-feature-img-left" src="/assets/img/feature_movein.png" alt="Move In">
+            <div class="rg-feature-card-inner" style="background: #fff;">
+              <div class="rg-feature-text-right">
+                <div style="font-size: 1.05rem; font-weight: 900; color: #0f172a; margin-bottom: 8px; line-height: 1.25;">Move in with confidence</div>
+                <div style="font-size: 0.83rem; color: #64748b; line-height: 1.6;">Find the right match faster and settle into your new home with complete peace of mind.</div>
+              </div>
+            </div>
           </div>
         </div>
 
