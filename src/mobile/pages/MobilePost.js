@@ -74,7 +74,6 @@ function loadListingIntoWizard(listing) {
       : (listing.roommate_prefs || {});
   } catch (_) { }
 
-  const furnishedMap = { true: 'Yes', false: 'No', 1: 'Yes', 0: 'No' };
   const furnishedStr = listing.furnished === true || listing.furnished === 1 ? 'Yes'
     : listing.furnished === false || listing.furnished === 0 ? 'No'
       : String(listing.furnished || '');
@@ -144,7 +143,6 @@ async function processImageUpload(file) {
             const [thumbUrl, medUrl, fullUrl] = await Promise.all([
               uploadImage(thumbBlob, 'thumb.webp'),
               uploadImage(medBlob, 'medium.webp'),
-              uploadImage(fullBlob, 'full.webp'),
               uploadImage(fullBlob, 'full.webp'),
             ]);
             const ts = Date.now();
@@ -668,7 +666,7 @@ function _step7() {
 
 // ── Wire all step interactions ─────────────────────────────────
 async function _wireStep(container) {
-  const { navigate } = await getMobile();
+  await getMobile();
 
   // Step 1: category select
   container.querySelectorAll('.wp-cat-card').forEach(card => {

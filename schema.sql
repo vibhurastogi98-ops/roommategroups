@@ -72,6 +72,13 @@ CREATE TABLE IF NOT EXISTS listings (
   moveInTimeline   TEXT,
   budgetMin        INTEGER,
   budgetMax        INTEGER,
+  currency         TEXT DEFAULT 'USD',
+  deposit          REAL DEFAULT 0,
+  min_stay         TEXT,
+  utilities_included INTEGER DEFAULT 0,
+  furnished        TEXT,
+  country          TEXT,
+  roommate_prefs   TEXT,           -- JSON: {gender, ageMin, ageMax, tags}
   created_at       TEXT DEFAULT (datetime('now')),
   updated_at       TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(user_id)

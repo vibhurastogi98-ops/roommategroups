@@ -408,13 +408,14 @@ app.get('/listings', async (c) => {
     const { results } = await c.env.DB.prepare('SELECT * FROM listings LIMIT 2000').all()
     const mapped = results.map((l: any) => {
       const listing = { ...l }
-      const jsonFields = ['images', 'photos', 'amenities', 'tags', 'lifestyle_tags']
+      const jsonFields = ['images', 'photos', 'amenities', 'tags', 'lifestyle_tags', 'roommate_prefs']
       jsonFields.forEach(f => {
         if (typeof listing[f] === 'string') {
-          try { listing[f] = JSON.parse(listing[f]); } catch(e) { listing[f] = []; }
+          try { listing[f] = JSON.parse(listing[f]); } catch(e) { listing[f] = f === 'roommate_prefs' ? {} : []; }
         }
       })
       if ('is_featured' in listing) listing.is_featured = !!listing.is_featured
+      if ('utilities_included' in listing) listing.utilities_included = !!listing.utilities_included
       return listing
     })
     return dbJson(c, mapped)
@@ -432,12 +433,13 @@ app.post('/listings', async (c) => {
     const images = body.images || body.photos || []
     const imagesVal = typeof images === 'string' ? images : JSON.stringify(images)
     const validCols = [
-      'listing_id', 'user_id', 'title', 'description', 'city', 'neighborhood_id', 
-      'address', 'latitude', 'longitude', 'rent', 'rent_type', 'room_type', 
-      'bathrooms', 'available_from', 'lease_term', 'amenities', 'tags', 'images', 
+      'listing_id', 'user_id', 'title', 'description', 'city', 'neighborhood_id',
+      'address', 'latitude', 'longitude', 'rent', 'rent_type', 'room_type',
+      'bathrooms', 'available_from', 'lease_term', 'amenities', 'tags', 'images',
       'status', 'is_featured', 'view_count', 'created_at', 'updated_at',
-      'moderation_status', 'rejection_reason', 'bedrooms', 'size_sqft', 'preferredArea', 
-      'moveInTimeline', 'budgetMin', 'budgetMax'
+      'moderation_status', 'rejection_reason', 'bedrooms', 'size_sqft', 'preferredArea',
+      'moveInTimeline', 'budgetMin', 'budgetMax',
+      'currency', 'deposit', 'min_stay', 'utilities_included', 'furnished', 'country', 'roommate_prefs'
     ]
     const mapped: Record<string, any> = {
       listing_id: id,
@@ -445,6 +447,9 @@ app.post('/listings', async (c) => {
       title: body.title || '',
       description: body.description || '',
       city: body.city || '',
+      // Field aliases: clients send these names, schema uses different names
+      neighborhood_id: body.neighborhood_id || body.neighborhood || '',
+      lease_term: body.lease_term || body.lease_duration || '',
       room_type: body.room_type || body.category || '',
       status: body.status || 'active',
       rent: rent,
@@ -455,8 +460,10 @@ app.post('/listings', async (c) => {
     // Add any other valid cols from body
     validCols.forEach(col => {
       if (body[col] !== undefined && mapped[col] === undefined) {
-        if (['amenities', 'tags'].includes(col)) {
-          mapped[col] = typeof body[col] === 'string' ? body[col] : JSON.stringify(body[col] || [])
+        if (['amenities', 'tags', 'roommate_prefs'].includes(col)) {
+          mapped[col] = typeof body[col] === 'string' ? body[col] : JSON.stringify(body[col] || (col === 'roommate_prefs' ? {} : []))
+        } else if (col === 'utilities_included') {
+          mapped[col] = body[col] ? 1 : 0
         } else {
           mapped[col] = body[col]
         }
@@ -484,8 +491,9 @@ const LISTING_COLUMNS = new Set([
   'is_featured', 'view_count', 'updated_at', 'moderation_status',
   'rejection_reason', 'bedrooms', 'size_sqft', 'preferredArea',
   'moveInTimeline', 'budgetMin', 'budgetMax',
+  'currency', 'deposit', 'min_stay', 'utilities_included', 'furnished', 'country', 'roommate_prefs',
 ])
-const LISTING_JSON_FIELDS = new Set(['images', 'amenities', 'tags'])
+const LISTING_JSON_FIELDS = new Set(['images', 'amenities', 'tags', 'roommate_prefs'])
 
 app.put('/listings/:id', async (c) => {
   try {
@@ -500,9 +508,14 @@ app.put('/listings/:id', async (c) => {
                 : k === 'neighborhood' ? 'neighborhood_id'
                 : k
       if (!LISTING_COLUMNS.has(col)) continue
-      mapped[col] = LISTING_JSON_FIELDS.has(col)
-        ? (typeof v === 'string' ? v : JSON.stringify(v ?? []))
-        : v
+      if (LISTING_JSON_FIELDS.has(col)) {
+        const empty = col === 'roommate_prefs' ? {} : []
+        mapped[col] = typeof v === 'string' ? v : JSON.stringify(v ?? empty)
+      } else if (col === 'utilities_included') {
+        mapped[col] = v ? 1 : 0
+      } else {
+        mapped[col] = v
+      }
     }
     mapped['updated_at'] = new Date().toISOString()
     if (Object.keys(mapped).length <= 1) return dbJson(c, { success: true })
