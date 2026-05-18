@@ -65,6 +65,20 @@ export default defineConfig(async () => {
                 outDir: 'dist',
             }),
         ],
+        build: {
+            rollupOptions: {
+                external: [
+                    '@capacitor/push-notifications',
+                    '@capacitor/camera',
+                    '@capacitor/app',
+                    '@capacitor/keyboard',
+                    '@capacitor/core',
+                    '@capacitor/android',
+                    '@capacitor/ios',
+                    '@capacitor/cli',
+                ],
+            },
+        },
         server: {
             port: 3001,
             strictPort: true,
