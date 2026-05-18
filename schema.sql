@@ -134,11 +134,13 @@ CREATE TABLE IF NOT EXISTS neighborhoods (
 
 -- ── 6. threads ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS threads (
-  thread_id        TEXT PRIMARY KEY,
-  participants     TEXT NOT NULL,  -- JSON array of user_ids
-  listing_id       TEXT,
-  last_message_at  TEXT,
-  created_at       TEXT DEFAULT (datetime('now')),
+  thread_id            TEXT PRIMARY KEY,
+  participants         TEXT NOT NULL,  -- JSON array of user_ids
+  listing_id           TEXT,
+  last_message_at      TEXT,
+  last_message_preview TEXT,
+  is_archived          INTEGER DEFAULT 0,
+  created_at           TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (listing_id) REFERENCES listings(listing_id)
 );
 
@@ -149,6 +151,8 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_id        TEXT NOT NULL,
   content          TEXT NOT NULL,
   is_read          INTEGER DEFAULT 0,
+  read_at          TEXT,
+  photo_url        TEXT,
   created_at       TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (thread_id) REFERENCES threads(thread_id),
   FOREIGN KEY (sender_id) REFERENCES users(user_id)
@@ -389,10 +393,10 @@ INSERT OR IGNORE INTO cities (city_id, name, slug, country, state_province, lati
   ('city_detroit', 'Detroit', 'detroit', 'country_us', 'MI', 42.3314, -83.0458, 'https://images.unsplash.com/photo-1502174832274-bc1ec64c3963?auto=format&fit=crop&w=800&q=85', 1000, 187, 550, 1, 1, 1),
   ('city_st_louis', 'St. Louis', 'st-louis', 'country_us', 'MO', 38.6270, -90.1994, 'https://images.unsplash.com/photo-1471644865743-1623432420fd?auto=format&fit=crop&w=800&q=85', 1050, 143, 400, 1, 1, 0);
 
--- Admin users
-INSERT OR IGNORE INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, created_at, password_hash) VALUES
-  ('user_admin_1', 'admin@roommategroups.com', 'RG Admin', 'System Administrator', 'city_austin', 'id', 'admin', 'admin', 1, '2025-01-01T00:00:00Z', 'h_n7qt9z'),
-  ('user_admin_2', 'hello@roommategroups.com', 'roommategroups', 'Master Admin', 'city_austin', 'community', 'admin', 'admin', 1, '2026-04-24T00:00:00Z', 'h_sa5p9x');
+-- Admin users (password_hash set at first login via auth.js bootstrap — never seed a hash here)
+INSERT OR IGNORE INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, profileComplete, emailVerified, created_at) VALUES
+  ('user_admin_1', 'admin@roommategroups.com', 'RG Admin', 'System Administrator', 'city_austin', 'id', 'admin', 'admin', 1, 1, 1, '2025-01-01T00:00:00Z'),
+  ('user_admin_2', 'hello@roommategroups.com', 'roommategroups', 'Master Admin', 'city_austin', 'community', 'admin', 'admin', 1, 1, 1, '2026-04-24T00:00:00Z');
 
 -- FB Countries
 INSERT OR IGNORE INTO fb_countries (fb_country_id, country_name, created_at) VALUES

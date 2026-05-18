@@ -13,7 +13,7 @@ const app = new Hono<{ Bindings: Bindings }>()
 // ── CORS ─────────────────────────────────────────────────────
 app.use('*', cors({
   origin: (origin) => {
-    if (!origin) return '*'
+    if (!origin) return null  // Reject requests with no Origin (non-browser server-to-server)
     // Allow localhost, local IP (for emulators), and capacitor origins
     if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('10.0.2.2') || origin.startsWith('capacitor://')) return origin
     if (origin.includes('workers.dev') || origin.includes('roommategroups')) return origin
@@ -51,6 +51,14 @@ app.get('/r2-check', async (c) => {
 
 // ── R2: Upload a file (multipart/form-data) ──────────────────
 // POST /upload or POST /r2/upload  → { key, url, size, contentType }
+const ALLOWED_MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg':  'jpg',
+  'image/png':  'png',
+  'image/webp': 'webp',
+}
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5 MB
+
 async function handleUpload(c: any) {
   try {
     const formData = await c.req.formData()
@@ -60,25 +68,31 @@ async function handleUpload(c: any) {
       return c.json({ success: false, error: 'No file provided. Send field name: image' }, 400)
     }
 
-    const ext       = file.name.split('.').pop() || 'bin'
-    const key       = `uploads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-    const fileData  = await file.arrayBuffer()
+    // Validate MIME type against allowlist — never trust file.name extension
+    const mime = file.type.toLowerCase()
+    const ext = ALLOWED_MIME_TO_EXT[mime]
+    if (!ext) {
+      return c.json({ success: false, error: 'Invalid file type. Only JPEG, PNG, and WebP images are allowed.' }, 415)
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return c.json({ success: false, error: 'File too large. Maximum size is 5 MB.' }, 413)
+    }
+
+    // Random UUID filename — never use original filename
+    const key      = `uploads/${crypto.randomUUID()}.${ext}`
+    const fileData = await file.arrayBuffer()
 
     await c.env.BUCKET.put(key, fileData, {
-      httpMetadata: { contentType: file.type || 'application/octet-stream' },
+      httpMetadata: { contentType: mime },
     })
-
-    const publicUrl = `https://pub-${c.env.BUCKET.toString()}.r2.dev/${key}`
-    // Use a stable CDN-style URL pattern for the roommate-bucket
-    const url = `https://roommate-bucket.vibhurastogi98.workers.dev/${key}`
 
     return c.json({
       success: true,
       key,
-      url: `/r2/${key}`,         // relative — served via /r2 route
-      filename: file.name,
+      url: `/r2/${key}`,
       size: file.size,
-      contentType: file.type,
+      contentType: mime,
     }, 201)
   } catch (err) {
     const error = err as Error
@@ -189,6 +203,41 @@ function dbJson(c: any, data: any, status = 200) {
   return c.json(data, status, { 'Cache-Control': 'no-store, no-cache, must-revalidate' })
 }
 
+// ── Auth helpers ─────────────────────────────────────────────
+// The Bearer token is the session userId. Routes that mutate data
+// verify it is present and matches the resource owner or admin.
+function getRequestUserId(c: any): string | null {
+  const auth = c.req.header('Authorization') || ''
+  if (!auth.startsWith('Bearer ')) return null
+  const id = auth.slice(7).trim()
+  return id || null
+}
+
+async function requireAuth(c: any): Promise<string | null> {
+  const userId = getRequestUserId(c)
+  if (!userId) {
+    dbJson(c, { error: 'Authentication required' }, 401)
+    return null
+  }
+  return userId
+}
+
+async function requireAdmin(c: any): Promise<boolean> {
+  const userId = getRequestUserId(c)
+  if (!userId) { dbJson(c, { error: 'Authentication required' }, 401); return false }
+  try {
+    const user = await c.env.DB.prepare('SELECT role FROM users WHERE user_id = ?').bind(userId).first()
+    if (!user || (user as any).role !== 'admin') {
+      dbJson(c, { error: 'Forbidden' }, 403)
+      return false
+    }
+  } catch {
+    dbJson(c, { error: 'Authentication check failed' }, 500)
+    return false
+  }
+  return true
+}
+
 // ── AI Assist: Description Generator ────────────────────────
 app.get('/api/ai-assist', (c) => {
   return c.json({ 
@@ -252,6 +301,7 @@ app.post('/api/ai-assist', async (c) => {
 
 // ── D1: Users ────────────────────────────────────────────────
 app.get('/users', async (c) => {
+  if (!await requireAdmin(c)) return c.res
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM users LIMIT 1000').all()
     // Map D1 snake_case back to camelCase for frontend compatibility
@@ -281,9 +331,15 @@ app.get('/users', async (c) => {
 })
 
 app.post('/users', async (c) => {
+  const callerId = getRequestUserId(c)
+  if (!callerId) return dbJson(c, { error: 'Authentication required' }, 401)
   try {
     const body = await c.req.json()
     const id = body.user_id || `usr_${Date.now()}`
+    // Caller may only create their own user record (registration sync) unless admin
+    const callerRow = await c.env.DB.prepare('SELECT role FROM users WHERE user_id = ?').bind(callerId).first().catch(() => null)
+    const isAdmin = (callerRow as any)?.role === 'admin'
+    if (!isAdmin && id !== callerId) return dbJson(c, { error: 'Forbidden' }, 403)
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
       if (k === 'passwordHash') {
@@ -323,8 +379,14 @@ app.post('/users', async (c) => {
 })
 
 app.put('/users/:id', async (c) => {
+  const callerId = getRequestUserId(c)
+  if (!callerId) return dbJson(c, { error: 'Authentication required' }, 401)
+  const id = c.req.param('id')
+  if (callerId !== id) {
+    const callerRow = await c.env.DB.prepare('SELECT role FROM users WHERE user_id = ?').bind(callerId).first().catch(() => null)
+    if ((callerRow as any)?.role !== 'admin') return dbJson(c, { error: 'Forbidden' }, 403)
+  }
   try {
-    const id = c.req.param('id')
     const body = await c.req.json()
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
@@ -366,6 +428,7 @@ app.put('/users/:id', async (c) => {
 })
 
 app.delete('/users/:id', async (c) => {
+  if (!await requireAdmin(c)) return c.res
   try {
     const id = c.req.param('id')
     await c.env.DB.prepare('DELETE FROM users WHERE user_id = ?').bind(id).run()
@@ -376,12 +439,10 @@ app.delete('/users/:id', async (c) => {
 })
 
 app.post('/users/:id/block', async (c) => {
+  const blockerId = await requireAuth(c)
+  if (!blockerId) return c.res
   try {
     const blockedId = c.req.param('id')
-    const auth = c.req.header('Authorization')
-    const blockerId = auth?.startsWith('Bearer ') ? auth.slice(7) : null
-    
-    if (!blockerId) return dbJson(c, { error: 'Unauthorized' }, 401)
     
     const user = await c.env.DB.prepare('SELECT blocked_users FROM users WHERE user_id = ?').bind(blockerId).first()
     let blocked: string[] = []
@@ -425,6 +486,7 @@ app.get('/listings', async (c) => {
 })
 
 app.post('/listings', async (c) => {
+  if (!await requireAuth(c)) return c.res
   try {
     const body = await c.req.json()
     const id = body.listing_id || `list_${Date.now()}`
@@ -496,6 +558,7 @@ const LISTING_COLUMNS = new Set([
 const LISTING_JSON_FIELDS = new Set(['images', 'amenities', 'tags', 'roommate_prefs'])
 
 app.put('/listings/:id', async (c) => {
+  if (!await requireAuth(c)) return c.res
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
@@ -531,6 +594,7 @@ app.put('/listings/:id', async (c) => {
 })
 
 app.delete('/listings/:id', async (c) => {
+  if (!await requireAuth(c)) return c.res
   try {
     const id = c.req.param('id')
     await c.env.DB.prepare('DELETE FROM listings WHERE listing_id = ?').bind(id).run()
@@ -1112,6 +1176,7 @@ app.delete('/messages/:id', async (c) => {
 
 // ── D1: Reports ─────────────────────────────────────────────
 app.get('/reports', async (c) => {
+  if (!await requireAdmin(c)) return c.res
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM reports ORDER BY created_at DESC').all()
     return dbJson(c, results)
@@ -1121,6 +1186,7 @@ app.get('/reports', async (c) => {
 })
 
 app.post('/reports', async (c) => {
+  if (!await requireAuth(c)) return c.res
   try {
     const body = await c.req.json()
     const id = body.report_id || `rep_${Date.now()}`
@@ -1243,6 +1309,7 @@ app.delete('/notifications/:id', async (c) => {
 // ── D1: Bulk sync — admin pushes entire localStorage collection to D1 ─
 // POST /sync  { collection: 'cities'|'listings'|'posts'|'fb_cities', items: [...] }
 app.post('/sync', async (c) => {
+  if (!await requireAdmin(c)) return c.res
   try {
     const { collection, items } = await c.req.json() as { collection: string, items: any[] }
     if (!collection || !Array.isArray(items)) {
@@ -1275,6 +1342,7 @@ app.post('/sync', async (c) => {
 
 // ── D1: Admin Logs ───────────────────────────────────────────
 app.get('/admin_logs', async (c) => {
+  if (!await requireAdmin(c)) return c.res
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT 1000').all()
     return dbJson(c, results)
@@ -1302,6 +1370,7 @@ app.post('/admin_logs', async (c) => {
 
 // ── D1: User Queries ──────────────────────────────────────────
 app.get('/user_queries', async (c) => {
+  if (!await requireAdmin(c)) return c.res
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM user_queries ORDER BY created_at DESC').all()
     return dbJson(c, results)

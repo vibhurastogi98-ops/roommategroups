@@ -137,9 +137,20 @@ export function displayOneTap(onSuccess, onError) {
     const startOneTap = () => {
         window.google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
-            callback: (response) => {
-                const payload = decodeGoogleJwt(response.credential);
-                handleGoogleUser(payload, onSuccess, onError); // Reuse handleGoogleUser
+            callback: async (response) => {
+                // Verify the ID token server-side via Google's tokeninfo endpoint.
+                // This validates the signature and expiry — never trust atob() alone.
+                try {
+                    const verifyRes = await fetch(
+                        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(response.credential)}`
+                    );
+                    if (!verifyRes.ok) throw new Error('Token verification failed');
+                    const payload = await verifyRes.json();
+                    if (payload.aud !== GOOGLE_CLIENT_ID) throw new Error('Token audience mismatch');
+                    handleGoogleUser(payload, onSuccess, onError);
+                } catch (err) {
+                    onError?.('Google Sign-In verification failed. Please try again.');
+                }
             },
             cancel_on_tap_outside: false
         });

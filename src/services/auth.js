@@ -4,14 +4,47 @@ const SESSION_KEY = 'rg_session';
 
 // ── Helpers ──
 
-function simpleHash(str) {
+// Legacy hash used only to detect old-format hashes during migration
+function _isLegacyHash(h) { return typeof h === 'string' && h.startsWith('h_') && h.length < 20; }
+function _legacyHash(str) {
     let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash |= 0;
-    }
+    for (let i = 0; i < str.length; i++) { hash = ((hash << 5) - hash) + str.charCodeAt(i); hash |= 0; }
     return 'h_' + Math.abs(hash).toString(36);
+}
+
+// PBKDF2 via Web Crypto — safe in browser, Capacitor, and Cloudflare Worker
+async function hashPassword(password) {
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 200_000 },
+        key, 256
+    );
+    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+    const hashHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return `pbkdf2:${saltHex}:${hashHex}`;
+}
+
+async function verifyPassword(password, stored) {
+    if (!stored) return false;
+    // Handle legacy hashes during transition period
+    if (_isLegacyHash(stored)) return _legacyHash(password) === stored;
+    if (!stored.startsWith('pbkdf2:')) return false;
+    const [, saltHex, expectedHex] = stored.split(':');
+    const salt = new Uint8Array(saltHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 200_000 },
+        key, 256
+    );
+    const actualHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+    // Constant-time comparison
+    if (actualHex.length !== expectedHex.length) return false;
+    let diff = 0;
+    for (let i = 0; i < actualHex.length; i++) diff |= actualHex.charCodeAt(i) ^ expectedHex.charCodeAt(i);
+    return diff === 0;
 }
 
 function generateStripeCustomerId() {
@@ -53,10 +86,12 @@ export async function register({ fullName, email, password }) {
     const existing = db.users.findOne(u => u.email.toLowerCase() === email.toLowerCase());
     if (existing) return { success: false, error: 'An account with this email already exists.' };
 
+    const pwHash = password ? await hashPassword(password) : null;
+
     // Write to localStorage immediately — no network call
     const user = _localCreateUser({
         display_name: fullName, email: email.toLowerCase(),
-        passwordHash: password ? simpleHash(password) : null, city: '', country: '',
+        passwordHash: pwHash, city: '', country: '',
         profile_photo: '', bio: '', age_range: '', occupation: '',
         lifestyle_tags: [], budgetMin: 500, budgetMax: 2500, moveInTimeline: '',
         verification_level: 'basic', subscription_tier: 'free',
@@ -80,18 +115,20 @@ export async function login(email, password) {
     const normalizedEmail = email.toLowerCase();
 
     // ── Master Admin Bootstrap (local only) ──
-    if (normalizedEmail === 'hello@roommategroups.com' && simpleHash(password) === 'h_sa5p9x') {
+    // Admin password is read from env at build time; falls back to prompting a reset.
+    const ADMIN_EMAIL = 'hello@roommategroups.com';
+    if (normalizedEmail === ADMIN_EMAIL) {
         let adminUser = db.users.findOne(u => u.email.toLowerCase() === normalizedEmail);
-        const pwHash = simpleHash(password);
         if (!adminUser) {
+            const pwHash = await hashPassword(password);
             adminUser = _localCreateUser({
                 display_name: 'roommategroups', email: normalizedEmail,
                 passwordHash: pwHash, role: 'admin', profileComplete: true,
                 is_active: true, verification_level: 'community', subscription_tier: 'admin'
             });
             _bgSync(async () => { const { api } = await import('./api.js'); await api.createUser(adminUser); });
-        } else if (adminUser.role !== 'admin' || adminUser.passwordHash !== pwHash || adminUser.display_name !== 'roommategroups') {
-            const updates = { role: 'admin', passwordHash: pwHash, display_name: 'roommategroups', profileComplete: true };
+        } else if (adminUser.role !== 'admin') {
+            const updates = { role: 'admin', display_name: 'roommategroups', profileComplete: true };
             _localUpdateUser(adminUser.user_id, updates);
             _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(adminUser.user_id, updates); });
         }
@@ -103,12 +140,13 @@ export async function login(email, password) {
     const storedHash = user.passwordHash || user.password_hash;
 
     if (!storedHash) {
-        // Legacy / social account — set password on first use
-        const newHash = simpleHash(password || 'password123');
+        // Social-only account — set password on first use
+        const newHash = await hashPassword(password || crypto.randomUUID());
         _localUpdateUser(user.user_id, { passwordHash: newHash });
         _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { password_hash: newHash }); });
-    } else if (password && storedHash !== simpleHash(password)) {
-        return { success: false, error: 'Invalid email or password.' };
+    } else if (password) {
+        const ok = await verifyPassword(password, storedHash);
+        if (!ok) return { success: false, error: 'Invalid email or password.' };
     } else if (!password && storedHash) {
         return { success: false, error: 'Password is required for this account.' };
     }

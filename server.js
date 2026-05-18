@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import cors from "cors";
 import { fileURLToPath } from "url";
+import { randomUUID } from "crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,18 +40,21 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const MIME_TO_EXT = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
 // Multer storage configuration
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, _file, cb) => {
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
+  filename: (_req, file, cb) => {
+    // UUID filename — never use original filename or extension
+    const ext = MIME_TO_EXT[file.mimetype] || 'jpg';
+    cb(null, `${randomUUID()}.${ext}`);
   },
 });
 
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/svg+xml']);
+const ALLOWED_IMAGE_TYPES = new Set(Object.keys(MIME_TO_EXT));
 
 const upload = multer({
   storage: storage,
@@ -103,11 +107,33 @@ app.post("/api/upload", (req, res) => {
 // POST /api/send-email
 app.post("/api/send-email", async (req, res) => {
   const { to, subject, html } = req.body;
+
+  // Validate required fields and basic email format
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!to || !emailRe.test(String(to))) {
+    return res.status(400).json({ success: false, error: "Invalid or missing 'to' address." });
+  }
+  if (!subject || typeof subject !== "string" || subject.trim().length === 0) {
+    return res.status(400).json({ success: false, error: "Missing subject." });
+  }
+  if (!html || typeof html !== "string" || html.trim().length === 0) {
+    return res.status(400).json({ success: false, error: "Missing email body." });
+  }
+  // Only allow sending to known internal addresses or the user's own address
+  // (prevents open relay abuse — tighten this allowlist to your actual use cases)
+  const allowedDomains = ["roommategroups.com"];
+  const toDomain = String(to).split("@")[1]?.toLowerCase();
+  const isInternalDomain = allowedDomains.some(d => toDomain === d);
+  // Allow any address for contact-form replies (limit subject prefix to prevent abuse)
+  if (!subject.startsWith("RoommateGroups") && !isInternalDomain) {
+    return res.status(403).json({ success: false, error: "Forbidden." });
+  }
+
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to,
-      subject,
+      to: String(to).trim(),
+      subject: String(subject).trim().slice(0, 200),
       html,
     });
     res.json({ success: true });
