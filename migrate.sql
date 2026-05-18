@@ -29,32 +29,40 @@ PRAGMA foreign_keys = ON;
 
 -- ── 1. users ────────────────────────────────────────────────
 CREATE TABLE users (
-  user_id            TEXT PRIMARY KEY,
-  email              TEXT UNIQUE NOT NULL,
-  display_name       TEXT,
-  profile_photo      TEXT,
-  bio                TEXT,
-  city               TEXT,
-  country            TEXT,
-  age_range          TEXT,
-  occupation         TEXT,
-  lifestyle_tags     TEXT,
-  verification_level TEXT DEFAULT 'none',
-  subscription_tier  TEXT DEFAULT 'free',
-  stripe_customer_id TEXT,
-  saved_listings     TEXT,
-  saved_searches     TEXT,
-  blocked_users      TEXT,
-  password_hash      TEXT,
-  role               TEXT DEFAULT 'user',
-  is_active          INTEGER DEFAULT 1,
-  profileComplete    INTEGER DEFAULT 0,
-  emailVerified      INTEGER DEFAULT 1,
-  budgetMin          INTEGER,
-  budgetMax          INTEGER,
-  moveInTimeline     TEXT,
-  created_at         TEXT DEFAULT (datetime('now')),
-  last_active        TEXT
+  user_id              TEXT PRIMARY KEY,
+  email                TEXT UNIQUE NOT NULL,
+  display_name         TEXT,
+  profile_photo        TEXT,
+  bio                  TEXT,
+  city                 TEXT,
+  country              TEXT,
+  age_range            TEXT,
+  occupation           TEXT,
+  lifestyle_tags       TEXT,
+  verification_level   TEXT DEFAULT 'none',
+  subscription_tier    TEXT DEFAULT 'free',
+  stripe_customer_id   TEXT,
+  saved_listings       TEXT,
+  saved_searches       TEXT,
+  blocked_users        TEXT,
+  password_hash        TEXT,
+  role                 TEXT DEFAULT 'user',
+  is_active            INTEGER DEFAULT 1,
+  profileComplete      INTEGER DEFAULT 0,
+  emailVerified        INTEGER DEFAULT 1,
+  id_verified          INTEGER DEFAULT 0,
+  id_status            TEXT DEFAULT 'none',
+  id_reject_reason     TEXT,
+  verification_id_photo TEXT,
+  verification_selfie  TEXT,
+  phone_verified       INTEGER DEFAULT 0,
+  budgetMin            INTEGER,
+  budgetMax            INTEGER,
+  moveInTimeline       TEXT,
+  push_tokens          TEXT,
+  created_at           TEXT DEFAULT (datetime('now')),
+  updated_at           TEXT DEFAULT (datetime('now')),
+  last_active          TEXT
 );
 
 -- ── 2. countries ────────────────────────────────────────────
@@ -107,29 +115,44 @@ CREATE TABLE neighborhoods (
 
 -- ── 5. listings ─────────────────────────────────────────────
 CREATE TABLE listings (
-  listing_id      TEXT PRIMARY KEY,
-  user_id         TEXT NOT NULL,
-  title           TEXT,
-  description     TEXT,
-  city            TEXT,
-  neighborhood_id TEXT,
-  address         TEXT,
-  latitude        REAL,
-  longitude       REAL,
-  rent            REAL,
-  rent_type       TEXT,
-  room_type       TEXT,
-  bathrooms       INTEGER,
-  available_from  TEXT,
-  lease_term      TEXT,
-  amenities       TEXT,
-  tags            TEXT,
-  images          TEXT,
-  status          TEXT DEFAULT 'active',
-  is_featured     INTEGER DEFAULT 0,
-  view_count      INTEGER DEFAULT 0,
-  created_at      TEXT DEFAULT (datetime('now')),
-  updated_at      TEXT DEFAULT (datetime('now')),
+  listing_id        TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL,
+  title             TEXT,
+  description       TEXT,
+  city              TEXT,
+  neighborhood_id   TEXT,
+  address           TEXT,
+  latitude          REAL,
+  longitude         REAL,
+  rent              REAL,
+  rent_type         TEXT,
+  room_type         TEXT,
+  bathrooms         INTEGER,
+  available_from    TEXT,
+  lease_term        TEXT,
+  amenities         TEXT,
+  tags              TEXT,
+  images            TEXT,
+  status            TEXT DEFAULT 'active',
+  moderation_status TEXT DEFAULT 'approved',
+  rejection_reason  TEXT,
+  is_featured       INTEGER DEFAULT 0,
+  view_count        INTEGER DEFAULT 0,
+  bedrooms          INTEGER,
+  size_sqft         INTEGER,
+  preferredArea     TEXT,
+  moveInTimeline    TEXT,
+  budgetMin         INTEGER,
+  budgetMax         INTEGER,
+  currency          TEXT DEFAULT 'USD',
+  deposit           REAL DEFAULT 0,
+  min_stay          TEXT,
+  utilities_included INTEGER DEFAULT 0,
+  furnished         TEXT,
+  country           TEXT,
+  roommate_prefs    TEXT,
+  created_at        TEXT DEFAULT (datetime('now')),
+  updated_at        TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
@@ -211,22 +234,45 @@ CREATE TABLE categories (
 
 -- ── 13. posts (blog) ────────────────────────────────────────
 CREATE TABLE posts (
-  post_id        TEXT PRIMARY KEY,
-  slug           TEXT UNIQUE NOT NULL,
-  title          TEXT NOT NULL,
-  excerpt        TEXT,
-  category       TEXT,
-  author_name    TEXT,
-  author_avatar  TEXT,
-  author_bio     TEXT,
-  date_label     TEXT,
-  read_time      TEXT,
-  image          TEXT,
-  content        TEXT,
-  published_date TEXT,
-  is_published   INTEGER DEFAULT 0,
-  created_at     TEXT DEFAULT (datetime('now')),
-  updated_at     TEXT DEFAULT (datetime('now'))
+  post_id          TEXT PRIMARY KEY,
+  slug             TEXT UNIQUE NOT NULL,
+  title            TEXT NOT NULL,
+  excerpt          TEXT,
+  category         TEXT,
+  author_name      TEXT,
+  author_avatar    TEXT,
+  author_bio       TEXT,
+  date_label       TEXT,
+  read_time        TEXT,
+  image            TEXT,
+  content          TEXT,
+  published_date   TEXT,
+  is_published     INTEGER DEFAULT 0,
+  seoTitle         TEXT,
+  seoDescription   TEXT,
+  focusKeyword     TEXT,
+  canonicalUrl     TEXT,
+  metaRobots       TEXT DEFAULT 'index,follow',
+  ogTitle          TEXT,
+  ogDescription    TEXT,
+  ogImage          TEXT,
+  imgAlt           TEXT,
+  imgTitle         TEXT,
+  imgCaption       TEXT,
+  tocEnabled       INTEGER DEFAULT 0,
+  faqs             TEXT,
+  tags             TEXT,
+  ctaHeading       TEXT,
+  ctaText          TEXT,
+  ctaBtnText       TEXT,
+  ctaBtnLink       TEXT,
+  ctaPosition      TEXT DEFAULT 'bottom',
+  schemaType       TEXT DEFAULT 'BlogPosting',
+  schemaText       TEXT,
+  redirectFrom     TEXT,
+  redirectTo       TEXT,
+  created_at       TEXT DEFAULT (datetime('now')),
+  updated_at       TEXT DEFAULT (datetime('now'))
 );
 
 -- ── 14. fb_countries ────────────────────────────────────────
@@ -254,14 +300,22 @@ CREATE TABLE fb_cities (
   FOREIGN KEY (country_id) REFERENCES fb_countries(fb_country_id)
 );
 
--- ── 16. user_queries ────────────────────────────────────────
+-- ── 16. user_queries (contact/support tickets) ──────────────
 CREATE TABLE user_queries (
   query_id     TEXT PRIMARY KEY,
   user_id      TEXT,
-  query_text   TEXT,
-  filters      TEXT,
-  result_count INTEGER,
-  created_at   TEXT DEFAULT (datetime('now'))
+  first_name   TEXT,
+  last_name    TEXT,
+  email        TEXT,
+  topic        TEXT,
+  topic_label  TEXT,
+  message      TEXT,
+  status       TEXT DEFAULT 'new',
+  is_read      INTEGER DEFAULT 0,
+  reply        TEXT,
+  replied_at   TEXT,
+  created_at   TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 -- ── 17. notifications ───────────────────────────────────────
@@ -358,9 +412,10 @@ INSERT INTO cities (city_id, name, slug, country, state_province, latitude, long
   ('city_detroit',     'Detroit',       'detroit',       'country_us', 'MI',  42.3314,  -83.0458,  'https://images.unsplash.com/photo-1502174832274-bc1ec64c3963?auto=format&fit=crop&w=800&q=85',   1000, 187,  550,  1, 1, 1),
   ('city_st_louis',    'St. Louis',     'st-louis',      'country_us', 'MO',  38.6270,  -90.1994,  'https://images.unsplash.com/photo-1471644865743-1623432420fd?auto=format&fit=crop&w=800&q=85',   1050, 143,  400,  1, 1, 0);
 
-INSERT INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, profileComplete, emailVerified, created_at, password_hash) VALUES
-  ('user_admin_1', 'admin@roommategroups.com',  'RG Admin',        'System Administrator', 'city_austin', 'id',        'admin', 'admin', 1, 1, 1, '2025-01-01T00:00:00Z', 'h_n7qt9z'),
-  ('user_admin_2', 'hello@roommategroups.com', 'roommategroups', 'Master Admin',          'city_austin', 'community', 'admin', 'admin', 1, 1, 1, '2026-04-24T00:00:00Z', 'h_sa5p9x');
+-- Admin password_hash is set at first login — never seed a hash in migrations
+INSERT INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, profileComplete, emailVerified, created_at) VALUES
+  ('user_admin_1', 'admin@roommategroups.com',  'RG Admin',       'System Administrator', 'city_austin', 'id',        'admin', 'admin', 1, 1, 1, '2025-01-01T00:00:00Z'),
+  ('user_admin_2', 'hello@roommategroups.com', 'roommategroups', 'Master Admin',          'city_austin', 'community', 'admin', 'admin', 1, 1, 1, '2026-04-24T00:00:00Z');
 
 INSERT INTO fb_countries (fb_country_id, country_name, created_at) VALUES
   ('fbc_1', 'United States',  '2026-01-01T00:00:00Z'),

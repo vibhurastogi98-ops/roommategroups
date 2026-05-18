@@ -38,10 +38,9 @@ ALTER TABLE messages ADD COLUMN read_at TEXT;
 -- ── Update existing admin accounts to mark profileComplete=1 ──
 UPDATE users SET profileComplete = 1, emailVerified = 1 WHERE role = 'admin';
 
--- Ensure master admin exists with correct role and password_hash
-INSERT OR IGNORE INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, profileComplete, emailVerified, created_at, password_hash)
-VALUES ('user_admin_2', 'hello@roommategroups.com', 'roommategroups', 'Master Admin', 'city_austin', 'community', 'admin', 'admin', 1, 1, 1, '2026-04-24T00:00:00Z', 'h_sa5p9x');
+-- Ensure master admin exists with correct role (password set at first login)
+INSERT OR IGNORE INTO users (user_id, email, display_name, bio, city, verification_level, subscription_tier, role, is_active, profileComplete, emailVerified, created_at)
+VALUES ('user_admin_2', 'hello@roommategroups.com', 'roommategroups', 'Master Admin', 'city_austin', 'community', 'admin', 'admin', 1, 1, 1, '2026-04-24T00:00:00Z');
 
--- Update master admin role/hash if they already exist but role was wrong
-UPDATE users SET role = 'admin', profileComplete = 1, password_hash = 'h_sa5p9x'
-WHERE email = 'hello@roommategroups.com';
+-- Fix role if previously set incorrectly
+UPDATE users SET role = 'admin', profileComplete = 1 WHERE email = 'hello@roommategroups.com';
