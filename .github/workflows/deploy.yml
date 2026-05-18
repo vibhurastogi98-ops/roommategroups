@@ -35,15 +35,17 @@ jobs:
           echo "Checking wrangler..."
           npx wrangler --version || true
 
-      - name: Test Cloudflare authentication (debug)
+      - name: Verify Cloudflare Token Configuration
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           if [ -z "${CF_API_TOKEN}" ]; then
-            echo "No Cloudflare token found in secrets"
-            exit 0
+            echo "::error::The GitHub Secret 'CLOUDFLARE_API_TOKEN' is missing or empty."
+            echo "Please go to Settings > Secrets and variables > Actions in your GitHub repository, and add a new Repository Secret named CLOUDFLARE_API_TOKEN."
+            exit 1
           fi
-          npx wrangler whoami --api-token "$CF_API_TOKEN" || echo "wrangler whoami failed"
+          echo "Cloudflare API Token is configured. Verifying identity..."
+          npx wrangler whoami --api-token "$CF_API_TOKEN"
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
