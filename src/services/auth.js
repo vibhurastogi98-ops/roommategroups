@@ -110,7 +110,7 @@ export async function register({ fullName, email, password }) {
     // Background D1 sync — never blocks
     _bgSync(async () => {
         const { api } = await import('./api.js');
-        await api.createUser(user);
+        await api.createUser(user, true);
     });
 
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
@@ -131,11 +131,11 @@ export async function login(email, password) {
                 passwordHash: pwHash, role: 'admin', profileComplete: true,
                 is_active: true, verification_level: 'community', subscription_tier: 'admin'
             });
-            _bgSync(async () => { const { api } = await import('./api.js'); await api.createUser(adminUser); });
+            _bgSync(async () => { const { api } = await import('./api.js'); await api.createUser(adminUser, true); });
         } else if (adminUser.role !== 'admin') {
             const updates = { role: 'admin', display_name: 'roommategroups', profileComplete: true };
             _localUpdateUser(adminUser.user_id, updates);
-            _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(adminUser.user_id, updates); });
+            _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(adminUser.user_id, updates, true); });
         }
     }
 
@@ -148,7 +148,7 @@ export async function login(email, password) {
         // Social-only account — set password on first use
         const newHash = await hashPassword(password || crypto.randomUUID());
         _localUpdateUser(user.user_id, { passwordHash: newHash });
-        _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { password_hash: newHash }); });
+        _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { password_hash: newHash }, true); });
     } else if (password) {
         const ok = await verifyPassword(password, storedHash);
         if (!ok) return { success: false, error: 'Invalid email or password.' };
@@ -162,7 +162,7 @@ export async function login(email, password) {
     _setSession(user);
 
     // Background D1 sync — never blocks login
-    _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { last_active: now }); });
+    _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { last_active: now }, true); });
 
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
 }
@@ -179,10 +179,27 @@ export function getCurrentUser() {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     if (!session) return null;
 
+    if (isTokenExpired(localStorage.getItem('token') || session.token || '')) {
+        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem('token');
+        return null;
+    }
+
     const user = db.users.findById(session.userId);
     if (!user) return null;
 
     return { ...user, id: user.user_id, fullName: user.display_name };
+}
+
+function isTokenExpired(token) {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    try {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        return payload.exp && Date.now() >= payload.exp * 1000;
+    } catch (e) {
+        return false;
+    }
 }
 
 export async function updateProfile(userId, profileData) {
@@ -240,7 +257,21 @@ export function isLoggedIn() {
 
 export function isAdmin() {
     const user = getCurrentUser();
+    const jwtRole = getTokenRole();
+    if (jwtRole) return user !== null && jwtRole === 'admin';
     return user !== null && user.role === 'admin';
+}
+
+function getTokenRole() {
+    const token = localStorage.getItem('token') || '';
+    const parts = token.split('.');
+    if (parts.length !== 3) return '';
+    try {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        return payload.role || '';
+    } catch (e) {
+        return '';
+    }
 }
 
 // ── Password Strength ──

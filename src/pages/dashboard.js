@@ -1,7 +1,8 @@
-import { getCurrentUser, logout, getVerificationBadge, isAdmin } from '../services/auth.js';
+import { getCurrentUser, logout, getVerificationBadge, isAdmin, changePassword } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db, syncMessagesAndThreads } from '../services/db.js';
 import { getTotalUnread, getUnreadCountForThread } from '../services/messaging.js';
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
 // Module-level timers so they survive re-renders and can be cleared properly
 let _msgPollingTimer = null;
@@ -52,15 +53,16 @@ export function renderDashboardPage(app) {
 
     let viewName = 'overview';
     if (currentPath === '/dashboard/listings') viewName = 'listings';
-    if (currentPath === '/dashboard/messages') viewName = 'messages';
+    if (currentPath === '/dashboard/messages' || currentPath === '/dashboard/archived-chats' || currentPath === '/archived-chats') viewName = 'messages';
     if (currentPath === '/dashboard/saved') viewName = 'saved';
     if (currentPath === '/dashboard/searches') viewName = 'searches';
     if (currentPath === '/dashboard/verification') viewName = 'verification';
     if (currentPath === '/dashboard/subscription') viewName = 'subscription';
-    if (currentPath === '/dashboard/settings') viewName = 'settings';
-    if (currentPath === '/dashboard/notifications') viewName = 'notifications';
+    if (currentPath === '/dashboard/settings' || currentPath === '/settings') viewName = 'settings';
+    if (currentPath === '/dashboard/notifications' || currentPath === '/notifications') viewName = 'notifications';
+    if (currentPath === '/dashboard/blocked-users' || currentPath === '/blocked-users') viewName = 'blocked';
 
-    const avatarSrc = dbUser.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(dbUser.display_name) + '&background=1B4F72&color=fff&size=80');
+    const avatarSrc = getAvatarUrl(dbUser.profile_photo, dbUser.display_name);
     const tierKey = dbUser.subscription_tier || 'free';
     const tierLabels = { free: 'Free', basic: 'Basic', premium: 'Premium', pro: 'Pro', admin: 'Admin' };
 
@@ -103,6 +105,7 @@ export function renderDashboardPage(app) {
         navLink('/dashboard/verification', 'fa-shield-halved', 'Verification', 'verification', getVerificationStatusBadge(dbUser)),
         navLink('/dashboard/subscription', 'fa-credit-card', 'Subscription', 'subscription'),
         navLink('/dashboard/settings', 'fa-gear', 'Settings', 'settings'),
+        navLink('/dashboard/blocked-users', 'fa-ban', 'Blocked Users', 'blocked'),
         (isAdmin() ? '<div class="sidebar-nav-section">Admin</div>' + navLink('/admin', 'fa-lock', 'Admin Panel', '') : ''),
         '</nav>',
         '<div class="sidebar-footer">',
@@ -141,6 +144,7 @@ export function renderDashboardPage(app) {
         case 'subscription': renderSubscription(contentArea, dbUser); break;
         case 'settings': renderSettings(contentArea, dbUser); break;
         case 'notifications': renderNotifications(contentArea, dbUser); break;
+        case 'blocked': renderBlockedUsers(contentArea, dbUser); break;
     }
 
     app.querySelector('#btn-signout').addEventListener('click', async () => {
@@ -222,6 +226,12 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function parseArray(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') { try { return JSON.parse(value || '[]'); } catch (e) { return []; } }
+    return [];
 }
 
 function showToast(message, type = 'success') {
@@ -380,7 +390,7 @@ function renderOverview(container, user) {
 // ── My Listings ────────────────────────────────────────────────
 
 function renderMyListings(container, user) {
-    const allListings = db.listings.find(l => l.user_id === user.user_id)
+    const allListings = db.listings.find(l => l.user_id === user.user_id && l.status !== 'deleted')
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     let activeFilter = 'all'; // 'all' | 'active' | 'paused'
@@ -401,7 +411,8 @@ function renderMyListings(container, user) {
             const _imgs = l.images || l.photos || [];
             const parsedImgs = typeof _imgs === 'string' ? JSON.parse(_imgs || '[]') : _imgs;
             const rawPhoto = parsedImgs && parsedImgs[0];
-            const thumbSrc = !rawPhoto ? '' : (typeof rawPhoto === 'string' ? rawPhoto : (rawPhoto.thumb || rawPhoto.medium || rawPhoto.full || ''));
+            const rawThumbSrc = !rawPhoto ? '' : (typeof rawPhoto === 'string' ? rawPhoto : (rawPhoto.thumb || rawPhoto.medium || rawPhoto.full || ''));
+            const thumbSrc = rawThumbSrc ? getAssetUrl(rawThumbSrc) : '';
             const thumb = thumbSrc ? 'background-image:url(\'' + thumbSrc + '\')' : '';
             const rentPrice = l.rent ?? l.price ?? '?';
             return [
@@ -482,11 +493,10 @@ function renderMyListings(container, user) {
                 const l = db.listings.findById(btn.dataset.id);
                 if (!l) return;
                 if (!confirm('Delete "' + l.title + '"? This cannot be undone.')) return;
-                // Remove from db
-                db.listings.delete(btn.dataset.id);
-                // Remove from local array
+                const updates = { status: 'deleted', is_active: false, deleted_at: new Date().toISOString() };
+                db.listings.update(btn.dataset.id, updates);
                 const idx = allListings.findIndex(x => x.listing_id === btn.dataset.id);
-                if (idx > -1) allListings.splice(idx, 1);
+                if (idx > -1) allListings[idx] = { ...allListings[idx], ...updates };
                 showToast('Listing deleted.');
                 rerender();
             });
@@ -494,9 +504,7 @@ function renderMyListings(container, user) {
 
         container.querySelectorAll('.action-edit').forEach(btn => {
             btn.addEventListener('click', () => {
-                const l = db.listings.findById(btn.dataset.id);
-                if (!l) return;
-                openEditModal(l);
+                navigate('/post-listing/' + btn.dataset.id);
             });
         });
     }
@@ -632,7 +640,7 @@ function renderMessages(container, user, app) {
     const urlParams = new URLSearchParams(window.location.search);
     const requestedThreadId = urlParams.get('threadId');
 
-    let activeTab = 'all';
+    let activeTab = (window.location.pathname === '/dashboard/archived-chats' || window.location.pathname === '/archived-chats') ? 'archived' : 'all';
     let activeThreadId = requestedThreadId || null;
     let searchQuery = '';
 
@@ -678,7 +686,7 @@ function renderMessages(container, user, app) {
             const li = db.listings.findById(t.listing_id);
             const unread = getUnreadCountForThread(t.thread_id, user.user_id);
             const isActive = t.thread_id === activeThreadId;
-            const src = ou.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(ou.display_name) + '&background=6366f1&color=fff&size=80');
+            const src = getAvatarUrl(ou.profile_photo, ou.display_name);
             return [
                 '<div class="msg-thread-card ' + (isActive ? 'active' : '') + ' ' + (unread > 0 ? 'has-unread' : '') + '" data-tid="' + t.thread_id + '">',
                 '<div class="msg-tc-avatar-wrap">',
@@ -724,7 +732,11 @@ function renderMessages(container, user, app) {
         const ouId = thread.participants.find(id => id !== user.user_id);
         const ou = db.users.findById(ouId) || { display_name: 'User', profile_photo: '', verification_level: 'basic' };
         const li = db.listings.findById(thread.listing_id);
-        const src = ou.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(ou.display_name) + '&background=6366f1&color=fff&size=80');
+        const listingPrice = li ? (li.rent ?? li.price) : null;
+        const listingPriceLabel = listingPrice !== undefined && listingPrice !== null && listingPrice !== ''
+            ? '$' + Number(listingPrice).toLocaleString() + '/mo'
+            : 'Price TBC';
+        const src = getAvatarUrl(ou.profile_photo, ou.display_name);
 
         // Mark unread messages as read
         db.messages.find(m => m.thread_id === activeThreadId && m.sender_id !== user.user_id && !m.is_read).forEach(m => {
@@ -740,7 +752,8 @@ function renderMessages(container, user, app) {
             const isMe = m.sender_id === user.user_id;
             const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const receipt = isMe ? '<span class="msg-receipt ' + (m.is_read ? 'read' : '') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
-            const photo = m.photo_url ? '<div class="msg-photo-wrap"><img src="' + m.photo_url + '" class="msg-photo-thumb" alt="Message Attachment" loading="lazy" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + m.photo_url + '\'"></div>' : '';
+            const messagePhoto = m.photo_url ? getAssetUrl(m.photo_url) : '';
+            const photo = messagePhoto ? '<div class="msg-photo-wrap"><img src="' + messagePhoto + '" class="msg-photo-thumb" alt="Message Attachment" loading="lazy" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + messagePhoto + '\'"></div>' : '';
             const text = m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '';
             return [
                 '<div class="msg-bubble-row ' + (isMe ? 'msg-out' : 'msg-in') + '" data-mid="' + m.message_id + '">',
@@ -760,7 +773,7 @@ function renderMessages(container, user, app) {
             '<a href="/profile/' + ouId + '" class="msg-hdr-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-hdr-avatar" alt="' + escapeHtml(ou.display_name) + ' Avatar" loading="lazy"></a>',
             '<div class="msg-header-info">',
             '<div class="msg-header-name"><a href="/profile/' + ouId + '" class="msg-hdr-name-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou.verification_level) + '</div>',
-            li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing" onclick="event.preventDefault(); window.navigate(\'/listing/' + li.listing_id + '\')"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; $' + (li.rent ?? li.price ?? '?') + '/mo</a>' : '',
+            li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing" onclick="event.preventDefault(); window.navigate(\'/listing/' + li.listing_id + '\')"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; ' + listingPriceLabel + '</a>' : '',
             '</div>',
             '</div>',
             '<div class="msg-header-right">',
@@ -886,6 +899,12 @@ function renderMessages(container, user, app) {
         panel.querySelector('#msg-block-btn')?.addEventListener('click', () => {
             if (confirm('Block ' + ou.display_name + '? They cannot message you.')) {
                 db.threads.update(activeThreadId, { blocked_by: user.user_id });
+                const blocked = parseArray(user.blocked_users);
+                if (!blocked.includes(ouId)) {
+                    blocked.push(ouId);
+                    db.users.update(user.user_id, { blocked_users: blocked });
+                    user.blocked_users = blocked;
+                }
                 showToast('User blocked successfully.');
             }
             dropdown.style.display = 'none';
@@ -902,7 +921,13 @@ function renderMessages(container, user, app) {
 
         // Quick replies
         panel.querySelectorAll('.qr-chip').forEach(chip => {
-            chip.addEventListener('click', () => { if (textInput) { textInput.value = chip.dataset.text; textInput.focus(); } });
+            chip.addEventListener('click', () => {
+                if (textInput) {
+                    textInput.value = chip.dataset.text;
+                    textInput.focus();
+                    doSend();
+                }
+            });
         });
 
         // Auto-grow textarea
@@ -934,21 +959,27 @@ function renderMessages(container, user, app) {
                 if (warn) warn.style.display = 'flex';
             }
 
-            // Optimistic UI
+            sendBtn.disabled = true;
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             appendBubble(content, time, '');
             textInput.value = '';
             textInput.style.height = 'auto';
 
-            const newMsg = await db.messages.create({ thread_id: activeThreadId, sender_id: user.user_id, content, photo_url: null, is_read: false, read_at: null });
-            const t = db.threads.findById(activeThreadId);
-            await db.threads.update(activeThreadId, {
-                last_message_at: new Date().toISOString(),
-                last_message_preview: content.substring(0, 80),
-                ['unread_count_' + ouId]: (t['unread_count_' + ouId] || 0) + 1,
-            });
-
-            refreshThreadList();
+            try {
+                const t = db.threads.findById(activeThreadId);
+                await db.messages.create({ thread_id: activeThreadId, sender_id: user.user_id, content, photo_url: null, is_read: false, read_at: null });
+                await db.threads.update(activeThreadId, {
+                    last_message_at: new Date().toISOString(),
+                    last_message_preview: content.substring(0, 80),
+                    ['unread_count_' + ouId]: (t['unread_count_' + ouId] || 0) + 1,
+                });
+                refreshThreadList();
+            } catch (err) {
+                showToast('Message failed to send. Please try again.', 'error');
+                renderConversationHistoryOnly();
+            } finally {
+                sendBtn.disabled = false;
+            }
         }
 
         // File attachment
@@ -988,9 +1019,9 @@ function renderMessages(container, user, app) {
         '<div class="msg-sidebar-title-row"><h2>Messages</h2>' + (totalUnread > 0 ? '<span class="badge badge-primary">' + totalUnread + '</span>' : '') + '</div>',
         '<div class="msg-search-wrap"><i class="fa-solid fa-magnifying-glass msg-search-icon"></i><input type="text" id="msg-search" class="msg-search-input" placeholder="Search conversations..."></div>',
         '<div class="msg-tabs">',
-        '<button class="msg-tab active" data-tab="all">All</button>',
-        '<button class="msg-tab" data-tab="unread">Unread</button>',
-        '<button class="msg-tab" data-tab="archived">Archived</button>',
+        '<button class="msg-tab ' + (activeTab === 'all' ? 'active' : '') + '" data-tab="all">All</button>',
+        '<button class="msg-tab ' + (activeTab === 'unread' ? 'active' : '') + '" data-tab="unread">Unread</button>',
+        '<button class="msg-tab ' + (activeTab === 'archived' ? 'active' : '') + '" data-tab="archived">Archived</button>',
         '</div>',
         '</div>',
         '<div class="msg-thread-list" id="msg-thread-list"></div>',
@@ -1052,7 +1083,8 @@ function renderMessages(container, user, app) {
             const isMe = m.sender_id === user.user_id;
             const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const receipt = isMe ? '<span class="msg-receipt ' + (m.is_read ? 'read' : '') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
-            const photo = m.photo_url ? '<div class="msg-photo-wrap"><img src="' + m.photo_url + '" class="msg-photo-thumb" alt="Message Attachment" loading="lazy" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + m.photo_url + '\'"></div>' : '';
+            const messagePhoto = m.photo_url ? getAssetUrl(m.photo_url) : '';
+            const photo = messagePhoto ? '<div class="msg-photo-wrap"><img src="' + messagePhoto + '" class="msg-photo-thumb" alt="Message Attachment" loading="lazy" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + messagePhoto + '\'"></div>' : '';
             const text = m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '';
             
             // Mark as read while we are at it
@@ -1062,7 +1094,7 @@ function renderMessages(container, user, app) {
 
             return [
                 '<div class="msg-bubble-row ' + (isMe ? 'msg-out' : 'msg-in') + '" data-mid="' + m.message_id + '">',
-                !isMe ? '<img src="' + (db.users.findById(m.sender_id)?.profile_photo || 'https://ui-avatars.com/api/?name=User&background=6366f1&color=fff') + '" class="msg-bubble-avatar" alt="Sender Avatar" loading="lazy">' : '',
+                !isMe ? '<img src="' + getAvatarUrl(db.users.findById(m.sender_id)?.profile_photo, 'User') + '" class="msg-bubble-avatar" alt="Sender Avatar" loading="lazy">' : '',
                 '<div class="msg-bubble-group">',
                 photo,
                 text,
@@ -1091,7 +1123,8 @@ function renderSaved(container, user) {
         const _imgs = l.images || l.photos || [];
         const parsedImgs = typeof _imgs === 'string' ? JSON.parse(_imgs || '[]') : _imgs;
         const rawPhoto0 = parsedImgs && parsedImgs[0];
-        const photo = !rawPhoto0 ? FALLBACK : (typeof rawPhoto0 === 'string' ? rawPhoto0 : (rawPhoto0.medium || rawPhoto0.thumb || rawPhoto0.full || FALLBACK));
+        const rawSavedPhoto = !rawPhoto0 ? FALLBACK : (typeof rawPhoto0 === 'string' ? rawPhoto0 : (rawPhoto0.medium || rawPhoto0.thumb || rawPhoto0.full || FALLBACK));
+        const photo = getAssetUrl(rawSavedPhoto);
         return [
             '<div class="saved-card">',
             '<div class="saved-card-img" style="background-image:url(\'' + photo + '\')">',
@@ -1221,7 +1254,7 @@ function renderSavedSearches(container, user) {
 // ── Settings ──────────────────────────────────────────────────
 
 function renderSettings(container, user) {
-    const avatarSrc = user.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(user.display_name) + '&background=1B4F72&color=fff&size=160');
+    const avatarSrc = getAvatarUrl(user.profile_photo, user.display_name);
     const notifPrefs = user.notification_prefs || { messages: true, matches: true, price_drops: true, digest: false };
     const privacyVal = user.profile_visibility || 'everyone';
 
@@ -1387,6 +1420,17 @@ function renderSettings(container, user) {
         '</select></div>',
         '</div>',
 
+        // ── Security panel ──
+        '<div class="db-panel">',
+        '<h3 class="panel-title"><i class="fa-solid fa-lock"></i> Security</h3>',
+        '<div class="form-group"><label>Current Password</label><input type="password" class="form-control" id="settings-current-password" autocomplete="current-password"></div>',
+        '<div class="form-group"><label>New Password</label><input type="password" class="form-control" id="settings-new-password" autocomplete="new-password" minlength="8"><div class="form-control-hint">Use at least 8 characters.</div></div>',
+        '<button class="btn btn-outline btn-sm" id="btn-change-password"><i class="fa-solid fa-key"></i> Change Password</button>',
+        '<h3 class="panel-title" style="margin-top:22px;"><i class="fa-solid fa-ban"></i> Blocked Users</h3>',
+        '<p style="color:var(--text-secondary);font-size:0.875rem;margin:0 0 12px;">Manage people you have blocked from conversations.</p>',
+        '<a href="/dashboard/blocked-users" class="btn btn-outline btn-sm" style="display:inline-flex;text-decoration:none;"><i class="fa-solid fa-list"></i> View Blocked Users</a>',
+        '</div>',
+
         // ── Danger zone ──
         '<div class="db-panel danger-zone-panel" style="grid-column:1 / -1;">',
         '<h3 class="panel-title"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h3>',
@@ -1438,6 +1482,27 @@ function renderSettings(container, user) {
         btn.style.background = '#333333';
         setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes'; btn.style.background = ''; }, 2400);
         showToast('Settings saved successfully.');
+    });
+
+    container.querySelector('#btn-change-password')?.addEventListener('click', async () => {
+        const btn = container.querySelector('#btn-change-password');
+        const current = container.querySelector('#settings-current-password').value;
+        const next = container.querySelector('#settings-new-password').value;
+        if (!next || next.length < 8) { showToast('New password must be at least 8 characters.', 'error'); return; }
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating...';
+        const res = await changePassword(user.user_id, current, next);
+        if (!res.success) {
+            showToast(res.error || 'Could not update password.', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-key"></i> Change Password';
+            return;
+        }
+        container.querySelector('#settings-current-password').value = '';
+        container.querySelector('#settings-new-password').value = '';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-key"></i> Change Password';
+        showToast('Password updated successfully.', 'success');
     });
 
     // Complete Profile — budget sliders
@@ -1508,6 +1573,9 @@ function renderSettings(container, user) {
     container.querySelector('#settings-photo-input').addEventListener('change', e => {
         const file = e.target.files[0];
         if (!file) return;
+        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowed.includes(file.type)) { showToast('Profile photo must be JPG, PNG, or WebP.', 'error'); return; }
+        if (file.size > 5 * 1024 * 1024) { showToast('Profile photo must be smaller than 5MB.', 'error'); return; }
         const reader = new FileReader();
         reader.onload = async ev => {
             const img = container.querySelector('#settings-avatar-img');
@@ -1524,7 +1592,7 @@ function renderSettings(container, user) {
         if (!confirm('Last warning — this is irreversible. Continue?')) return;
         db.listings.find(l => l.user_id === user.user_id).forEach(l => db.listings.delete(l.listing_id));
         db.users.delete(user.user_id);
-        localStorage.removeItem('rg_current_user');
+        logout();
         showToast('Account deleted. Redirecting…');
         setTimeout(() => { navigate('/'); }, 1500);
     });
@@ -1548,7 +1616,7 @@ function renderNotifications(container, user) {
                 const time = new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 return `
                 <div class="notif-card${n.is_read ? '' : ' notif-card-unread'}" data-nid="${n.notification_id}" style="display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:12px;border:1px solid var(--border);background:${n.is_read ? 'var(--surface)' : '#f0f4ff'};margin-bottom:10px;cursor:pointer;transition:box-shadow 0.15s;">
-                  ${n.image_url ? `<img src="${n.image_url}" alt="Notification Attachment" style="width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0;" loading="lazy">` : `<div style="width:42px;height:42px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-bell" style="color:#fff;font-size:1rem;"></i></div>`}
+                  ${n.image_url ? `<img src="${getAssetUrl(n.image_url)}" alt="Notification Attachment" style="width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0;" loading="lazy">` : `<div style="width:42px;height:42px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-bell" style="color:#fff;font-size:1rem;"></i></div>`}
                   <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                       <span style="font-weight:700;font-size:0.9rem;">${escapeHtml(n.title)}</span>
@@ -1590,6 +1658,69 @@ function renderNotifications(container, user) {
         container.querySelectorAll('.notif-delete-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 db.notifications.delete(btn.dataset.nid);
+                render();
+            });
+        });
+    }
+
+    render();
+}
+
+// ── Blocked Users ─────────────────────────────────────────────
+
+function renderBlockedUsers(container, user) {
+    function getBlockedIds() {
+        const direct = parseArray(user.blocked_users);
+        const fromThreads = db.threads.find(t => t.blocked_by === user.user_id).map(t => {
+            const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+            return parts.find(id => id !== user.user_id);
+        }).filter(Boolean);
+        return Array.from(new Set([...direct, ...fromThreads]));
+    }
+
+    function render() {
+        const blockedIds = getBlockedIds();
+        const blockedUsers = blockedIds.map(id => db.users.findById(id)).filter(Boolean);
+
+        container.innerHTML = `
+            <div class="dashboard-header-bar">
+                <h2>Blocked Users</h2>
+                <a href="/dashboard/settings" class="btn btn-outline btn-sm" style="text-decoration:none;"><i class="fa-solid fa-arrow-left"></i> Back to Settings</a>
+            </div>
+            <div class="db-panel" style="max-width:760px;">
+                ${blockedUsers.length === 0 ? `
+                    <div style="text-align:center;padding:56px 20px;color:var(--text-secondary);">
+                        <i class="fa-solid fa-ban" style="font-size:2.25rem;margin-bottom:16px;display:block;opacity:0.35;"></i>
+                        <h3 style="margin:0 0 8px;color:var(--text-primary);">No blocked users</h3>
+                        <p style="margin:0;">People you block from chat will appear here.</p>
+                    </div>
+                ` : blockedUsers.map(u => {
+                    const avatar = getAvatarUrl(u.profile_photo, u.display_name || 'User');
+                    return `
+                        <div class="blocked-user-row" style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+                            <img src="${escapeHtml(avatar)}" alt="${escapeHtml(u.display_name || 'User')} avatar" loading="lazy" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:800;color:var(--text-primary);">${escapeHtml(u.display_name || 'User')}</div>
+                                <div style="font-size:0.84rem;color:var(--text-secondary);">${escapeHtml(u.email || '')}</div>
+                            </div>
+                            <button class="btn btn-outline btn-sm unblock-user-btn" data-uid="${escapeHtml(u.user_id)}"><i class="fa-solid fa-lock-open"></i> Unblock</button>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+
+        container.querySelectorAll('.unblock-user-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const uid = btn.dataset.uid;
+                const nextBlocked = getBlockedIds().filter(id => id !== uid);
+                await db.users.update(user.user_id, { blocked_users: nextBlocked });
+                db.threads.find(t => {
+                    const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+                    return t.blocked_by === user.user_id && parts.includes(uid);
+                }).forEach(t => db.threads.update(t.thread_id, { blocked_by: null }));
+                user.blocked_users = nextBlocked;
+                showToast('User unblocked.', 'success');
                 render();
             });
         });

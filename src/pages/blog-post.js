@@ -3,6 +3,7 @@ import { getPostBySlug, getRelatedPosts, getBlogPosts, parseMarkdown } from '../
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { setSEO } from '../seo.js'; // SEO Update
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
 // ── Field normalizer ─────────────────────────────────────────
 // Works with both legacy blog-data.js shape and new CMS db.js shape
@@ -10,11 +11,11 @@ function norm(post) {
     const author = post.author || {};
     return {
         ...post,
-        _image:      post.featured_image || post.image || '',
+        _image:      post.featured_image || post.image ? getAssetUrl(post.featured_image || post.image) : '',
         _date:       post.published_date  || post.date  || '',
         _readTime:   post.readTime || '',
         _authorName: author.name  || post.author_name || 'RoommateGroups',
-        _authorAvatar: author.avatar || post.author_avatar || `https://i.pravatar.cc/150?u=${encodeURIComponent(author.name || 'rg')}`,
+        _authorAvatar: getAvatarUrl(author.avatar || post.author_avatar, author.name || post.author_name || 'RoommateGroups'),
         _authorBio:  author.bio   || post.author_bio  || '',
         _tags:       Array.isArray(post.tags) ? post.tags : [],
     };

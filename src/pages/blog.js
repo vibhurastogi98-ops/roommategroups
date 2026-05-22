@@ -3,16 +3,17 @@ import { getBlogPosts, getCategories } from '../services/blog-data.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { setSEO } from '../seo.js'; // SEO Update
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
 function norm(post) {
     const author = post.author || {};
     return {
         ...post,
-        _image:      post.featured_image || post.image || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&q=80&w=1200',
+        _image:      getAssetUrl(post.featured_image || post.image || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&q=80&w=1200'),
         _date:       post.published_date  || post.date  || '',
         _readTime:   post.readTime || '3 min read',
         _authorName: author.name  || post.author_name || 'RoommateGroups',
-        _authorAvatar: author.avatar || post.author_avatar || `https://i.pravatar.cc/150?u=${encodeURIComponent(author.name || 'rg')}`,
+        _authorAvatar: getAvatarUrl(author.avatar || post.author_avatar, author.name || post.author_name || 'RoommateGroups'),
         _authorBio:  author.bio   || post.author_bio  || '',
     };
 }

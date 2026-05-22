@@ -3,6 +3,7 @@ import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { navigate } from '../router.js';
 import { setSEO } from '../seo.js'; // SEO Update
+import { getAssetUrl } from '../services/assets.js';
 
 // ── Data ───────────────────────────────────────────
 
@@ -27,6 +28,7 @@ function renderListingCard(listing, index) {
   if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
   let photo = _imgs[0] || '';
   if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || '';
+  if (photo) photo = getAssetUrl(photo);
   const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
 
   return `
@@ -106,7 +108,7 @@ export function renderHomePage(app) {
     count: getLiveListingCount(c.city_id),
     country: db.countries.findById(c.country)?.name || c.country,
     state: c.state_province || '',
-    image: c.hero_image || '',
+    image: c.hero_image ? getAssetUrl(c.hero_image) : '',
     avg_rent: c.avg_rent || 0,
     members: c.member_count || 0,
   });
@@ -291,7 +293,7 @@ export function renderHomePage(app) {
                 <a href="/fb-groups/${slug}" class="hc-card animate-on-scroll" style="text-decoration:none;color:inherit;">
                   <div class="hc-img-wrap" style="display:block;">
                     ${g.city_image
-                      ? `<img src="${g.city_image}" alt="${g.fb_group_name || 'FB Group'}" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.add('hc-no-img');this.remove();">`
+                      ? `<img src="${getAssetUrl(g.city_image)}" alt="${g.fb_group_name || 'FB Group'}" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.add('hc-no-img');this.remove();">`
                       : `<div class="hc-placeholder"><i class="fab fa-facebook"></i></div>`}
                     <div class="hc-overlay"></div>
                   </div>

@@ -4,6 +4,7 @@ import { db, getLiveListingCount } from '../services/db.js';
 import { getTotalVisits, getTopSearchQueries, getZeroResultQueries } from '../services/analytics.js';
 import { uploadImage } from '../services/upload.js';
 import { parseMarkdown } from '../services/blog-data.js';
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
 // ─────────────────────────────────────────────────────────────
 // Admin Dashboard Entry Point
@@ -17,8 +18,8 @@ export function renderAdminPage(app) {
 
     const path = window.location.pathname || '/admin';
     let view = 'overview';
-    if (path === '/admin/listings') view = 'listings';
-    if (path === '/admin/users') view = 'users';
+    if (path === '/admin/listings' || path === '/admin/listing-moderation') view = 'listings';
+    if (path === '/admin/users' || path === '/admin/user-management') view = 'users';
     if (path === '/admin/reports') view = 'reports';
     if (path === '/admin/analytics') view = 'analytics';
     if (path === '/admin/cities') view = 'cities';
@@ -104,7 +105,7 @@ export function renderAdminPage(app) {
         '</div>',
         '<nav class="adm-nav">' + sidebarLinks + '</nav>',
         '<div class="adm-sidebar-footer">',
-        '<img src="https://ui-avatars.com/api/?name=' + encodeURIComponent(user.display_name) + '&background=6366f1&color=fff&size=40" class="adm-user-avatar">',
+        '<img src="' + getAvatarUrl(user.profile_photo, user.display_name) + '" class="adm-user-avatar">',
         '<div style="flex:1;min-width:0;"><div class="adm-user-name">' + escHtml(user.display_name) + '</div><div class="adm-user-role">Administrator</div></div>',
         '<button id="admin-logout-btn" class="adm-logout-btn" title="Sign Out"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>',
         '</div>',
@@ -421,7 +422,7 @@ function renderAdminOverview(container) {
         db.cities.findAll().sort((a, b) => (b.listing_count || 0) - (a.listing_count || 0)).slice(0, 5).map(c => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid #f1f5f9;">
                 <div style="display:flex;align-items:center;gap:12px;">
-                    <img src="${c.hero_image}" style="width:40px;height:30px;object-fit:cover;border-radius:4px;">
+                    <img src="${getAssetUrl(c.hero_image)}" style="width:40px;height:30px;object-fit:cover;border-radius:4px;">
                     <div>
                         <div style="font-weight:600;font-size:0.9rem;">${c.name}</div>
                         <div style="font-size:0.75rem;color:#64748b;">${c.listing_count || 0} listings</div>
@@ -574,6 +575,7 @@ function renderAdminListings(container) {
                 if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
                 let thumb = (_imgs && _imgs[0]) ? _imgs[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
                 if (typeof thumb === 'object' && thumb !== null) thumb = thumb.thumb || thumb.medium || thumb.full || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
+                thumb = getAssetUrl(thumb);
                 return [
                     '<div class="adm-listing-row' + (isSelected ? ' selected' : '') + '" data-id="' + l.listing_id + '">',
                     '<input type="checkbox" class="adm-row-check"' + (isSelected ? ' checked' : '') + ' data-id="' + l.listing_id + '">',
@@ -761,7 +763,7 @@ function renderAdminUsers(container) {
             const userCity = db.cities.findById(u.city) || db.cities.findOne(c => c.name === u.city);
             const userCountry = u.country ? db.countries.findById(u.country) : (userCity ? db.countries.findById(userCity.country) : null);
             const userListings = db.listings.find(l => l.user_id === u.user_id).length;
-            const src = u.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(u.display_name) + '&background=6366f1&color=fff&size=40');
+            const src = getAvatarUrl(u.profile_photo, u.display_name);
             const isDropOpen = dropdownFor === u.user_id;
             return [
                 '<tr class="adm-user-row">',
@@ -908,7 +910,7 @@ function renderAdminUsers(container) {
                 ${allUsers.map(u => `
                   <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 2px;font-size:0.85rem;">
                     <input type="checkbox" class="notif-user-cb" value="${u.user_id}" style="width:15px;height:15px;">
-                    <img src="${u.profile_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.display_name)}&background=6366f1&color=fff&size=32`}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;">
+                    <img src="${getAvatarUrl(u.profile_photo, u.display_name)}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;">
                     <span>${escHtml(u.display_name)}</span>
                     <span style="color:var(--text-secondary);font-size:0.75rem;">${escHtml(u.email)}</span>
                   </label>`).join('')}
@@ -1107,7 +1109,7 @@ function renderAdminVerifications(container) {
                         ? `<span class="badge badge-success"><i class="fas fa-check"></i> Approved</span>`
                         : `<span class="badge badge-danger"><i class="fas fa-times"></i> Rejected</span>`;
                 const avatar = u.profile_photo
-                    ? `<img src="${escHtml(u.profile_photo)}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;">`
+                    ? `<img src="${escHtml(getAvatarUrl(u.profile_photo, u.display_name))}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;">`
                     : `<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1a1a1a,#555555);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;">${(u.display_name || '?').charAt(0).toUpperCase()}</div>`;
                 const verifLevelIcon = { basic: '⚪', phone: '🔵', id: '🟣', community: '🌟' }[u.verification_level] || '⚪';
 
@@ -1577,7 +1579,7 @@ function renderAdminCities(container) {
                 // Hidden field to hold base64 upload data
                 '<input type="hidden" id="f-hero-data" value="' + (c.hero_image && typeof c.hero_image === 'string' && c.hero_image.startsWith('data:') ? escHtml(c.hero_image) : '') + '">',
                 // Preview
-                (c.hero_image ? '<img id="f-hero-preview" src="' + escHtml(c.hero_image) + '" style="margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;display:block;">' : '<img id="f-hero-preview" style="display:none;margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;">'),
+                (c.hero_image ? '<img id="f-hero-preview" src="' + escHtml(getAssetUrl(c.hero_image)) + '" style="margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;display:block;">' : '<img id="f-hero-preview" style="display:none;margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;">'),
                 '</div>',
                 '<div class="adm-form-group adm-form-full"><label>City Description (Living Guide)</label><textarea id="f-description" class="adm-textarea" style="height:150px;" placeholder="Describe the city, neighborhoods, and lifestyle...">' + escHtml(c.description || '') + '</textarea></div>',
                 '<div class="adm-form-group adm-form-full"><label>FAQ Items (JSON Format)</label><textarea id="f-faqs" class="adm-textarea" style="height:150px;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"question": "How is the rent?", "answer": "It varies..."}]\'>' + escHtml(JSON.stringify(c.faq_items || [], null, 2)) + '</textarea><p style="font-size:0.75rem;color:#64748b;margin-top:4px;">Format: Array of objects with "question" and "answer" keys.</p></div>',
@@ -1620,7 +1622,7 @@ function renderAdminCities(container) {
             return [
                 '<tr>',
                 '<td>',
-                c.hero_image ? '<img src="' + escHtml(c.hero_image) + '" style="width:48px;height:36px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:8px;" onerror="this.style.display=\'none\'">' : '',
+                c.hero_image ? '<img src="' + escHtml(getAssetUrl(c.hero_image)) + '" style="width:48px;height:36px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:8px;" onerror="this.style.display=\'none\'">' : '',
                 '<strong>' + escHtml(c.name) + '</strong><br><small class="text-muted">' + escHtml(c.slug) + '</small>',
                 '</td>',
                 '<td>' + (country ? escHtml((country.flag_emoji ? country.flag_emoji + ' ' : '') + country.name) : '—') + '</td>',
@@ -2178,7 +2180,7 @@ function renderAdminFBGroups(container) {
                 '<label class="adm-btn" style="cursor:pointer;margin:0;"><i class="fa-solid fa-upload"></i> Upload',
                 '<input type="file" id="fbg-city-image-file" accept="image/*" style="display:none;"></label>',
                 '</div>',
-                c.city_image ? '<img id="fbg-city-img-preview" src="' + escHtml(c.city_image) + '" style="margin-top:8px;max-height:100px;border-radius:8px;object-fit:cover;">' : '<img id="fbg-city-img-preview" style="display:none;margin-top:8px;max-height:100px;border-radius:8px;object-fit:cover;">',
+                c.city_image ? '<img id="fbg-city-img-preview" src="' + escHtml(getAssetUrl(c.city_image)) + '" style="margin-top:8px;max-height:100px;border-radius:8px;object-fit:cover;">' : '<img id="fbg-city-img-preview" style="display:none;margin-top:8px;max-height:100px;border-radius:8px;object-fit:cover;">',
                 '</div>',
                 '<div class="adm-form-group adm-form-full adm-form-actions">',
                 '<button class="btn btn-primary" id="fbg-city-save"><i class="fa-solid fa-floppy-disk"></i> ' + (editingCity ? 'Save Changes' : 'Add City') + '</button>',
@@ -2210,7 +2212,7 @@ function renderAdminFBGroups(container) {
             return [
                 '<tr>',
                 '<td>',
-                c.city_image ? '<img src="' + escHtml(c.city_image) + '" style="width:48px;height:36px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:8px;">' : '',
+                c.city_image ? '<img src="' + escHtml(getAssetUrl(c.city_image)) + '" style="width:48px;height:36px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:8px;">' : '',
                 '<strong>' + escHtml(c.city_name) + '</strong>',
                 '</td>',
                 '<td>' + (country ? escHtml(country.country_name) : '—') + '</td>',
@@ -4161,7 +4163,7 @@ function renderAdminImages(container) {
             ].join('') : images.map(img => [
                 '<div class="adm-image-card">',
                 '<div class="adm-img-preview-wrap">',
-                '<img src="' + img.url + '" alt="' + escHtml(img.filename) + '" loading="lazy">',
+                '<img src="' + getAssetUrl(img.url) + '" alt="' + escHtml(img.filename) + '" loading="lazy">',
                 '<div class="adm-img-overlay">',
                 '<button class="adm-img-btn" data-action="copy" data-url="' + img.url + '" title="Copy URL"><i class="fa-solid fa-link"></i></button>',
                 '<button class="adm-img-btn adm-img-btn-danger" data-action="delete" data-id="' + img.image_id + '" title="Delete Image"><i class="fa-solid fa-trash"></i></button>',

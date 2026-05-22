@@ -1,5 +1,10 @@
 import { getCurrentUser, isAdmin } from '../services/auth.js';
 import { navigate } from '../router.js';
+import { showToast } from '../services/ui.js';
+
+function getToken() {
+    return localStorage.getItem('token');
+}
 
 // Admin access control middleware
 export function requireAdmin() {
@@ -10,8 +15,9 @@ export function requireAdmin() {
         // console.log('[ADMIN MIDDLEWARE] User:', user?.email, 'role:', user?.role);
         
         // Check if user is logged in
-        if (!user) {
+        if (!getToken() || !user) {
             // console.log('[ADMIN MIDDLEWARE] No user found, redirecting to admin login');
+            sessionStorage.setItem('redirectAfterLogin', path);
             navigate('/admin-login');
             return false; // Block the route
         }
@@ -19,6 +25,7 @@ export function requireAdmin() {
         // Check if user has admin role
         if (!isAdmin()) {
             // console.log('[ADMIN MIDDLEWARE] User is not admin, redirecting to dashboard');
+            showToast('Admin access is required for that page.', 'error');
             navigate('/dashboard');
             return false; // Block the route
         }
@@ -33,8 +40,9 @@ export function requireAuth() {
     return async (path, params) => {
         const user = getCurrentUser();
         
-        if (!user) {
+        if (!getToken() || !user) {
             // console.log('[Auth] No user found, redirecting to login');
+            sessionStorage.setItem('redirectAfterLogin', path);
             navigate('/auth/login');
             return false; // Block the route
         }

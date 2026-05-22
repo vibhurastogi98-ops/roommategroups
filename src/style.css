@@ -215,6 +215,11 @@ ol {
   color: var(--primary);
 }
 
+.nav-links a.active {
+  color: var(--primary);
+  font-weight: 700;
+}
+
 .nav-links a::after {
   content: '';
   position: absolute;
@@ -228,6 +233,10 @@ ol {
 }
 
 .nav-links a:hover::after {
+  width: 100%;
+}
+
+.nav-links a.active::after {
   width: 100%;
 }
 
@@ -3248,6 +3257,71 @@ ol {
   background: var(--primary);
 }
 
+#rg-global-toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.rg-global-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  color: #fff;
+  background: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translateY(16px) scale(0.98);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: auto;
+}
+
+.rg-global-toast.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.rg-global-toast-success { background: var(--success); }
+.rg-global-toast-error { background: var(--error); }
+.rg-global-toast-warning { background: var(--warning); color: var(--text-primary); }
+.rg-global-toast-info { background: var(--primary); }
+
+.rg-global-toast span {
+  flex: 1;
+  min-width: 0;
+}
+
+.rg-global-toast-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.rg-global-toast-close:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.16);
+}
+
 /* ── Auth Responsive ── */
 
 @media (max-width: 640px) {
@@ -5749,6 +5823,7 @@ ol {
 .msg-bubble-row.msg-out {
   align-self: flex-end;
   flex-direction: row-reverse;
+  gap: 0;
 }
 
 .msg-bubble-avatar-link {
@@ -8174,6 +8249,7 @@ input:checked+.slider:before {
 .msg-bubble-row.msg-out {
   align-self: flex-end;
   flex-direction: row-reverse;
+  gap: 0;
 }
 
 .msg-bubble-avatar {

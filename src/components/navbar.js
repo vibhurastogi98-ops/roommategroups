@@ -2,13 +2,14 @@ import { getCurrentUser, isAdmin, logout } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { getTotalUnread } from '../services/messaging.js';
 import { db, syncMessagesAndThreads } from '../services/db.js';
+import { getAvatarUrl } from '../services/assets.js';
 
 export function getNavAuthButtons() {
     const user = getCurrentUser();
     if (user) {
         const fullName = user.fullName || user.display_name || 'User';
         const initials = fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        const profilePhoto = user.profile_photo || user.profilePhoto || '';
+        const profilePhoto = getAvatarUrl(user.profile_photo || user.profilePhoto, fullName);
         const adminBtn = isAdmin()
             ? `<a href="/admin" class="btn btn-outline" style="display:inline-flex;align-items:center;gap:6px;"><i class="fa-solid fa-shield-halved"></i> Admin</a>`
             : '';
@@ -63,6 +64,10 @@ export function getNavAuthButtons() {
 export function renderNavbar() {
     const path = window.location.pathname;
     const isHome = path === '/' || path === '';
+    const active = (target) => {
+        if (target === '/') return isHome ? ' active' : '';
+        return path === target || path.startsWith(target + '/') ? ' active' : '';
+    };
 
     return `
     <!-- SEO Update: semantic HTML -->
@@ -78,9 +83,9 @@ export function renderNavbar() {
           <a href="/#cities" class="nav-anchor" data-external="true">Cities</a>
           <a href="/#how-it-works" class="nav-anchor" data-external="true">How It Works</a>
           <a href="/#listings" class="nav-anchor" data-external="true">Listings</a>
-          <a href="/pricing">Pricing</a>
-          <a href="/blog">Blog</a>
-          <a href="/fb-groups" style="display:inline-flex;align-items:center;gap:5px;"><i class="fab fa-facebook" style="color:#1877f2;"></i> FB Groups</a>
+          <a href="/pricing" class="${active('/pricing').trim()}">Pricing</a>
+          <a href="/blog" class="${active('/blog').trim()}">Blog</a>
+          <a href="/fb-groups" class="${active('/fb-groups').trim()}" style="display:inline-flex;align-items:center;gap:5px;"><i class="fab fa-facebook" style="color:#1877f2;"></i> FB Groups</a>
         </div>
         <div class="nav-cta" id="nav-cta">
           ${getNavAuthButtons()}

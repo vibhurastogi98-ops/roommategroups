@@ -2,6 +2,7 @@ import { db } from '../services/db.js';
 import { navigate } from '../router.js';
 import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
 export function renderProfilePage(app, params) {
     const userId = params.id;
@@ -20,7 +21,7 @@ export function renderProfilePage(app, params) {
         return;
     }
 
-    const avatar = user.profile_photo || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(user.display_name) + '&background=6366f1&color=fff&size=200');
+    const avatar = getAvatarUrl(user.profile_photo, user.display_name);
     const verifiedIcon = getVerificationBadge(user);
     const currentUser = getCurrentUser();
 
@@ -106,7 +107,7 @@ export function renderProfilePage(app, params) {
                         <div class="prof-listings-grid">
                             ${listings.map(l => `
                                 <a href="/listing/${l.listing_id}" class="prof-listing-card">
-                                    <img src="${(() => { let _i = l.images || l.photos || []; if (typeof _i === 'string') { try { _i = JSON.parse(_i); } catch(e) { _i = []; } } let p = _i[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'; if (typeof p === 'object' && p !== null) return p.medium || p.thumb || p.full || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'; return p; })()}" class="plc-img">
+                                    <img src="${(() => { let _i = l.images || l.photos || []; if (typeof _i === 'string') { try { _i = JSON.parse(_i); } catch(e) { _i = []; } } let p = _i[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'; if (typeof p === 'object' && p !== null) p = p.medium || p.thumb || p.full || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'; return getAssetUrl(p); })()}" class="plc-img" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600';">
                                     <div class="plc-body">
                                         <div class="plc-price">$${l.rent ?? l.price ?? '?'}/mo</div>
                                         <div class="plc-title">${l.title}</div>

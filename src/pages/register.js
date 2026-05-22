@@ -1,5 +1,6 @@
 import { register, getPasswordStrength } from '../services/auth.js';
 import { navigate } from '../router.js';
+import { showToast } from '../services/ui.js';
 
 export function renderRegisterPage(app) {
     app.innerHTML = `
@@ -195,12 +196,4 @@ function clearAllErrors() {
         el.classList.remove('visible');
     });
     document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.textContent = message;
-    toast.className = `toast toast-${type} visible`;
-    setTimeout(() => toast.classList.remove('visible'), 4000);
 }

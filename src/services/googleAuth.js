@@ -124,7 +124,9 @@ async function handleGoogleUser(payload, onSuccess, onError) {
     }
 
     // Now user is the awaited result
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email }));
+    const token = user.token || user.jwt || user.user_id;
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email, token }));
+    localStorage.setItem('token', token);
     onSuccess?.({ user: { ...user, id: user.user_id, fullName: user.display_name }, isNew });
 }
 

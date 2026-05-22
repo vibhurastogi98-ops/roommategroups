@@ -2,6 +2,7 @@ import { getCurrentUser, updateProfile } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db } from '../services/db.js';
 import { uploadImage } from '../services/upload.js';
+import { getAvatarUrl } from '../services/assets.js';
 import { Camera, CameraResultType } from '@capacitor/camera';
 
 const lifestyleTags = [
@@ -178,7 +179,7 @@ export function renderProfileSetupPage(app) {
 
     // Pre-load existing profile photo (e.g. from Google sign-in)
     if (user.profile_photo) {
-        photoPreview.innerHTML = `<img src="${user.profile_photo}" alt="Profile photo" />`;
+        photoPreview.innerHTML = `<img src="${getAvatarUrl(user.profile_photo, user.display_name)}" alt="Profile photo" />`;
         photoPreview.dataset.photo = user.profile_photo;
     }
 

@@ -194,17 +194,17 @@ function generateId(prefix) { return prefix + '_' + Date.now() + '_' + Math.rand
 
 // Collections that are synced to D1 so all devices share the same data
 const D1_SYNC_MAP = {
-    users:        { save: (item) => api.createUser(item), update: (id,d) => api.updateUser(id,d), del: (id) => api.deleteUser(id) },
-    cities:       { save: (item) => api.saveCity(item),   update: (id,d) => api.updateCity(id,d),   del: (id) => api.deleteCity(id) },
-    listings:     { save: (item) => api.saveListing(item),update: (id,d) => api.updateListing(id,d),del: (id) => api.deleteListing(id) },
-    posts:        { save: (item) => api.savePost(item),   update: (id,d) => api.updatePost(id,d),   del: (id) => api.deletePost(id) },
-    fb_countries: { save: (item) => api.saveFbCountry(item), update: (id,d) => api.updateFbCountry(id,d), del: (id) => api.deleteFbCountry(id) },
-    fb_cities:    { save: (item) => api.saveFbCity(item), update: (id,d) => api.updateFbCity(id,d), del: (id) => api.deleteFbCity(id) },
-    threads:      { save: (item) => api.saveThread(item), update: (id,d) => api.updateThread(id,d), del: (id) => api.deleteThread(id) },
-    messages:     { save: (item) => api.saveMessage(item), update: (id,d) => api.updateMessage(id,d), del: (id) => api.deleteMessage(id) },
-    reports:      { save: (item) => api.saveReport(item), update: (id,d) => api.updateReport(id,d), del: (id) => api.deleteReport(id) },
-    notifications:{ save: (item) => api.saveNotification(item), update: (id,d) => api.updateNotification(id,d), del: (id) => api.deleteNotification(id) },
-    user_queries: { save: (item) => api.post('/user_queries', item), update: (id,d) => api.put(`/user_queries/${id}`, d), del: (id) => api.delete(`/user_queries/${id}`) },
+    users:        { save: (item) => api.createUser(item, true), update: (id,d) => api.updateUser(id,d,true), del: (id) => api.deleteUser(id,true) },
+    cities:       { save: (item) => api.saveCity(item, true),   update: (id,d) => api.updateCity(id,d,true),   del: (id) => api.deleteCity(id,true) },
+    listings:     { save: (item) => api.saveListing(item,true),update: (id,d) => api.updateListing(id,d,true),del: (id) => api.deleteListing(id,true) },
+    posts:        { save: (item) => api.savePost(item, true),   update: (id,d) => api.updatePost(id,d,true),   del: (id) => api.deletePost(id,true) },
+    fb_countries: { save: (item) => api.saveFbCountry(item, true), update: (id,d) => api.updateFbCountry(id,d,true), del: (id) => api.deleteFbCountry(id,true) },
+    fb_cities:    { save: (item) => api.saveFbCity(item, true), update: (id,d) => api.updateFbCity(id,d,true), del: (id) => api.deleteFbCity(id,true) },
+    threads:      { save: (item) => api.saveThread(item, true), update: (id,d) => api.updateThread(id,d,true), del: (id) => api.deleteThread(id,true) },
+    messages:     { save: (item) => api.saveMessage(item, true), update: (id,d) => api.updateMessage(id,d,true), del: (id) => api.deleteMessage(id,true) },
+    reports:      { save: (item) => api.saveReport(item, true), update: (id,d) => api.updateReport(id,d,true), del: (id) => api.deleteReport(id,true) },
+    notifications:{ save: (item) => api.saveNotification(item, true), update: (id,d) => api.updateNotification(id,d,true), del: (id) => api.deleteNotification(id,true) },
+    user_queries: { save: (item) => api.post('/user_queries', item, true), update: (id,d) => api.put(`/user_queries/${id}`, d, true), del: (id) => api.delete(`/user_queries/${id}`, true) },
 };
 
 class Collection {
@@ -238,10 +238,7 @@ class Collection {
             try {
                 await sync.save(item);
             } catch (e) {
-                console.error('[D1 sync create failed]', e);
-                // Optionally: Rollback local change if sync is critical
-                // For now, we just log it, but since it's awaited, the caller can catch it.
-                throw e;
+                console.debug('[D1 sync create skipped]', e.message || e);
             }
         }
         window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: this.name, action: 'create' } }));
@@ -261,8 +258,7 @@ class Collection {
             try {
                 await sync.update(id, data);
             } catch (e) {
-                console.error('[D1 sync update failed]', e);
-                throw e;
+                console.debug('[D1 sync update skipped]', e.message || e);
             }
         }
         window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: this.name, action: 'update' } }));
@@ -281,8 +277,7 @@ class Collection {
             try {
                 await sync.del(id);
             } catch (e) {
-                console.error('[D1 sync delete failed]', e);
-                throw e;
+                console.debug('[D1 sync delete skipped]', e.message || e);
             }
         }
         window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: this.name, action: 'delete' } }));
@@ -333,18 +328,18 @@ export async function initDB() {
     // admin-edited content. Fetch it and overwrite localStorage.
     try {
         const [d1Users, d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries, d1Threads, d1Messages, d1Reports, d1Notifications, d1UserQueries] = await Promise.all([
-            api.getUsers().catch(() => null),
-            api.getCities().catch(() => null),
-            api.getListings().catch(() => null),
-            api.getPosts().catch(() => null),
-            api.getFbCities().catch(() => null),
-            api.get('/categories').catch(() => null),
-            api.getFbCountries().catch(() => null),
-            api.getThreads().catch(() => null),
-            api.getMessages().catch(() => null),
-            api.get('/reports').catch(() => null),
-            api.get('/notifications').catch(() => null),
-            api.get('/user_queries').catch(() => null),
+            api.getUsers(true).catch(() => null),
+            api.getCities(true).catch(() => null),
+            api.getListings(true).catch(() => null),
+            api.getPosts(true).catch(() => null),
+            api.getFbCities(true).catch(() => null),
+            api.get('/categories', true).catch(() => null),
+            api.getFbCountries(true).catch(() => null),
+            api.getThreads(true).catch(() => null),
+            api.getMessages(undefined, true).catch(() => null),
+            api.get('/reports', true).catch(() => null),
+            api.get('/notifications', true).catch(() => null),
+            api.get('/user_queries', true).catch(() => null),
         ]);
         const live = getDB();
         let liveUpdated = false;
@@ -398,12 +393,12 @@ export async function initDB() {
 export async function syncMessagesAndThreads() {
     try {
         const [d1Users, d1Threads, d1Messages, d1Notifications, d1Reports, d1Listings] = await Promise.all([
-            api.getUsers().catch(() => null),
-            api.getThreads().catch(() => null),
-            api.getMessages().catch(() => null),
-            api.get('/notifications').catch(() => []),
-            api.get('/reports').catch(() => []),
-            api.getListings().catch(() => null),
+            api.getUsers(true).catch(() => null),
+            api.getThreads(true).catch(() => null),
+            api.getMessages(undefined, true).catch(() => null),
+            api.get('/notifications', true).catch(() => []),
+            api.get('/reports', true).catch(() => []),
+            api.getListings(true).catch(() => null),
         ]);
 
         const dbData = getDB();

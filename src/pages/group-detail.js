@@ -2,6 +2,7 @@ import { db } from '../services/db.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { renderFooter } from '../components/footer.js';
 import { setSEO } from '../seo.js'; // SEO Update
+import { getAssetUrl } from '../services/assets.js';
 
 function formatMembers(n) {
     if (!n) return '0';
@@ -38,6 +39,7 @@ function renderListingCard(listing) {
     if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { imgs = []; } }
     let photo = imgs[0] || fallback;
     if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || fallback;
+    photo = getAssetUrl(photo);
     // rent may come as 'rent' (schema) or legacy 'price'
     const price = listing.rent ?? listing.price ?? '?';
     return `
@@ -57,7 +59,7 @@ function renderListingCard(listing) {
 
 function renderBlogCard(post) {
     const fallback = 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&q=80&w=600';
-    const image = post.featured_image || post.image || fallback;
+    const image = post.featured_image || post.image ? getAssetUrl(post.featured_image || post.image) : fallback;
     return `
         <a href="/blog/${post.slug}" class="gd-blog-card">
             <div class="gd-blog-img">
@@ -100,7 +102,7 @@ function renderRelatedCard(city, currentSlug) {
     return `
         <a href="/fb-groups/${slug}" class="gd-related-card">
             <div class="gd-related-img">
-                <img src="${city.city_image || fallback}" alt="${city.city_name}" loading="lazy" onerror="this.onerror=null;this.src='${fallback}';">
+                <img src="${city.city_image ? getAssetUrl(city.city_image) : fallback}" alt="${city.city_name}" loading="lazy" onerror="this.onerror=null;this.src='${fallback}';">
             </div>
             <div class="gd-related-body">
                 <div class="gd-related-name">${city.fb_group_name}</div>
@@ -168,7 +170,7 @@ export function renderGroupDetailPage(app, params) {
         title: `Find Roommates in ${group.city_name} | RoommateGroups`.substring(0, 60),
         description: `Join roommate groups in ${group.city_name}. Browse verified listings, connect with locals, and find your ideal roommate on RoommateGroups.`.substring(0, 160),
         canonical: `https://roommategroups.com/fb-groups/${slug}`,
-        ogImage: group.city_image || fallback,
+        ogImage: group.city_image ? getAssetUrl(group.city_image) : fallback,
         schema: {
             '@context': 'https://schema.org',
             '@type': 'FAQPage',
@@ -487,7 +489,7 @@ export function renderGroupDetailPage(app, params) {
         <div class="gd-page">
             <!-- Hero -->
             <div class="gd-hero">
-                <img class="gd-hero-img" src="${group.city_image || fallback}" alt="${group.city_name} Roommate Group" loading="eager" fetchpriority="high" onerror="this.onerror=null;this.src='${fallback}';">
+                <img class="gd-hero-img" src="${group.city_image ? getAssetUrl(group.city_image) : fallback}" alt="${group.city_name} Roommate Group" loading="eager" fetchpriority="high" onerror="this.onerror=null;this.src='${fallback}';">
                 <div class="gd-hero-overlay"></div>
                 <div class="gd-hero-content">
                     <div class="container">
