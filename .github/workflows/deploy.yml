@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npm run build:web
 
       - name: Check wrangler (debug)
         run: |
@@ -37,30 +37,31 @@ jobs:
 
       - name: Verify Cloudflare Token Configuration
         env:
-          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -z "${CF_API_TOKEN}" ]; then
+          if [ -z "${CLOUDFLARE_API_TOKEN}" ]; then
             echo "::error::The GitHub Secret 'CLOUDFLARE_API_TOKEN' is missing or empty."
             echo "Please go to Settings > Secrets and variables > Actions in your GitHub repository, and add a new Repository Secret named CLOUDFLARE_API_TOKEN."
             exit 1
           fi
           echo "Cloudflare API Token is configured. Verifying identity..."
-          npx wrangler whoami --api-token "$CF_API_TOKEN"
+          npx wrangler whoami
 
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: cd backend && npx wrangler deploy
 
       - name: Dump wrangler logs on failure
         if: failure()
         run: |
           LOG_DIR="$HOME/.config/.wrangler/logs"
           echo "Looking for wrangler logs in $LOG_DIR"
-          if [ -d "$LOG_DIR" ]; then
+          if compgen -G "$LOG_DIR/*.log" > /dev/null; then
             for f in "$LOG_DIR"/*.log; do
               echo "=== $f ==="
               sed -n '1,400p' "$f"
             done
           else
             echo "No wrangler logs found at $LOG_DIR"
+          fi
