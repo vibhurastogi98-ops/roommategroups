@@ -569,7 +569,7 @@ function _wireForm(container, tab) {
       let ok = true;
       if (tab === 'register' && !name) { _showErr(container, 'e-name', 'Name is required.'); ok = false; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { _showErr(container, 'e-email', 'Enter a valid email address.'); ok = false; }
-      if (password.length < 6) { _showErr(container, 'e-password', 'Minimum 6 characters.'); ok = false; }
+      if (password.length < 8) { _showErr(container, 'e-password', 'Minimum 8 characters.'); ok = false; }
       
       if (!ok) {
         form.style.animation = 'none';

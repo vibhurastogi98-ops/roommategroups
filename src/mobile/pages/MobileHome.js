@@ -453,9 +453,7 @@ export async function init(container) {
         selectedType = v;
         const feed = container.querySelector('#home-feed');
         if (feed) {
-          feed.innerHTML = Array(3).fill(0).map(() => `
-            <div style="width:85vw; max-width:320px; height:300px; background:#f8fafc; border-radius:28px; border:1px solid #e2e8f0; flex-shrink:0; animation: skeleton-pulse 1.5s infinite ease-in-out;"></div>
-          `).join('');
+          feed.innerHTML = _skeletonStrip(3);
         }
         setTimeout(() => {
           filteredList = _filterListings(allListings, selectedCity, selectedType);
@@ -544,9 +542,7 @@ async function _wireEvents(container, ctx) {
 
     const feed = container.querySelector('#home-feed');
     if (feed) {
-      feed.innerHTML = Array(3).fill(0).map(() => `
-        <div style="width:85vw; max-width:320px; height:300px; background:#f8fafc; border-radius:28px; border:1px solid #e2e8f0; flex-shrink:0; animation: skeleton-pulse 1.5s infinite ease-in-out;"></div>
-      `).join('');
+      feed.innerHTML = _skeletonStrip(3);
     }
 
     await initDB().catch(() => { });
@@ -647,9 +643,7 @@ async function _wireEvents(container, ctx) {
         
         const feed = container.querySelector('#home-feed');
         if (feed) {
-          feed.innerHTML = Array(3).fill(0).map(() => `
-            <div style="width:85vw; max-width:320px; height:300px; background:#f8fafc; border-radius:28px; border:1px solid #e2e8f0; flex-shrink:0; animation: skeleton-pulse 1.5s infinite ease-in-out;"></div>
-          `).join('');
+          feed.innerHTML = _skeletonStrip(3);
         }
 
         await initDB().catch(() => { });
@@ -672,17 +666,36 @@ async function _wireEvents(container, ctx) {
 
 function _skeletonHTML() {
   return `
-    <div style="height:80vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8; font-family:'Inter', sans-serif;">
-      <div style="width:80px; height:80px; margin-bottom:16px; opacity:0.5; animation: skeleton-pulse 1.5s infinite ease-in-out;">
-        <img src="/logo.svg" style="width:100%; height:100%; filter: grayscale(100%);" />
+    <div class="mobile-page-content" style="padding:20px 16px;">
+      <div class="mobile-skeleton-stack">
+        <div class="mobile-skeleton-line title"></div>
+        <div class="mobile-skeleton-line medium"></div>
+        <div class="mobile-skeleton-row">
+          ${_skeletonStrip(3)}
+        </div>
+        <div class="mobile-skeleton-card" style="min-height:180px;"></div>
+        <div class="mobile-skeleton-line title"></div>
+        <div class="mobile-skeleton-row">
+          ${_skeletonStrip(3)}
+        </div>
       </div>
-      <div style="font-size:0.9rem; font-weight:600; opacity:0.6;">Loading your feed...</div>
-      <style>
-        @keyframes skeleton-pulse {
-          0%, 100% { transform: scale(1); opacity: 0.4; }
-          50% { transform: scale(0.95); opacity: 0.2; }
-        }
-      </style>
     </div>
   `;
+}
+
+function _skeletonStrip(count = 3) {
+  return Array(count).fill(0).map(() => `
+    <div class="mobile-skeleton-card compact">
+      <div class="mobile-skeleton-media"></div>
+      <div class="mobile-skeleton-body">
+        <div class="mobile-skeleton-line title"></div>
+        <div class="mobile-skeleton-line medium"></div>
+        <div class="mobile-skeleton-line short"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;">
+          <div class="mobile-skeleton-pill"></div>
+          <div class="mobile-skeleton-line short" style="width:52px;margin:0;"></div>
+        </div>
+      </div>
+    </div>
+  `).join('');
 }

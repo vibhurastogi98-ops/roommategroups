@@ -4,6 +4,7 @@ import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { trackSearch } from '../services/analytics.js';
 import { setSEO } from '../seo.js'; // SEO Update
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
 function escHtml(str) {
     if (!str) return '';
@@ -15,11 +16,17 @@ function escHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+function parseJsonArray(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') { try { return JSON.parse(value || '[]'); } catch (e) { return []; } }
+    return [];
+}
+
 // Accepts both legacy string photos and new { thumb, medium, full } objects.
 function getPhotoSrc(photo, size) {
     if (!photo) return '';
-    if (typeof photo === 'string') return photo;
-    return photo[size] || photo.thumb || photo.medium || '';
+    if (typeof photo === 'string') return getAssetUrl(photo);
+    return getAssetUrl(photo[size] || photo.thumb || photo.medium || '');
 }
 
 function relTime(iso) {
@@ -42,7 +49,7 @@ function renderSearchCard(listing) {
     let user = listing.user_details;
     if (!user && listing.user_id) user = db.users.findById(listing.user_id);
     const posterName = user ? user.display_name : 'Unknown';
-    const avatar = (user && user.profile_photo) ? user.profile_photo : ('https://ui-avatars.com/api/?name=' + encodeURIComponent(posterName) + '&background=1a1a1a&color=fff');
+    const avatar = getAvatarUrl(user?.profile_photo, posterName);
     const verifiedIcon = user ? getVerificationBadge(user) : '';
 
     // Badges overlay
@@ -58,19 +65,20 @@ function renderSearchCard(listing) {
         const dbUser = db.users.findById(currentUser.id);
         if (dbUser) {
             // Guard: saved_listings may come from D1 as a JSON string
-            const savedList = Array.isArray(dbUser.saved_listings)
-                ? dbUser.saved_listings
-                : (typeof dbUser.saved_listings === 'string'
-                    ? JSON.parse(dbUser.saved_listings || '[]')
-                    : []);
+            const savedList = parseJsonArray(dbUser.saved_listings);
             isSaved = savedList.includes(listing.listing_id);
         }
     }
 
+    const priceValue = listing.rent ?? listing.price;
+    const priceLabel = priceValue !== undefined && priceValue !== null && priceValue !== ''
+        ? '$' + Number(priceValue).toLocaleString()
+        : 'Price TBC';
+
     return `
         <div class="s-card" data-id="${listing.listing_id}" data-lat="${listing.latitude}" data-lng="${listing.longitude}">
             <a href="/listing/${listing.listing_id}" class="s-card-img-wrap" style="display:block;">
-                <img src="${isRoommate ? avatar : photo}" alt="${escHtml(listing.title)}" class="s-card-img" loading="lazy">
+                <img src="${isRoommate ? avatar : photo}" alt="${escHtml(listing.title)}" class="s-card-img" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';">
                 <button class="s-card-share" onclick="window.openShareModal('${listing.listing_id}', event)" style="position:absolute; top:12px; right:56px; width:32px; height:32px; border-radius:50%; background:white; border:none; display:flex; align-items:center; justify-content:center; color:#64748b; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:10;" onmouseover="this.style.transform='scale(1.1)';this.style.color='#1a1a1a'" onmouseout="this.style.transform='scale(1)';this.style.color='#64748b'">
                     <i class="fa-solid fa-share-nodes"></i>
                 </button>
@@ -82,7 +90,7 @@ function renderSearchCard(listing) {
                 </div>
             </a>
             <div class="s-card-body">
-                <div class="s-card-price">$${listing.rent ?? listing.price ?? '?'}<span>/mo</span></div>
+                <div class="s-card-price">${priceLabel}<span>${priceLabel === 'Price TBC' ? '' : '/mo'}</span></div>
                 <a href="/listing/${listing.listing_id}" style="text-decoration:none; color:inherit;"><h3 class="s-card-title">${escHtml(listing.title)}</h3></a>
                 <div class="s-card-meta">
                     <i class="fa-solid fa-location-dot"></i> ${escHtml(db.cities.findOne(c => c.city_id === listing.city)?.name || (listing.city ? listing.city.replace('city_', '').replace(/_/g, ' ') : 'Unknown City'))}
@@ -255,6 +263,7 @@ export function renderSearchPage(app) {
             const user = getCurrentUser();
             
             if (!user) {
+                sessionStorage.setItem('redirectAfterLogin', window.location.pathname + window.location.search);
                 navigate('/auth/login');
                 return;
             }
@@ -264,9 +273,7 @@ export function renderSearchPage(app) {
 
             // Guard: saved_listings may come back from D1 as a JSON string
             if (!Array.isArray(dbUser.saved_listings)) {
-                dbUser.saved_listings = typeof dbUser.saved_listings === 'string'
-                    ? JSON.parse(dbUser.saved_listings || '[]')
-                    : [];
+                dbUser.saved_listings = parseJsonArray(dbUser.saved_listings);
             }
             
             const idx = dbUser.saved_listings.indexOf(listingId);
@@ -288,7 +295,7 @@ export function renderSearchPage(app) {
     });
 
     // Fetch listings (initially un-filtered except active)
-    const listings = db.listings.find(l => l.status === 'active');
+        const listings = db.listings.find(l => l.status === 'active' && l.is_active !== false);
 
     if (listings.length === 0) {
         grid.innerHTML = '<div class="s-empty">No results found for these filters.</div>';
@@ -332,9 +339,10 @@ export function renderSearchPage(app) {
             if (!l.latitude || !l.longitude) return;
 
             // Custom HTML price marker
+            const markerPrice = l.rent ?? l.price;
             const icon = L.divIcon({
                 className: 'custom-map-marker',
-                html: `<div class="map-price-marker">$${l.rent ?? l.price ?? '?'}</div>`,
+                html: `<div class="map-price-marker">${markerPrice !== undefined && markerPrice !== null && markerPrice !== '' ? '$' + markerPrice : 'TBC'}</div>`,
                 iconSize: [50, 24],
                 iconAnchor: [25, 24]
             });
@@ -344,13 +352,14 @@ export function renderSearchPage(app) {
             markersMap[l.listing_id] = marker;
 
             // Popup
-            const _popImgs = (l.images || l.photos || []);
-            const popImg = typeof _popImgs === 'string' ? JSON.parse(_popImgs || '[]')[0] : _popImgs[0];
+            const _popImgs = parseJsonArray(l.images || l.photos || []);
+            const popImg = getPhotoSrc(_popImgs[0], 'thumb') || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=300';
+            const popPrice = l.rent ?? l.price;
             marker.bindPopup(`
                 <div class="map-popup-card">
-                    <img src="${popImg || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=300'}" alt="">
+                    <img src="${popImg}" alt="">
                     <div class="map-popup-body">
-                        <strong>$${l.rent ?? l.price ?? '?'}/mo</strong>
+                        <strong>${popPrice !== undefined && popPrice !== null && popPrice !== '' ? '$' + popPrice + '/mo' : 'Price TBC'}</strong>
                         <div>${l.title.substring(0, 30)}...</div>
                     </div>
                 </div>
@@ -442,7 +451,7 @@ export function renderSearchPage(app) {
         }
 
         // Filter db
-        let results = db.listings.find(l => l.status === 'active');
+        let results = db.listings.find(l => l.status === 'active' && l.is_active !== false);
 
         if (city !== 'all') {
             const cityObj = db.cities.findOne(c => c.slug === city);
@@ -485,9 +494,10 @@ export function renderSearchPage(app) {
 
         if (amenities.length > 0) {
             results = results.filter(l => {
-                if (!l.amenities) return false;
+                const listingAmenities = parseJsonArray(l.amenities);
+                if (!listingAmenities.length) return false;
                 // Listing must have ALL selected amenities
-                return amenities.every(a => l.amenities.includes(a));
+                return amenities.every(a => listingAmenities.includes(a));
             });
         }
 

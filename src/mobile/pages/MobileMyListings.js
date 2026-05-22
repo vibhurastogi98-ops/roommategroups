@@ -2,6 +2,7 @@ import { db } from '../../services/db.js';
 import { getCurrentUser } from '../../services/auth.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
+import { getAssetUrl } from '../../services/assets.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -83,8 +84,6 @@ export async function init(container) {
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
-  _render();
-
   function _renderTab(id, label, count, active) {
       return `
         <button class="filter-tab" data-filter="${id}" style="
@@ -113,7 +112,8 @@ export async function init(container) {
     
     let photoList = l.images || l.photos || [];
     if (typeof photoList === 'string') { try { photoList = JSON.parse(photoList); } catch(e) {} }
-    const photoUrl = Array.isArray(photoList) && photoList[0] ? (typeof photoList[0] === 'string' ? photoList[0] : photoList[0].thumb || photoList[0].full) : '';
+    const rawPhotoUrl = Array.isArray(photoList) && photoList[0] ? (typeof photoList[0] === 'string' ? photoList[0] : photoList[0].thumb || photoList[0].full) : '';
+    const photoUrl = rawPhotoUrl ? getAssetUrl(rawPhotoUrl) : '';
 
     return `
       <div style="background:#fff; border-radius:20px; border:1px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.03); overflow:hidden; margin-bottom:12px;">
@@ -160,7 +160,7 @@ export async function init(container) {
     });
 
     container.querySelectorAll('.action-edit').forEach(btn => {
-        btn.addEventListener('click', () => _showEditPopup(btn.dataset.id));
+        btn.addEventListener('click', () => navigate('post', { listingId: btn.dataset.id }));
     });
 
     container.querySelectorAll('.action-toggle').forEach(btn => {

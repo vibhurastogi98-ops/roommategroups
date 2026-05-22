@@ -24,13 +24,22 @@ export async function uploadImage(fileOrBlob, filename = 'image.webp') {
 
     try {
         const endpoint = `${API_URL}/r2/upload`;
+        const token = localStorage.getItem('token');
         const res = await fetch(endpoint, {
             method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: formData,
         });
         
+        if (res.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('rg_session');
+            throw new Error('Your session expired. Please sign in again.');
+        }
+
         if (!res.ok) {
-            throw new Error(`Upload failed with status ${res.status}`);
+            const err = await res.clone().json().catch(async () => ({ error: await res.text().catch(() => '') }));
+            throw new Error(err.error || `Upload failed with status ${res.status}`);
         }
         
         const data = await res.json();

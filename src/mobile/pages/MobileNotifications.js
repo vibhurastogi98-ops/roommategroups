@@ -85,8 +85,8 @@ export async function init(container) {
                 ${!n.is_read ? `<div style="position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--mobile-accent); border: 2px solid #fff;"></div>` : ''}
               </div>
               <div style="flex: 1; padding-right: 24px;">
-                <div style="font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">${titleText}</div>
-                <div style="font-size: 0.8rem; color: #64748b; line-height: 1.4;">${bodyText}</div>
+                <div style="font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">${_esc(titleText)}</div>
+                <div style="font-size: 0.8rem; color: #64748b; line-height: 1.4;">${_esc(bodyText)}</div>
                 <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 8px; font-weight: 600;">${_formatTime(n.created_at)}</div>
               </div>
               <button class="notif-delete-btn" aria-label="Delete Notification" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 1.2rem; color: #cbd5e1; padding: 4px; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
@@ -174,8 +174,11 @@ export async function init(container) {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
+  function _esc(str) {
+    return String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c]));
+  }
+
   _render();
 }
 
 export const renderMobileNotifications = init;
-

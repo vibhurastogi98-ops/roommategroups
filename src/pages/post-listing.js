@@ -3,6 +3,7 @@ import { navigate } from '../router.js';
 import { getCurrentUser } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { uploadImage } from '../services/upload.js';
+import { api } from '../services/api.js';
 
 // ── State Management ──
 const DRAFT_KEY = 'rg_draft_listing';
@@ -17,6 +18,7 @@ const defaultDraft = {
     prefGender: 'Any', prefAgeMin: 18, prefAgeMax: 99, lifestyleTags: [],
 };
 let draft = { ...defaultDraft };
+let editingListingId = null;
 
 function loadDraft() {
     const saved = localStorage.getItem(DRAFT_KEY);
@@ -24,6 +26,46 @@ function loadDraft() {
 }
 function saveDraft() { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); draft = { ...defaultDraft }; }
+
+function loadListingIntoDraft(listing) {
+    let photos = listing.images || listing.photos || [];
+    if (typeof photos === 'string') { try { photos = JSON.parse(photos || '[]'); } catch (e) { photos = []; } }
+    let amenities = listing.amenities || [];
+    if (typeof amenities === 'string') { try { amenities = JSON.parse(amenities || '[]'); } catch (e) { amenities = []; } }
+    let prefs = listing.roommate_prefs || {};
+    if (typeof prefs === 'string') { try { prefs = JSON.parse(prefs || '{}'); } catch (e) { prefs = {}; } }
+
+    draft = {
+        ...defaultDraft,
+        step: 1,
+        category: listing.category || '',
+        country: listing.country || '',
+        city: listing.city || '',
+        neighborhood: listing.neighborhood || '',
+        address: listing.address || '',
+        title: listing.title || '',
+        price: listing.rent || listing.price || '',
+        currency: listing.currency || 'USD',
+        availableFrom: listing.available_from || listing.availableFrom || listing.available_date || '',
+        leaseDuration: listing.lease_duration || listing.leaseDuration || '',
+        roomType: listing.room_type || '',
+        furnished: listing.furnished || '',
+        bedrooms: listing.bedrooms || '',
+        bathrooms: listing.bathrooms || '',
+        sizeSqft: listing.size_sqft || '',
+        budgetMin: listing.budgetMin || '',
+        budgetMax: listing.budgetMax || '',
+        preferredArea: listing.preferredArea || '',
+        moveInTimeline: listing.moveInTimeline || '',
+        amenities,
+        photos,
+        description: listing.description || '',
+        prefGender: prefs.gender || 'Any',
+        prefAgeMin: prefs.ageMin || 18,
+        prefAgeMax: prefs.ageMax || 99,
+        lifestyleTags: prefs.tags || [],
+    };
+}
 
 // ── Image Processing ──
 // Resize to fit within maxW×maxH. Returns a Promise which resolves to a Blob.
@@ -593,7 +635,7 @@ function renderStep7() {
             <div class="step-actions">
                 <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Edit Draft</button>
                 <button class="btn btn-success pl-btn-publish" id="btn-publish" disabled>
-                    <i class="fa-solid fa-rocket"></i> Publish Listing
+                    <i class="fa-solid ${editingListingId ? 'fa-floppy-disk' : 'fa-rocket'}"></i> ${editingListingId ? 'Save Changes' : 'Publish Listing'}
                 </button>
             </div>
         </div>
@@ -608,7 +650,10 @@ function attachEventListeners(container) {
 
     if (btnNext) {
         btnNext.addEventListener('click', () => {
-            saveStepState(); draft.step++; saveDraft(); renderFullPage(container);
+            saveStepState();
+            const error = validateCurrentStep();
+            if (error) { showToast(error, 'error'); return; }
+            draft.step++; saveDraft(); renderFullPage(container);
         });
     }
     if (btnPrev) {
@@ -674,6 +719,7 @@ function attachEventListeners(container) {
                 try {
                     // Reverse geocoding using OpenStreetMap (Nominatim)
                     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                    if (!res.ok) throw new Error(`Location lookup failed with HTTP ${res.status}`);
                     const data = await res.json();
                     if (data && data.display_name) {
                         // Extract a cleaner address (e.g., Road + House Number)
@@ -776,40 +822,16 @@ function attachEventListeners(container) {
                     return t ? t.name : id;
                 });
 
-                const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-                    ? 'http://127.0.0.1:3002' 
-                    : ''; // Use relative path on live for better compatibility
-
-                const response = await fetch(`${apiBase}/api/ai-assist`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        category: draft.category,
-                        title: draft.title,
-                        amenities: amenitiesNames,
-                        lifestyleTags: tagNames,
-                        draft: {
-                            ...draft,
-                            photos: [] // Don't send heavy photo data
-                        }
-                    })
+                const data = await api.post('/api/ai-assist', {
+                    category: draft.category,
+                    title: draft.title,
+                    amenities: amenitiesNames,
+                    lifestyleTags: tagNames,
+                    draft: {
+                        ...draft,
+                        photos: [] // Don't send heavy photo data
+                    }
                 });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    let errorData;
-                    try { errorData = JSON.parse(errorText); } catch (e) { }
-                    throw new Error(errorData?.error || errorData?.message || `Server responded with ${response.status}: ${errorText.slice(0, 100)}`);
-                }
-
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    const text = await response.text();
-                    console.error('Expected JSON but got:', text.slice(0, 200));
-                    throw new Error('Server returned an invalid response format (expected JSON, got ' + (contentType || 'unknown') + '). This may happen if the API route is not correctly configured.');
-                }
-
-                const data = await response.json();
                 if (data.success) {
                     const aiText = data.text;
                     desc.value = aiText;
@@ -817,11 +839,11 @@ function attachEventListeners(container) {
                     count.textContent = `${aiText.length} / 2000`;
                     if (btnNext) btnNext.disabled = aiText.length < 50;
                 } else {
-                    alert('AI Assist failed: ' + (data.error || 'Unknown error'));
+                    showToast('AI Assist failed: ' + (data.error || 'Unknown error'), 'error');
                 }
             } catch (err) {
                 console.error('AI Assist error:', err);
-                alert('AI Assist Error: ' + err.message + '\n\nPlease ensure you have an active internet connection and the backend service is reachable.');
+                showToast('AI Assist Error: ' + err.message, 'error');
             } finally {
                 aiBtn.innerHTML = originalContent;
                 aiBtn.disabled = false;
@@ -872,6 +894,19 @@ function attachEventListeners(container) {
     }
 }
 
+function validateCurrentStep() {
+    const isRoommate = draft.category === 'roommate_wanted' || draft.category === 'room_wanted';
+    if (draft.step === 1 && !draft.category) return 'Choose a listing category.';
+    if (draft.step === 2 && (!draft.country || !draft.city)) return 'Country and city are required.';
+    if (draft.step === 3) {
+        if (!draft.title || draft.title.trim().length < 3) return 'Title must be at least 3 characters.';
+        if (!isRoommate && (!draft.price || Number(draft.price) <= 0)) return 'Monthly rent is required.';
+        if (isRoommate && (!draft.budgetMax || Number(draft.budgetMax) <= 0)) return 'Maximum budget is required.';
+    }
+    if (draft.step === 6 && (!draft.description || draft.description.trim().length < 50)) return 'Description must be at least 50 characters.';
+    return '';
+}
+
 async function handleFiles(files, container) {
     const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -880,11 +915,11 @@ async function handleFiles(files, container) {
         .slice(0, 10 - draft.photos.length)
         .filter(file => {
             if (!ALLOWED_TYPES.includes(file.type)) {
-                alert(`"${file.name}" is not a supported format. Use JPG, PNG, or WebP.`);
+                showToast(`"${file.name}" is not a supported format. Use JPG, PNG, or WebP.`, 'error');
                 return false;
             }
             if (file.size > MAX_SIZE_BYTES) {
-                alert(`"${file.name}" exceeds the 5 MB limit.`);
+                showToast(`"${file.name}" exceeds the 5 MB limit.`, 'error');
                 return false;
             }
             return true;
@@ -908,7 +943,7 @@ async function handleFiles(files, container) {
     }
 
     if (uploadError) {
-        alert('One or more uploads failed. Is the server running?');
+        showToast('One or more uploads failed. Is the server running?', 'error');
     }
 
     // Always re-render so successfully uploaded photos are shown
@@ -961,14 +996,14 @@ function saveStepState() {
 
 async function handlePublish() {
     const user = getCurrentUser();
-    if (!user) { alert("You must be signed in to publish a listing."); navigate('/auth/login'); return; }
+    if (!user) { showToast('You must be signed in to publish a listing.', 'error'); navigate('/auth/login'); return; }
 
     const isFree = user.subscription_tier === 'free';
-    if (isFree) {
+    if (isFree && !editingListingId) {
         if (user.created_at) {
             const daysSinceCreation = (Date.now() - new Date(user.created_at).getTime()) / (1000 * 3600 * 24);
             if (daysSinceCreation > 30) {
-                alert('Your 1-month Free trial has expired. Please upgrade to post a listing.');
+                showToast('Your 1-month Free trial has expired. Please upgrade to post a listing.', 'error');
                 navigate('/pricing');
                 return;
             }
@@ -976,14 +1011,14 @@ async function handlePublish() {
         
         const userListings = db.listings.find(l => l.user_id === user.id && l.status === 'active');
         if (userListings.length >= 1) {
-            alert('Free plan allows a maximum of 1 active listing. Please upgrade to post more.');
+            showToast('Free plan allows a maximum of 1 active listing. Please upgrade to post more.', 'error');
             navigate('/pricing');
             return;
         }
     }
 
     const publishBtn = document.querySelector('#btn-publish');
-    if (publishBtn) { publishBtn.disabled = true; publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing…'; }
+    if (publishBtn) { publishBtn.disabled = true; publishBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + (editingListingId ? 'Saving…' : 'Publishing…'); }
 
     const container = document.querySelector('#post-listing-root');
     const selType = container?.querySelector('input[name="publish_type"]:checked')?.value;
@@ -1006,11 +1041,14 @@ async function handlePublish() {
     };
 
     try {
-        const item = await db.listings.create(listingData);
+        const wasEditing = !!editingListingId;
+        const item = editingListingId
+            ? await db.listings.update(editingListingId, { ...listingData, updated_at: new Date().toISOString() })
+            : await db.listings.create(listingData);
         clearDraft();
 
         // Notify user
-        if (isFree) {
+        if (!wasEditing && isFree) {
             await db.notifications.create({
                 user_id: user.id,
                 type: 'moderation_pending',
@@ -1018,7 +1056,7 @@ async function handlePublish() {
                 description: 'Your listing has been submitted and is pending admin approval. It will go live once approved.',
                 website_url: `/listing/${item.listing_id}`
             });
-        } else {
+        } else if (!wasEditing) {
             await db.notifications.create({
                 user_id: user.id,
                 type: 'listing_approved',
@@ -1028,13 +1066,14 @@ async function handlePublish() {
             });
         }
 
-        showToast('Listing published successfully!');
+        showToast(wasEditing ? 'Listing updated successfully!' : 'Listing published successfully!');
+        editingListingId = null;
 
-        navigate('/dashboard');
+        navigate(wasEditing ? `/listing/${item.listing_id}` : '/dashboard');
     } catch (err) {
         console.error('[Publish] Failed to create listing:', err);
-        alert('Failed to publish listing. Please try again.');
-        if (publishBtn) { publishBtn.disabled = false; publishBtn.innerHTML = '<i class="fa-solid fa-rocket"></i> Publish Listing'; }
+        showToast(editingListingId ? 'Failed to update listing. Please try again.' : 'Failed to publish listing. Please try again.', 'error');
+        if (publishBtn) { publishBtn.disabled = false; publishBtn.innerHTML = '<i class="fa-solid ' + (editingListingId ? 'fa-floppy-disk' : 'fa-rocket') + '"></i> ' + (editingListingId ? 'Save Changes' : 'Publish Listing'); }
     }
 }
 
@@ -1059,7 +1098,7 @@ function renderFullPage(container) {
     setTimeout(() => initNavbar(), 0);
 }
 
-export function renderPostListingPage(container) {
+export function renderPostListingPage(container, params = {}) {
     const user = getCurrentUser();
     if (!user) {
         container.innerHTML = `
@@ -1073,7 +1112,18 @@ export function renderPostListingPage(container) {
         `;
         return;
     }
-    loadDraft();
+    editingListingId = params.id || new URLSearchParams(window.location.search).get('id') || null;
+    if (editingListingId) {
+        const listing = db.listings.findById(editingListingId);
+        if (!listing || listing.user_id !== user.id) {
+            showToast('Listing not found or you do not have permission to edit it.', 'error');
+            navigate('/dashboard/listings');
+            return;
+        }
+        loadListingIntoDraft(listing);
+    } else {
+        loadDraft();
+    }
     container.innerHTML = '<div id="post-listing-root"></div>';
     renderFullPage(container.querySelector('#post-listing-root'));
 }

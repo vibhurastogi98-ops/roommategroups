@@ -27,6 +27,9 @@ import { renderFBGroupsPage } from './pages/fb-groups.js';
 import { renderPricingPage } from './pages/pricing.js';
 import { renderGroupDetailPage } from './pages/group-detail.js';
 import { initDB } from './services/db.js';
+import { installGlobalErrorBoundary } from './services/ui.js';
+
+installGlobalErrorBoundary();
 
 if (Capacitor.isNativePlatform()) {
   import('./mobile/mobile-main.js').then(m => m.initMobile());
@@ -46,7 +49,15 @@ addRoute('/dashboard/verification', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/subscription', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/settings', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/notifications', renderDashboardPage, [requireAuth()]);
+addRoute('/dashboard/blocked-users', renderDashboardPage, [requireAuth()]);
+addRoute('/dashboard/archived-chats', renderDashboardPage, [requireAuth()]);
+addRoute('/settings', renderDashboardPage, [requireAuth()]);
+addRoute('/notifications', renderDashboardPage, [requireAuth()]);
+addRoute('/blocked-users', renderDashboardPage, [requireAuth()]);
+addRoute('/archived-chats', renderDashboardPage, [requireAuth()]);
+addRoute('/profile', renderDashboardPage, [requireAuth()]);
 addRoute('/post-listing', renderPostListingPage, [requireAuth()]);
+addRoute('/post-listing/:id', renderPostListingPage, [requireAuth()]);
 addRoute('/cities/:slug', renderCityPage);
 addRoute('/cities/:country/:slug', renderCityPage);
 addRoute('/search/rooms', renderSearchPage);
@@ -67,7 +78,9 @@ addRoute('/fb-groups/:slug', renderGroupDetailPage);
 addRoute('/admin-login', renderAdminLoginPage);
 addRoute('/admin', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/listings', renderAdminPage, [requireAdmin()]);
+addRoute('/admin/listing-moderation', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/users', renderAdminPage, [requireAdmin()]);
+addRoute('/admin/user-management', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/verifications', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/reports', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/analytics', renderAdminPage, [requireAdmin()]);
@@ -158,4 +171,3 @@ document.getElementById('rg-share-modal').addEventListener('click', (e) => {
     if (e.target.id === 'rg-share-modal') window.closeShareModal();
 });
 }
-

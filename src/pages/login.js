@@ -1,5 +1,6 @@
 import { login } from '../services/auth.js';
 import { navigate } from '../router.js';
+import { showToast } from '../services/ui.js';
 
 // ── Config ──
 const MAX_ATTEMPTS = 5;
@@ -177,7 +178,9 @@ export function renderLoginPage(app) {
             resetAttempts();
             showToast('Welcome back!', 'success');
             setTimeout(() => {
-                navigate(result.user.profileComplete ? '/dashboard' : '/profile-setup');
+                const redirect = sessionStorage.getItem('redirectAfterLogin');
+                sessionStorage.removeItem('redirectAfterLogin');
+                navigate(redirect || (result.user.profileComplete ? '/dashboard' : '/profile-setup'));
             }, 800);
         }, 500);
     });
@@ -238,12 +241,4 @@ function clearAllErrors() {
     document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
     const lockoutMsg = document.getElementById('lockout-msg');
     if (lockoutMsg) lockoutMsg.style.display = 'none';
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.textContent = message;
-    toast.className = `toast toast-${type} visible`;
-    setTimeout(() => toast.classList.remove('visible'), 4000);
 }

@@ -857,6 +857,11 @@ function _validateStep(step) {
   if (step === 1 && !wizard.category) { _toast('Please select a category', 'error'); return false; }
   if (step === 2 && !wizard.city) { _toast('Please select a city', 'error'); return false; }
   if (step === 3 && wizard.title.length < 3) { _toast('Title must be at least 3 characters', 'error'); return false; }
+  if (step === 3) {
+    const isRoommate = wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted';
+    if (!isRoommate && (!wizard.price || Number(wizard.price) <= 0)) { _toast('Monthly rent is required', 'error'); return false; }
+    if (isRoommate && !wizard.budgetMax) { _toast('Budget max is required', 'error'); return false; }
+  }
   if (step === 6 && wizard.description.length < 50) { _toast('Description must be at least 50 characters', 'error'); return false; }
   return true;
 }

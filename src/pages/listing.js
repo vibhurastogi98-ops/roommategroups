@@ -6,6 +6,7 @@ import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { navigate } from '../router.js';
 import { setSEO } from '../seo.js'; // SEO Update
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
 function escHtml(str) {
     if (!str) return '';
@@ -38,8 +39,14 @@ function showToast(message, type = 'success') {
 // Accepts both legacy string photos and new { thumb, medium, full } objects.
 function getPhotoSrc(photo, size) {
     if (!photo) return '';
-    if (typeof photo === 'string') return photo;
-    return photo[size] || photo.medium || photo.full || photo.thumb || '';
+    if (typeof photo === 'string') return getAssetUrl(photo);
+    return getAssetUrl(photo[size] || photo.medium || photo.full || photo.thumb || '');
+}
+
+function parseJsonArray(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') { try { return JSON.parse(value || '[]'); } catch (e) { return []; } }
+    return [];
 }
 
 // Holds cleanup ref for keyboard listener so re-renders don't stack handlers.
@@ -110,7 +117,7 @@ export function renderListingDetailPage(app, params) {
     let user = listing.user_details;
     if (!user && listing.user_id) user = db.users.findById(listing.user_id);
     const posterName = user ? user.display_name : 'Unknown User';
-    const avatar = (user && user.profile_photo) ? user.profile_photo : ('https://ui-avatars.com/api/?name=' + encodeURIComponent(posterName) + '&background=6366f1&color=fff');
+    const avatar = getAvatarUrl(user?.profile_photo, posterName);
     const verifiedIcon = user ? getVerificationBadge(user) : '';
 
     // Amenities Map
@@ -134,10 +141,19 @@ export function renderListingDetailPage(app, params) {
     let isSaved = false;
     if (currentUser && !isOwner) {
         const dbUser = db.users.findById(currentUser.id);
-        if (dbUser && dbUser.saved_listings && dbUser.saved_listings.includes(listing.listing_id)) {
+        const savedList = dbUser ? parseJsonArray(dbUser.saved_listings) : [];
+        if (savedList.includes(listing.listing_id)) {
             isSaved = true;
         }
     }
+
+    const priceValue = listing.rent ?? listing.price;
+    const priceLabel = priceValue !== undefined && priceValue !== null && priceValue !== ''
+        ? '$' + Number(priceValue).toLocaleString()
+        : 'Price TBC';
+    const lat = Number(listing.latitude);
+    const lng = Number(listing.longitude);
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
     app.innerHTML = `
     <style>
@@ -192,6 +208,8 @@ export function renderListingDetailPage(app, params) {
         .ld-amenities { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
         .ld-amenity { display: flex; align-items: center; gap: 12px; color: #475569; font-size: 1rem; }
         .ld-amenity i { font-size: 1.2rem; color: #64748b; width: 24px; text-align: center; }
+        .ld-map-frame { width: 100%; height: 320px; border: 0; border-radius: 18px; overflow: hidden; background: #e2e8f0; display: block; }
+        .ld-map-empty { height: 220px; border-radius: 18px; background: #f1f5f9; color: #64748b; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
         
         /* Right Column - Sticky Sidebar */
         .ld-sidebar { position: sticky; top: 100px; }
@@ -298,7 +316,7 @@ export function renderListingDetailPage(app, params) {
                 </div>
 
                 ${_amenities.length > 0 ? `
-                <div class="ld-section" style="border-bottom:none;">
+                <div class="ld-section">
                     <h2><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Amenities Included</h2>
                     <div class="ld-amenities">
                         ${_amenities.map(key => {
@@ -308,16 +326,30 @@ export function renderListingDetailPage(app, params) {
                     </div>
                 </div>
                 ` : ''}
+
+                <div class="ld-section" style="border-bottom:none;">
+                    <h2><i class="fa-solid fa-map-location-dot text-primary"></i> Location</h2>
+                    ${hasCoords ? `
+                        <iframe class="ld-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                            src="https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.015}%2C${lat - 0.015}%2C${lng + 0.015}%2C${lat + 0.015}&amp;layer=mapnik&amp;marker=${lat}%2C${lng}">
+                        </iframe>
+                    ` : `
+                        <div class="ld-map-empty">
+                            <i class="fa-solid fa-location-dot" style="font-size:2rem;opacity:0.5;"></i>
+                            <p style="margin:0;">Exact map location is not available for this listing.</p>
+                        </div>
+                    `}
+                </div>
             </div>
 
             <!-- Right Column: Stick Sidebar -->
             <div class="ld-sidebar">
                 <div class="ld-price-card">
-                    <div class="ld-price">$${listing.rent ?? listing.price ?? '?'} <span>/ month</span></div>
+                    <div class="ld-price">${priceLabel} <span>${priceLabel === 'Price TBC' ? '' : '/ month'}</span></div>
                     <div class="ld-deposit">Includes utilities: ${listing.utilities_included ? 'Yes' : 'No'} • Deposit: $${listing.deposit || 0}</div>
                     
                     ${isOwner ? `
-                    <a href="/dashboard/listings" class="ld-btn-primary" style="text-decoration:none;">
+                    <a href="/post-listing/${listing.listing_id}" class="ld-btn-primary" style="text-decoration:none;">
                         <i class="fa-solid fa-pen-to-square"></i> Edit Listing
                     </a>
                     <a href="/dashboard/listings" class="ld-btn-outline" style="text-decoration:none;color:#ef4444;border-color:#fecaca;">
@@ -375,6 +407,7 @@ export function renderListingDetailPage(app, params) {
             msgBtn.addEventListener('click', async () => {
                 const currentUser = getCurrentUser();
                 if (!currentUser) {
+                    sessionStorage.setItem('redirectAfterLogin', window.location.pathname + window.location.search);
                     navigate('/auth/login');
                     return;
                 }
@@ -453,13 +486,14 @@ export function renderListingDetailPage(app, params) {
                 const userObj = getCurrentUser();
                 
                 if (!userObj) {
+                    sessionStorage.setItem('redirectAfterLogin', window.location.pathname + window.location.search);
                     navigate('/auth/login');
                     return;
                 }
                 
                 const dbUser = db.users.findById(userObj.id);
                 if (!dbUser) return;
-                if (!dbUser.saved_listings) dbUser.saved_listings = [];
+                dbUser.saved_listings = parseJsonArray(dbUser.saved_listings);
                 
                 const idx = dbUser.saved_listings.indexOf(listingId);
                 if (idx > -1) {
@@ -540,4 +574,3 @@ export function renderListingDetailPage(app, params) {
         initNavbar();
     }, 0);
 }
-

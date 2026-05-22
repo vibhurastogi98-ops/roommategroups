@@ -1,6 +1,7 @@
 import { db } from '../services/db.js';
 import { navigate } from '../router.js';
 import { getVerificationBadge, getCurrentUser } from '../services/auth.js';
+import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { setSEO } from '../seo.js'; // SEO Update
 
@@ -23,7 +24,7 @@ export function renderCityPage(app, params) {
             return;
         }
 
-        const heroImage = city.hero_image || FALLBACK_HERO;
+        const heroImage = city.hero_image ? getAssetUrl(city.hero_image) : FALLBACK_HERO;
         const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active');
         const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
         const roommateProfiles = db.listings.find(l => 
@@ -352,7 +353,7 @@ export function renderCityPage(app, params) {
                         ${latestPosts.map(post => `
                             <a href="/blog/${post.slug}" class="gd-blog-card">
                                 <div class="gd-blog-img">
-                                    <img src="${post.featured_image || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=250&fit=crop'}" alt="${post.title}" loading="lazy">
+                                    <img src="${post.featured_image ? getAssetUrl(post.featured_image) : 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=250&fit=crop'}" alt="${post.title}" loading="lazy">
                                     <span class="gd-blog-cat">${post.category || 'Lifestyle'}</span>
                                 </div>
                                 <div class="gd-blog-body">
@@ -419,7 +420,7 @@ export function renderCityPage(app, params) {
             title: (city.meta_title || `Find Roommates in ${city.name} | RoommateGroups`).substring(0, 60),
             description: (city.meta_description || `Join roommate groups in ${city.name}. Browse verified listings, connect with locals, and find your ideal roommate on RoommateGroups.`).substring(0, 160),
             canonical: `https://roommategroups.com/cities/${city.slug}`,
-            ogImage: city.hero_image || FALLBACK_HERO,
+            ogImage: city.hero_image ? getAssetUrl(city.hero_image) : FALLBACK_HERO,
             schema: {
                 '@context': 'https://schema.org',
                 '@type': 'FAQPage',
@@ -498,6 +499,7 @@ function renderListingCard(l) {
     if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
     let photo = _imgs[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
     if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
+    photo = getAssetUrl(photo);
     const roomType = (l.room_type || l.category || 'room').replace(/_/g, ' ').toUpperCase();
 
     return `
@@ -561,7 +563,7 @@ function renderRoommateCard(r) {
     const tags = r.roommate_prefs?.tags || r.lifestyle_tags || [];
     return `
         <div class="roommate-card">
-            <div class="roommate-card-img" style="background-image:url('${user.profile_photo || 'https://i.pravatar.cc/150?u=unknown'}')">
+            <div class="roommate-card-img" style="background-image:url('${getAvatarUrl(user.profile_photo, user.display_name || 'Roommate')}')">
                 <span class="roommate-budget">$${r.rent ?? r.budgetMax ?? '?'}/mo</span>
             </div>
             <div class="roommate-card-body">
@@ -607,7 +609,7 @@ function renderNearbyCities(currentCity) {
 
     const allListings = db.listings.findAll();
     return nearby.map(c => {
-        const img = c.hero_image || FALLBACK_CITY_IMG;
+        const img = c.hero_image ? getAssetUrl(c.hero_image) : FALLBACK_CITY_IMG;
         const liveCount = allListings.filter(l => l.city === c.city_id && l.status === 'active').length;
         return `
             <a href="/cities/${c.slug}" class="gd-related-card">
@@ -657,7 +659,7 @@ function updateMetaTags(city) {
     if (metaDesc) metaDesc.setAttribute('content', city.meta_description || `Find the best rooms and roommates in ${city.name}.`);
     updateMetaProperty('og:title', document.title);
     updateMetaProperty('og:description', city.meta_description || '');
-    updateMetaProperty('og:image', city.hero_image || FALLBACK_HERO);
+    updateMetaProperty('og:image', city.hero_image ? getAssetUrl(city.hero_image) : FALLBACK_HERO);
     updateMetaProperty('og:url', window.location.href);
 }
 

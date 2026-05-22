@@ -7,13 +7,15 @@ import { Capacitor } from '@capacitor/core';
  * Specifically handles Cloudflare R2 relative paths and placeholders.
  */
 
+const DEFAULT_IMAGE_URL = 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=400';
+
 export function getAssetUrl(path) {
     return getImageUrl(path);
 }
 
 export function getImageUrl(path) {
     if (!path) {
-        return 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=400';
+        return DEFAULT_IMAGE_URL;
     }
 
     // If it's an object with a url/src property (some DB records store images as objects)
@@ -25,8 +27,27 @@ export function getImageUrl(path) {
     // Coerce to string for safety
     const str = String(path);
 
-    // 1. If it's already a full URL (http/https), return as is
-    if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('data:')) {
+    // 1. If it's already a full URL, avoid stale frontend-hosted R2 paths.
+    if (str.startsWith('http://') || str.startsWith('https://')) {
+        try {
+            const url = new URL(str);
+            const isLocalFrontendR2 =
+                url.pathname.startsWith('/r2/') &&
+                (url.hostname === 'localhost' || url.hostname === '127.0.0.1') &&
+                !API_URL.includes(url.host);
+            if (isLocalFrontendR2) {
+                return DEFAULT_IMAGE_URL;
+            }
+            if (url.pathname.startsWith('/r2/') && url.hostname === window.location.hostname) {
+                return `${API_URL}${url.pathname}`;
+            }
+        } catch (e) {
+            return str;
+        }
+        return str;
+    }
+
+    if (str.startsWith('data:')) {
         return str;
     }
 

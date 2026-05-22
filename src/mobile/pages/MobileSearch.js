@@ -150,7 +150,11 @@ export default async function init(container, params = {}) {
       </div>
       <!-- Cards -->
       <div id="ms-grid" class="ms-grid">
-        <div class="mobile-loader"><div class="mobile-spinner"></div></div>
+        <div class="mobile-loader">
+          <div class="mobile-skeleton-stack">
+            ${Array(3).fill(0).map(() => _skeletonCard()).join('')}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -580,3 +584,20 @@ export default async function init(container, params = {}) {
 }
 
 export const renderMobileSearch = init;
+
+function _skeletonCard() {
+  return `
+    <div class="mobile-skeleton-card">
+      <div class="mobile-skeleton-media"></div>
+      <div class="mobile-skeleton-body">
+        <div class="mobile-skeleton-line title"></div>
+        <div class="mobile-skeleton-line medium"></div>
+        <div class="mobile-skeleton-line short"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;">
+          <div class="mobile-skeleton-pill"></div>
+          <div class="mobile-skeleton-line short" style="width:64px;margin:0;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
