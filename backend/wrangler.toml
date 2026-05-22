@@ -1,0 +1,23 @@
+name                = "roommategroups"
+main                = "worker.ts"
+compatibility_date  = "2026-04-22"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[assets]
+directory           = "../web/dist"
+not_found_handling  = "single-page-application"
+
+# ── Cloudflare D1 (SQLite) ───────────────────────────────────
+[[d1_databases]]
+binding       = "DB"
+database_name = "roommatedb"
+database_id   = "48c563a0-0557-49f7-8e76-5dc4f1efd7a8"
+
+# ── Cloudflare R2 (Object Storage) ──────────────────────────
+[[r2_buckets]]
+binding             = "BUCKET"
+bucket_name         = "roommate-bucket"
+preview_bucket_name = "roommate-bucket-preview"

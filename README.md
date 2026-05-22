@@ -1,74 +1,97 @@
-# RoommateGroups — Final Project
+# RoommateGroups
 
-Welcome to the final version of **RoommateGroups**, a modern, Gen Z-aesthetic platform designed to help people find compatible roommates and list properties with ease.
+RoommateGroups is a Vite-powered website, Capacitor mobile app, and Cloudflare Worker backend for finding rooms, rentals, roommate matches, and local housing communities.
 
-## 🚀 Key Features
+## Structure
 
-- **Dynamic SPA Architecture**: A fast, Single Page Application built with Vanilla JS and Vite.
-- **Advanced Search**: Filter listings by city, property type, and roommate preferences with a glassmorphism floating search bar.
-- **Secure Authentication**: Complete Login and Registration flows with password hashing, strength estimation, and **Google One Tap** integration.
-- **Listing Management**: A multi-step listing wizard allowing users to upload photos, set preferences, and use **AI-assisted descriptions**.
-- **Admin Panel & Blog CMS**: A comprehensive dashboard for managing users, listings, cities, and a fully featured Blog CMS with live previews.
-- **Cloud-Native Backend**: Serverless architecture using **Cloudflare Workers** (`worker.ts`) for high performance and low latency.
-- **Robust Database**: **Cloudflare D1** SQL database for reliable data storage and complex queries.
-- **Image Storage**: **Cloudflare R2** for fast and scalable image serving.
-- **Premium Subscriptions**: Integrated with **Stripe Customer Portal** for plan management and payments.
-- **Interactive Maps**: Integrated OpenStreetMap for property location visualization.
+```text
+roommategroups/
+├── web/                  # Website: Vanilla JS + Vite
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── components/
+│   │   ├── services/
+│   │   ├── styles/
+│   │   └── main.js
+│   ├── public/
+│   ├── dist/
+│   ├── index.html
+│   └── vite.config.js
+├── mobile/               # Capacitor mobile app
+│   ├── android/
+│   ├── ios/
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── components/
+│   │   └── styles/
+│   └── capacitor.config.json
+├── backend/              # Express helpers + Cloudflare Worker
+│   ├── server.js
+│   ├── worker.ts
+│   ├── wrangler.toml
+│   └── .dev.vars
+├── database/             # D1 schema and migrations
+├── uploads/              # Local uploaded files, gitignored
+├── assets/               # Shared static images/icons
+├── package.json
+└── README.md
+```
 
-## 🛠️ Technology Stack
+## Commands
 
-- **Frontend**: HTML5, Vanilla CSS3 (Custom Design System), JavaScript (ESModules)
-- **Bundler**: Vite
-- **Backend**: Cloudflare Workers (TypeScript)
-- **Database**: Cloudflare D1 (SQLite)
-- **Object Storage**: Cloudflare R2 (Images)
-- **AI Integration**: Google Generative AI
-- **Authentication**: Custom JWT-style session management + Google Identity Services
-- **Payments**: Stripe Billing & Customer Portal
+Install dependencies:
 
-## 🏁 Getting Started
-
-### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Configure Cloudflare Wrangler
-Ensure you have Wrangler installed and authenticated:
+Run the website:
+
 ```bash
-npx wrangler login
+npm run dev:web
 ```
 
-### 3. Start the Development Servers
-You can run the frontend (Vite) and the backend (Cloudflare Worker):
-```bash
-npm run dev           # Starts Vite frontend
-npm run dev:worker    # Starts Cloudflare Worker backend
-```
-Or run the full legacy stack if needed:
-```bash
-npm run dev:full      # Starts legacy Express server and Vite
-```
-*   **Web App**: [http://localhost:5173](http://localhost:5173) (Vite default)
-*   **API Server**: Cloudflare Worker local URL (typically [http://localhost:8787](http://localhost:8787))
+Run the Express helper backend:
 
-### 4. Database Setup
-To initialize the local D1 database:
 ```bash
-npx wrangler d1 execute <DB_NAME> --local --file=./schema.sql
+npm run dev:backend
 ```
 
-## 📁 Project Structure
+Run both web and backend together:
 
-- `/index.html`: Main SPA entry point.
-- `/src/main.js`: Router and application initialization.
-- `/src/pages/`: Modular page components (Home, Search, Dashboard, Blog, etc.).
-- `/src/services/`: Core logic (Auth, API integration).
-- `/src/components/`: Reusable UI elements.
-- `/worker.ts`: Cloudflare Workers backend routing and API logic.
-- `/schema.sql` & `/migrate.sql`: D1 Database schema definitions and migrations.
-- `/wrangler.toml`: Cloudflare Workers configuration.
-- `/src/style.css`: Modern SPA Design System.
+```bash
+npm run dev:full
+```
 
----
-*Created with ❤️ for the RoommateGroups Community.*
+Build the website:
+
+```bash
+npm run build:web
+```
+
+Sync and open native projects:
+
+```bash
+npm run build:android
+npm run build:ios
+```
+
+Deploy the Worker and web assets:
+
+```bash
+npm run deploy
+```
+
+Run D1 migrations from the repo root:
+
+```bash
+npx wrangler d1 execute <DB_NAME> --local --file=./database/schema.sql --config ./backend/wrangler.toml
+```
+
+## Notes
+
+- `web/dist` is generated by `npm run build:web`.
+- `mobile/capacitor.config.json` points Capacitor at `../web/dist`.
+- `backend/wrangler.toml` serves assets from `../web/dist`.
+- Local uploads are stored in the root `uploads/` folder and ignored by Git.
+- Secrets stay in `.env` and `backend/.dev.vars`; both are ignored.

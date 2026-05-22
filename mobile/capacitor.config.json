@@ -1,0 +1,15 @@
+{
+  "appId": "com.roommategroups.app",
+  "appName": "RoommateGroups",
+  "webDir": "../web/dist",
+  "plugins": {
+    "Keyboard": {
+      "resize": "body",
+      "style": "dark",
+      "resizeOnFullScreen": true
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

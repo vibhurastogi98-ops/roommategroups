@@ -4,18 +4,21 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:worker": "wrangler dev",
-    "dev:all": "npx wrangler dev",
-    "server": "node --env-file=.env server.js",
-    "dev:full": "npm run server & npm run dev",
-    "build": "vite build",
-    "preview": "npm run build && wrangler dev",
-    "deploy": "npm run build && wrangler deploy"
+    "dev:web": "cd web && vite",
+    "dev:backend": "cd backend && node --env-file=../.env server.js",
+    "dev:full": "concurrently \"npm run dev:web\" \"npm run dev:backend\"",
+    "build:web": "cd web && vite build",
+    "build:android": "npm run build:web && cd mobile && npx cap sync android && npx cap open android",
+    "build:ios": "npm run build:web && cd mobile && npx cap sync ios && npx cap open ios",
+    "deploy": "npm run build:web && cd backend && wrangler deploy",
+    "dev": "npm run dev:web",
+    "build": "npm run build:web",
+    "server": "npm run dev:backend"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.33.1",
     "@cloudflare/workers-types": "^4.20260422.1",
+    "concurrently": "^9.2.1",
     "vite": "^7.3.1",
     "vite-plugin-sitemap": "^0.8.2",
     "wrangler": "^4.84.1"
