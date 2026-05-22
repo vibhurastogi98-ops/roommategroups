@@ -63,6 +63,18 @@ body, #mobile-app {
   -webkit-tap-highlight-color: transparent;
 }
 
+.mobile-app button,
+.mobile-sheet button,
+.bottom-sheet-panel button {
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mobile-app button:active,
+.mobile-sheet button:active,
+.bottom-sheet-panel button:active {
+  transform: scale(0.94);
+}
+
 .mobile-app {
   position: absolute;
   top: 0;
@@ -107,8 +119,8 @@ body, #mobile-app {
   display: flex;
   align-items: center;
   background: var(--mobile-glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--mobile-glass-border);
   box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
 }
@@ -344,6 +356,7 @@ body, #mobile-app {
 
 .mobile-nav-tab.active .mobile-nav-tab-icon {
   transform: scale(1.15) translateY(-1px);
+  animation: mobileNavActiveBounce 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .mobile-nav-tab-label {
@@ -412,13 +425,13 @@ body, #mobile-app {
   overflow: hidden;
   width: 100%;
   flex-shrink: 0;           /* CRITICAL: prevent squashing in flex containers */
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease;
   cursor: pointer;
 }
 
 .mobile-card:active {
-  transform: scale(0.985);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+  transform: scale(1.02);
+  box-shadow: var(--mobile-card-shadow), inset 0 0 0 1px var(--mobile-glass-border);
 }
 
 .mobile-card-image {
@@ -501,7 +514,7 @@ body, #mobile-app {
   background: #fff;
   border-radius: 24px 24px 0 0;
   transform: translateY(100%);
-  transition: transform var(--mobile-transition);
+  transition: transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
   max-height: 92vh;
   display: flex;
   flex-direction: column;
@@ -647,10 +660,12 @@ body, #mobile-app {
   animation: slideOutRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes slideInRight  { from { transform: translateX(100%) } to { transform: translateX(0) } }
-@keyframes slideOutLeft  { from { transform: translateX(0) }    to { transform: translateX(-30%) } }
-@keyframes slideInLeft   { from { transform: translateX(-30%) } to { transform: translateX(0) } }
-@keyframes slideOutRight { from { transform: translateX(0) }    to { transform: translateX(100%) } }
+@keyframes slideInRight  { from { opacity: 0; transform: translateX(100%) } to { opacity: 1; transform: translateX(0) } }
+@keyframes slideOutLeft  { from { opacity: 1; transform: translateX(0) }    to { opacity: 0; transform: translateX(-30%) } }
+@keyframes slideInLeft   { from { opacity: 0; transform: translateX(-30%) } to { opacity: 1; transform: translateX(0) } }
+@keyframes slideOutRight { from { opacity: 1; transform: translateX(0) }    to { opacity: 0; transform: translateX(100%) } }
+@keyframes pageEnter     { from { opacity: 0; transform: translateX(100%) } to { opacity: 1; transform: translateX(0) } }
+@keyframes pageExit      { from { opacity: 1; transform: translateX(0) }    to { opacity: 0; transform: translateX(-30%) } }
 
 /* Messages must scroll inside a fixed container, not the whole page */
 .chat-messages-area {
@@ -711,6 +726,7 @@ body, #mobile-app {
   padding: 4px 0;
   align-items: flex-end;
   gap: 8px;
+  animation: chatBubbleIn 280ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 .chat-bubble-row.sent {
@@ -741,6 +757,18 @@ body, #mobile-app {
 
 .chat-bubble-row.received .chat-bubble {
   max-width: calc(100% - 48px);
+}
+
+.chat-bubble-row:nth-of-type(1) { animation-delay: 0ms; }
+.chat-bubble-row:nth-of-type(2) { animation-delay: 50ms; }
+.chat-bubble-row:nth-of-type(3) { animation-delay: 100ms; }
+.chat-bubble-row:nth-of-type(4) { animation-delay: 150ms; }
+.chat-bubble-row:nth-of-type(5) { animation-delay: 200ms; }
+.chat-bubble-row:nth-of-type(6) { animation-delay: 250ms; }
+.chat-bubble-row:nth-of-type(n+7) { animation-delay: 300ms; }
+
+.chat-bubble-row.sent:last-of-type .chat-bubble {
+  animation: messagePopIn 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .mobile-chat-avatar {
@@ -816,9 +844,11 @@ body, #mobile-app {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.mobile-input:focus {
+.mobile-input:focus,
+.mobile-form-input:focus {
   border-color: var(--mobile-accent);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+  box-shadow: 0 0 0 3px var(--mobile-accent-soft);
+  animation: inputGlowPulse 1.4s ease-in-out infinite;
 }
 
 .mobile-textarea {
@@ -839,7 +869,8 @@ body, #mobile-app {
 
 .mobile-textarea:focus {
   border-color: var(--mobile-accent);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+  box-shadow: 0 0 0 3px var(--mobile-accent-soft);
+  animation: inputGlowPulse 1.4s ease-in-out infinite;
 }
 
 /* ── 11. Mobile Buttons ─────────────────────────────────────── */
@@ -856,12 +887,14 @@ body, #mobile-app {
   font-weight: 700;
   border: none;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, opacity 0.15s ease;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
 }
 
 .mobile-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.94);
   opacity: 0.9;
 }
 
@@ -951,25 +984,205 @@ body, #mobile-app {
 
 /* ── 15. Loader ─────────────────────────────────────────────── */
 .mobile-loader {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
+  display: block;
+  padding: 0;
+  width: 100%;
 }
 
 .mobile-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid rgba(124, 58, 237, 0.15);
-  border-top-color: var(--mobile-accent);
-  border-radius: 50%;
-  animation: mobileSpin 0.7s linear infinite;
+  display: none;
 }
 
 @keyframes mobileSpin {
   to {
     transform: rotate(360deg);
   }
+}
+
+.mobile-skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.mobile-skeleton-row {
+  display: flex;
+  gap: 16px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.mobile-skeleton-card {
+  width: 100%;
+  min-height: 300px;
+  border-radius: var(--mobile-radius);
+  border: 1px solid var(--border-light);
+  background: var(--bg-lighter);
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.mobile-skeleton-card.compact {
+  width: 85vw;
+  max-width: 320px;
+  min-height: 300px;
+}
+
+.mobile-skeleton-card.city {
+  min-height: 430px;
+}
+
+.mobile-skeleton-media,
+.mobile-skeleton-line,
+.mobile-skeleton-pill {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-lighter);
+  border-radius: var(--mobile-radius-sm);
+}
+
+.mobile-skeleton-media {
+  height: 180px;
+  border-radius: var(--mobile-radius) var(--mobile-radius) 0 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.mobile-skeleton-body {
+  padding: 16px;
+}
+
+.mobile-skeleton-line {
+  height: 14px;
+  margin-bottom: 12px;
+}
+
+.mobile-skeleton-line.title {
+  height: 22px;
+  width: 72%;
+}
+
+.mobile-skeleton-line.short {
+  width: 42%;
+}
+
+.mobile-skeleton-line.medium {
+  width: 58%;
+}
+
+.mobile-skeleton-pill {
+  width: 88px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.mobile-skeleton-card::after,
+.mobile-skeleton-media::after,
+.mobile-skeleton-line::after,
+.mobile-skeleton-pill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--mobile-glass-border), transparent);
+  animation: shimmer 1.15s linear infinite;
+}
+
+#chat-send {
+  position: relative;
+  overflow: hidden;
+}
+
+#chat-send::after {
+  content: '';
+  position: absolute;
+  inset: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: none;
+}
+
+#chat-send:active::after {
+  animation: sendRipple 420ms ease-out;
+}
+
+.header-badge:not(.hidden),
+#mobile-nav-badge-messages:not([style*="display:none"]),
+.ms-filter-badge:not([style*="display:none"]) {
+  animation: badgePulse 1.8s ease-in-out infinite;
+}
+
+.mobile-card-heart,
+.ms-card-heart,
+#lst-save {
+  transform-origin: center;
+}
+
+.mobile-card-heart:active svg,
+.ms-card-heart:active,
+#lst-save:active {
+  animation: heartPop 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#ptr-indicator {
+  transform-origin: top center;
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+#ptr-indicator[style*="50px"] {
+  animation: ptrRubberBand 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@keyframes mobileNavActiveBounce {
+  0% { transform: scale(0.9) translateY(0); }
+  55% { transform: scale(1.24) translateY(-3px); }
+  100% { transform: scale(1.15) translateY(-1px); }
+}
+
+@keyframes chatBubbleIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes messagePopIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes inputGlowPulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--mobile-accent-soft); }
+  50% { box-shadow: 0 0 0 5px var(--mobile-accent-soft); }
+}
+
+@keyframes sendRipple {
+  0% { opacity: 0.28; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(16); }
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes heartPop {
+  0% { transform: scale(0.85); }
+  60% { transform: scale(1.24); }
+  100% { transform: scale(1); }
+}
+
+@keyframes ptrRubberBand {
+  0% { transform: scaleY(0.92); }
+  45% { transform: scaleY(1.12); }
+  100% { transform: scaleY(1); }
 }
 
 /* ── 16. Tag Chips ──────────────────────────────────────────── */
@@ -1124,8 +1337,14 @@ body, #mobile-app {
 
 .ms-search-input:focus {
   border-color: var(--mobile-accent);
-  box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+  box-shadow: 0 0 0 3px var(--mobile-accent-soft);
   background: #fff;
+  animation: inputGlowPulse 1.4s ease-in-out infinite;
+}
+
+.mobile-page .auth-input:focus {
+  box-shadow: 0 0 0 3px var(--mobile-accent-soft) !important;
+  animation: inputGlowPulse 1.4s ease-in-out infinite;
 }
 
 .ms-search-clear {
@@ -1237,6 +1456,8 @@ body, #mobile-app {
 
 .ms-select:focus {
   border-color: var(--mobile-accent);
+  box-shadow: 0 0 0 3px var(--mobile-accent-soft);
+  animation: inputGlowPulse 1.4s ease-in-out infinite;
 }
 
 /* ── Type chip strip ───────────────────────────────────────── */
@@ -1328,12 +1549,12 @@ body, #mobile-app {
   box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease;
 }
 
 .ms-card:active {
-  transform: scale(0.985);
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  transform: scale(1.02);
+  box-shadow: var(--mobile-card-shadow), inset 0 0 0 1px var(--mobile-glass-border);
 }
 
 .ms-card-img-wrap {
@@ -1684,12 +1905,12 @@ body, #mobile-app {
 @media (hover: hover) {
   .mobile-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--mobile-card-shadow), inset 0 0 0 1px var(--mobile-glass-border);
   }
 
   .ms-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--mobile-card-shadow), inset 0 0 0 1px var(--mobile-glass-border);
   }
 
   .mobile-btn:hover {
@@ -2262,7 +2483,7 @@ body, #mobile-app {
     left: calc(var(--sidebar-width) + (100% - var(--sidebar-width)) / 2);
     transform: translate(-50%, -50%) scale(0.95);
     opacity: 0;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transition: transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1),
                 opacity 0.3s ease;
     max-height: 85vh;
   }
@@ -2507,5 +2728,31 @@ body, #mobile-app {
     .mobile-header {
       padding-left: calc(32px + env(safe-area-inset-left, 0px));
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
+  .mobile-page,
+  .mobile-page.slide-in-right,
+  .mobile-page.slide-in-left,
+  .mobile-page.slide-out-left,
+  .mobile-page.slide-out-right,
+  .mobile-card:active,
+  .ms-card:active,
+  .mobile-btn:active,
+  .mobile-nav-tab:active,
+  .mobile-card-heart:active,
+  .ms-card-heart:active,
+  #lst-save:active {
+    transform: none !important;
+    opacity: 1 !important;
   }
 }

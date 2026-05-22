@@ -4,10 +4,10 @@
  * photo upload, logout, subscription nav. All changes persist to DB.
  */
 
-import { getCurrentUser, logout, updateProfile } from '../../services/auth.js';
+import { getCurrentUser, logout, updateProfile, changePassword } from '../../services/auth.js';
 import { db } from '../../services/db.js';
 import { uploadImage } from '../../services/upload.js';
-import { showBottomSheet } from '../components/BottomSheet.js';
+import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 import { getAvatarUrl } from '../../services/assets.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
@@ -136,6 +136,9 @@ export async function init(container) {
               ${_row('💳', 'Subscription', 'Manage Plan', 'go-subscription')}
               ${_row('🔔', 'Notifications', '', 'go-notifications')}
               ${_row('🛡️', 'Verification', '', 'go-verification')}
+              ${_row('🔑', 'Change Password', '', 'change-password')}
+              ${_row('🚫', 'Blocked Users', `${(dbUser.blocked_users || []).length} blocked`, 'go-block-list')}
+              ${_row('📁', 'Archived Chats', 'View conversations', 'go-archived-chats')}
               ${_row('🚪', 'Log Out', '', 'do-logout', true)}
             </div>
           </div>
@@ -204,6 +207,9 @@ export async function init(container) {
     container.querySelector('[data-action="go-subscription"]')?.addEventListener('click', () => navigate('subscription'));
     container.querySelector('[data-action="go-notifications"]')?.addEventListener('click', () => navigate('notifications'));
     container.querySelector('[data-action="go-verification"]')?.addEventListener('click', () => navigate('verification'));
+    container.querySelector('[data-action="go-block-list"]')?.addEventListener('click', () => navigate('block-list'));
+    container.querySelector('[data-action="go-archived-chats"]')?.addEventListener('click', () => navigate('archived-chats'));
+    container.querySelector('[data-action="change-password"]')?.addEventListener('click', () => _showPasswordSheet(dbUser));
 
     // Log out
     container.querySelector('[data-action="do-logout"]')?.addEventListener('click', () => {
@@ -243,6 +249,45 @@ export async function init(container) {
   }
 
   _render();
+}
+
+function _showPasswordSheet(user) {
+  showBottomSheet({
+    title: 'Change Password',
+    content: `
+      <div style="display:flex;flex-direction:column;gap:14px;padding:0 4px;">
+        <div>
+          <label style="font-size:0.75rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;">CURRENT PASSWORD</label>
+          <input id="pwd-current" class="mobile-input" type="password" autocomplete="current-password" style="margin-top:6px;">
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:700;color:#94a3b8;letter-spacing:0.06em;">NEW PASSWORD</label>
+          <input id="pwd-new" class="mobile-input" type="password" autocomplete="new-password" style="margin-top:6px;">
+        </div>
+        <div id="pwd-error" style="display:none;color:#ef4444;font-size:0.8rem;font-weight:700;"></div>
+      </div>
+    `,
+    actions: [
+      {
+        label: 'Save Password',
+        variant: 'accent',
+        closeOnClick: false,
+        onClick: async () => {
+          const current = document.querySelector('#pwd-current')?.value || '';
+          const next = document.querySelector('#pwd-new')?.value || '';
+          const errEl = document.querySelector('#pwd-error');
+          const res = await changePassword(user.user_id || user.id, current, next);
+          if (!res.success) {
+            if (errEl) { errEl.textContent = res.error || 'Could not update password.'; errEl.style.display = ''; }
+            return;
+          }
+          hideBottomSheet();
+          _toast('Password updated!');
+        }
+      },
+      { label: 'Cancel', variant: 'outline', onClick: () => {} }
+    ]
+  });
 }
 
 // ── Row builders ──────────────────────────────────────────────

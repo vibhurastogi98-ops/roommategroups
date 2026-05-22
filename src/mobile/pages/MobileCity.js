@@ -378,19 +378,22 @@ function _wireEvents(container, { city, navigate }) {
 
 function _skeletonHTML() {
   return `
-    <div style="padding: 20px; animation: skeleton-pulse 1.5s infinite ease-in-out;">
-      <div style="height: 200px; background: #f1f5f9; border-radius: 20px; margin-bottom: 20px;"></div>
-      <div style="height: 30px; width: 60%; background: #f1f5f9; border-radius: 8px; margin-bottom: 12px;"></div>
-      <div style="height: 15px; width: 40%; background: #f1f5f9; border-radius: 8px; margin-bottom: 24px;"></div>
-      <div style="display: flex; gap: 12px; overflow: hidden;">
-        <div style="height: 150px; width: 120px; background: #f1f5f9; border-radius: 12px; flex-shrink: 0;"></div>
-        <div style="height: 150px; width: 120px; background: #f1f5f9; border-radius: 12px; flex-shrink: 0;"></div>
-        <div style="height: 150px; width: 120px; background: #f1f5f9; border-radius: 12px; flex-shrink: 0;"></div>
+    <div class="mobile-page-content" style="padding:20px;">
+      <div class="mobile-skeleton-stack">
+        <div class="mobile-skeleton-card city">
+          <div class="mobile-skeleton-media" style="height:200px;"></div>
+          <div class="mobile-skeleton-body">
+            <div class="mobile-skeleton-line title"></div>
+            <div class="mobile-skeleton-line medium"></div>
+            <div style="display:flex;gap:12px;margin-top:24px;overflow:hidden;">
+              <div class="mobile-skeleton-card" style="width:120px;min-height:150px;"></div>
+              <div class="mobile-skeleton-card" style="width:120px;min-height:150px;"></div>
+              <div class="mobile-skeleton-card" style="width:120px;min-height:150px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <style>
-      @keyframes skeleton-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 0.3; } }
-    </style>
   `;
 }
 

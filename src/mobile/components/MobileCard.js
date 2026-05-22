@@ -78,7 +78,7 @@ export function renderMobileCard(listing) {
   const category = (listing.category || '').toLowerCase();
   const isRoommate = category.includes('roommate_wanted') || category.includes('room_wanted');
 
-  const price = rent ? `$${Number(rent).toLocaleString('en-US')}/mo` : null;
+  const price = rent !== undefined && rent !== null && rent !== '' ? `$${Number(rent).toLocaleString('en-US')}/mo` : null;
   const location = [area, city].filter(Boolean).join(', ') || 'Location TBC';
 
   // Poster info

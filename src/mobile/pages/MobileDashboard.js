@@ -137,6 +137,7 @@ export async function init(container) {
             ${_action('⚙️', 'Account Settings', 'settings')}
             ${_action('💳', 'Subscription', 'subscription')}
             ${_action('🛡️', 'Verify Account', 'verification')}
+            ${dbUser.role === 'admin' ? _action('🔒', 'Admin Dashboard', 'admin') : ''}
           </div>
         </div>
 
@@ -178,9 +179,6 @@ export async function init(container) {
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });
-
-  _render();
-  startTimer();
 
   async function _wireEvents() {
     const { navigate } = await getMobile();

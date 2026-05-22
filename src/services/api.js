@@ -11,7 +11,7 @@ import { API_URL } from './config.js';
 async function req(method, path, data, silent = false) {
     try {
         const session = JSON.parse(localStorage.getItem('rg_session') || 'null');
-        const token = session?.userId || '';
+        const token = localStorage.getItem('token') || session?.token || session?.userId || '';
 
         const opts = { 
             method, 

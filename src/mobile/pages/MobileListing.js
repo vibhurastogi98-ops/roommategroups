@@ -53,7 +53,10 @@ export async function init(container, params = {}) {
   }
   const photos = (Array.isArray(photoList) ? photoList : [photoList]).filter(Boolean).map(p => getAssetUrl(p));
   const symbol = listing.currency === 'EUR' ? '€' : listing.currency === 'GBP' ? '£' : listing.currency === 'INR' ? '₹' : '$';
-  const price = listing.rent ? `${symbol}${Number(listing.rent).toLocaleString(listing.currency === 'INR' ? 'en-IN' : 'en-US')}` : 'Price TBC';
+  const rentValue = listing.rent ?? listing.price;
+  const price = rentValue !== undefined && rentValue !== null && rentValue !== ''
+    ? `${symbol}${Number(rentValue).toLocaleString(listing.currency === 'INR' ? 'en-IN' : 'en-US')}`
+    : 'Price TBC';
 
   // Normalize City Name
   let cityName = '';
@@ -210,7 +213,9 @@ export async function init(container, params = {}) {
     (await getMobile()).navigate('profile', { userId: listing.user_id });
   });
 
-  container.querySelector('#lst-edit')?.addEventListener('click', () => _showEditPopup(listing.listing_id || listing.id, container));
+  container.querySelector('#lst-edit')?.addEventListener('click', async () => {
+    (await getMobile()).navigate('post', { listingId: listing.listing_id || listing.id });
+  });
 
   // ── Gallery swipe ──────────────────────────────────────────
   if (photos.length > 1) _initGallery(container, photos);

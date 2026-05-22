@@ -56,6 +56,11 @@ function generateStripeCustomerId() {
 function _getDB() { return JSON.parse(localStorage.getItem('rg_database') || '{}'); }
 function _saveDB(raw) { localStorage.setItem('rg_database', JSON.stringify(raw)); }
 function _genId() { return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
+function _setSession(user) {
+    const token = user.token || user.jwt || user.user_id;
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email, token }));
+    localStorage.setItem('token', token);
+}
 
 function _localCreateUser(data) {
     const raw = _getDB();
@@ -100,7 +105,7 @@ export async function register({ fullName, email, password }) {
         emailVerified: true, profileComplete: false, last_active: new Date().toISOString(), is_active: true
     });
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email }));
+    _setSession(user);
 
     // Background D1 sync — never blocks
     _bgSync(async () => {
@@ -154,7 +159,7 @@ export async function login(email, password) {
     // Update last_active locally — no network needed
     const now = new Date().toISOString();
     user = _localUpdateUser(user.user_id, { last_active: now }) || user;
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.user_id, email: user.email }));
+    _setSession(user);
 
     // Background D1 sync — never blocks login
     _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { last_active: now }); });
@@ -165,6 +170,7 @@ export async function login(email, password) {
 
 export async function logout() {
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('token');
 }
 
 // ── Session Management ──
@@ -209,6 +215,23 @@ export async function updateProfile(userId, profileData) {
     if (!user) return { success: false, error: 'User not found.' };
 
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
+}
+
+export async function changePassword(userId, currentPassword, newPassword) {
+    const existing = db.users.findById(userId);
+    if (!existing) return { success: false, error: 'User not found.' };
+    if (!newPassword || newPassword.length < 8) return { success: false, error: 'New password must be at least 8 characters.' };
+
+    const storedHash = existing.passwordHash || existing.password_hash;
+    if (storedHash) {
+        const ok = await verifyPassword(currentPassword || '', storedHash);
+        if (!ok) return { success: false, error: 'Current password is incorrect.' };
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    const user = await db.users.update(userId, { passwordHash, password_hash: passwordHash });
+    if (!user) return { success: false, error: 'Could not update password.' };
+    return { success: true };
 }
 
 export function isLoggedIn() {

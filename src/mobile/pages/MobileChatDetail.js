@@ -135,7 +135,7 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
           <span class="icon">👤</span> View Profile
         </button>
         <button class="chat-dropdown-item" data-action="archive">
-          <span class="icon">📁</span> Archive Chat
+          <span class="icon">📁</span> ${thread.is_archived ? 'Unarchive Chat' : 'Archive Chat'}
         </button>
         <button class="chat-dropdown-item" data-action="block" style="color: #ef4444;">
           <span class="icon">🚫</span> Block User
@@ -334,11 +334,16 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
           navigate('profile', { userId: otherId });
         } else if (action === 'archive') {
           try {
-            await api.archiveThread(threadId);
-            msgService.archiveThread(threadId, user.user_id); // Sync local state
-            goBack();
+            if (thread.is_archived) {
+              await db.threads.update(threadId, { is_archived: false, archived_by: null });
+              msgService.unarchiveThread(threadId);
+            } else {
+              msgService.archiveThread(threadId, user.user_id); // Sync local state
+              api.archiveThread(threadId).catch(err => console.warn('[Chat] archive sync failed:', err));
+              goBack();
+            }
           } catch (err) {
-            alert('Failed to archive chat');
+            alert(thread.is_archived ? 'Failed to unarchive chat' : 'Failed to archive chat');
           }
         } else if (action === 'block') {
           showBottomSheet({
@@ -356,8 +361,8 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
                 variant: 'danger', 
                 onClick: async () => {
                   try {
-                    await api.blockUser(otherId);
                     msgService.blockUser(user.user_id, otherId, threadId); // Sync local state
+                    api.blockUser(otherId).catch(err => console.warn('[Chat] block sync failed:', err));
                     goBack();
                   } catch (err) {
                     alert('Failed to block user');
@@ -383,8 +388,8 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
                 variant: 'danger', 
                 onClick: async () => {
                   try {
-                    await api.deleteThread(threadId);
-                    // Local delete if needed, but goBack() is usually enough if it syncs
+                    await db.threads.delete(threadId);
+                    api.deleteThread(threadId).catch(err => console.warn('[Chat] delete sync failed:', err));
                     goBack();
                   } catch (err) {
                     alert('Failed to delete chat');
@@ -460,7 +465,7 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
     const changed = await syncMessagesAndThreads().catch(() => false);
     if (changed) {
       const msgs = msgService.getMessagesForThread(threadId);
-      const currentCount = container.querySelectorAll('.msg-bubble-row')?.length || 0;
+      const currentCount = container.querySelectorAll('.chat-bubble-row')?.length || 0;
       if (msgs.length !== currentCount) {
         _partialUpdate();
       }

@@ -5,6 +5,7 @@
 
 import { getCurrentUser } from '../../services/auth.js';
 import { db } from '../../services/db.js';
+import { showBottomSheet } from '../components/BottomSheet.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 

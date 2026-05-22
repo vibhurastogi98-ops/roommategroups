@@ -127,6 +127,6 @@ export function getTabForPath(path) {
   if (path.startsWith('/search')) return 'search';
   if (path.startsWith('/post-listing')) return 'post';
   if (path.startsWith('/dashboard/messages')) return 'messages';
-  if (path.startsWith('/dashboard')) return 'profile';
+  if (path.startsWith('/dashboard') || path.startsWith('/admin')) return 'dashboard';
   return 'home';
 }
