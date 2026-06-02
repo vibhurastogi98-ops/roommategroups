@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 type Bindings = {
   DB: D1Database
   BUCKET: R2Bucket
+  ASSETS: { fetch: typeof fetch }
   GEMINI_API_KEY: string
 }
 
@@ -1450,6 +1451,11 @@ app.delete('/user_queries/:id', async (c) => {
     return dbJson(c, { error: 'Delete failed' }, 500)
   }
 })
+
+// ── SPA deep-link fallback ───────────────────────────────────
+// Browser routes such as /auth/login are handled by the client router.
+// Without this, Hono returns 404 before Cloudflare Assets can serve index.html.
+app.get('*', async (c) => c.env.ASSETS.fetch(c.req.raw))
 
 export default app
 
