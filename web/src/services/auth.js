@@ -1,4 +1,5 @@
 import { db } from './db.js';
+import { API_URL } from './config.js';
 
 const SESSION_KEY = 'rg_session';
 
@@ -109,20 +110,66 @@ function _localUpdateUser(userId, data) {
     return raw.users[idx];
 }
 
-function _bgSync(fn) {
-    // Fire-and-forget — network errors never block auth
-    Promise.resolve().then(fn).catch(e => console.debug('[AUTH] D1 sync skipped (offline):', e.message));
+function _upsertLocalUser(user) {
+    if (!user?.user_id) return null;
+    const raw = _getDB();
+    if (!raw.users) raw.users = [];
+    const idx = raw.users.findIndex(u => u.user_id === user.user_id || u.id === user.user_id || u.email === user.email);
+    if (idx === -1) {
+        raw.users.push(user);
+    } else {
+        raw.users[idx] = { ...raw.users[idx], ...user, updated_at: new Date().toISOString() };
+    }
+    _saveDB(raw);
+    return idx === -1 ? user : raw.users[idx];
 }
 
-// ── Auth Functions ──
+function _isNetworkAuthError(err) {
+    return err?.name === 'TypeError' || /failed to fetch|load failed|network/i.test(err?.message || '');
+}
 
-export async function register({ fullName, email, password }) {
+async function _authRequest(path, data, options = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (options.auth) {
+        const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+        const token = localStorage.getItem('token') || session?.token || '';
+        if (token) headers.Authorization = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data)
+    });
+
+    const payload = await res.clone().json().catch(async () => {
+        const body = await res.text().catch(() => '');
+        return { error: body || 'Server error' };
+    });
+
+    if (!res.ok) {
+        const err = new Error(payload.error || payload.message || `HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+    }
+
+    return payload;
+}
+
+function _finishServerSession(result) {
+    const token = result?.token || result?.user?.token || result?.user?.jwt;
+    const user = result?.user ? { ...result.user, token } : null;
+    if (!user?.user_id || !token) throw new Error('Invalid authentication response.');
+    const cached = _upsertLocalUser(user) || user;
+    _setSession({ ...cached, token });
+    return { ...cached, token, id: cached.user_id, fullName: cached.display_name };
+}
+
+async function _registerOffline({ fullName, email, password }) {
     const existing = db.users.findOne(u => u.email.toLowerCase() === email.toLowerCase());
     if (existing) return { success: false, error: 'An account with this email already exists.' };
 
     const pwHash = password ? await hashPassword(password) : null;
-
-    // Write to localStorage immediately — no network call
     const user = _localCreateUser({
         display_name: fullName, email: email.toLowerCase(),
         passwordHash: pwHash, city: '', country: '',
@@ -135,21 +182,13 @@ export async function register({ fullName, email, password }) {
     });
 
     _setSession(user);
-
-    // Background D1 sync — never blocks
-    _bgSync(async () => {
-        const { api } = await import('./api.js');
-        await api.createUser(user, true);
-    });
-
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
 }
 
-export async function login(email, password) {
+async function _loginOffline(email, password) {
     const normalizedEmail = email.toLowerCase();
 
-    // ── Master Admin Bootstrap (local only) ──
-    // Admin password is read from env at build time; falls back to prompting a reset.
+    // Local-only bootstrap for offline development. Production auth is server-side.
     const ADMIN_EMAIL = 'hello@roommategroups.com';
     if (normalizedEmail === ADMIN_EMAIL) {
         let adminUser = db.users.findOne(u => u.email.toLowerCase() === normalizedEmail);
@@ -160,11 +199,8 @@ export async function login(email, password) {
                 passwordHash: pwHash, role: 'admin', profileComplete: true,
                 is_active: true, verification_level: 'community', subscription_tier: 'admin'
             });
-            _bgSync(async () => { const { api } = await import('./api.js'); await api.createUser(adminUser, true); });
         } else if (adminUser.role !== 'admin') {
-            const updates = { role: 'admin', display_name: 'roommategroups', profileComplete: true };
-            _localUpdateUser(adminUser.user_id, updates);
-            _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(adminUser.user_id, updates, true); });
+            _localUpdateUser(adminUser.user_id, { role: 'admin', display_name: 'roommategroups', profileComplete: true });
         }
     }
 
@@ -172,28 +208,46 @@ export async function login(email, password) {
     if (!user) return { success: false, error: 'No account found with this email.' };
 
     const storedHash = user.passwordHash || user.password_hash;
-
     if (!storedHash) {
-        // Social-only account — set password on first use
         const newHash = await hashPassword(password || crypto.randomUUID());
         _localUpdateUser(user.user_id, { passwordHash: newHash });
-        _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { password_hash: newHash }, true); });
     } else if (password) {
         const ok = await verifyPassword(password, storedHash);
         if (!ok) return { success: false, error: 'Invalid email or password.' };
-    } else if (!password && storedHash) {
+    } else {
         return { success: false, error: 'Password is required for this account.' };
     }
 
-    // Update last_active locally — no network needed
     const now = new Date().toISOString();
     user = _localUpdateUser(user.user_id, { last_active: now }) || user;
     _setSession(user);
-
-    // Background D1 sync — never blocks login
-    _bgSync(async () => { const { api } = await import('./api.js'); await api.updateUser(user.user_id, { last_active: now }, true); });
-
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
+}
+
+// ── Auth Functions ──
+
+export async function register({ fullName, email, password }) {
+    try {
+        const result = await _authRequest('/auth/register', {
+            email,
+            password,
+            display_name: fullName
+        });
+        return { success: true, user: _finishServerSession(result) };
+    } catch (err) {
+        if (_isNetworkAuthError(err)) return _registerOffline({ fullName, email, password });
+        return { success: false, error: err.message || 'Registration failed.' };
+    }
+}
+
+export async function login(email, password) {
+    try {
+        const result = await _authRequest('/auth/login', { email, password });
+        return { success: true, user: _finishServerSession(result) };
+    } catch (err) {
+        if (_isNetworkAuthError(err)) return _loginOffline(email, password);
+        return { success: false, error: err.message || 'Invalid email or password.' };
+    }
 }
 
 
@@ -260,18 +314,27 @@ export async function updateProfile(userId, profileData) {
 }
 
 export async function changePassword(userId, currentPassword, newPassword) {
+    if (!newPassword || newPassword.length < 8) return { success: false, error: 'New password must be at least 8 characters.' };
+
+    try {
+        await _authRequest('/auth/change-password', { currentPassword, newPassword }, { auth: true });
+        const passwordHash = await hashPassword(newPassword);
+        _localUpdateUser(userId, { passwordHash, password_hash: passwordHash });
+        return { success: true };
+    } catch (err) {
+        if (!_isNetworkAuthError(err)) return { success: false, error: err.message || 'Could not update password.' };
+    }
+
     const existing = db.users.findById(userId);
     if (!existing) return { success: false, error: 'User not found.' };
-    if (!newPassword || newPassword.length < 8) return { success: false, error: 'New password must be at least 8 characters.' };
 
     const storedHash = existing.passwordHash || existing.password_hash;
     if (storedHash) {
         const ok = await verifyPassword(currentPassword || '', storedHash);
         if (!ok) return { success: false, error: 'Current password is incorrect.' };
     }
-
     const passwordHash = await hashPassword(newPassword);
-    const user = await db.users.update(userId, { passwordHash, password_hash: passwordHash });
+    const user = _localUpdateUser(userId, { passwordHash, password_hash: passwordHash });
     if (!user) return { success: false, error: 'Could not update password.' };
     return { success: true };
 }

@@ -7,9 +7,20 @@ type Bindings = {
   BUCKET: R2Bucket
   ASSETS: { fetch: typeof fetch }
   GEMINI_API_KEY: string
+  JWT_SECRET?: string
 }
 
-const app = new Hono<{ Bindings: Bindings }>()
+type JwtPayload = {
+  uid: string
+  role: string
+  exp: number
+}
+
+type Variables = {
+  jwtPayload: JwtPayload | null
+}
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 // ── CORS ─────────────────────────────────────────────────────
 app.use('*', cors({
@@ -23,6 +34,11 @@ app.use('*', cors({
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }))
+
+app.use('*', async (c, next) => {
+  c.set('jwtPayload', await getVerifiedJwtPayload(c))
+  await next()
+})
 
 // ── Global Error Handler ──────────────────────────────────────
 app.onError((err, c) => {
@@ -199,25 +215,271 @@ app.get('/favicon.ico', async (c) => {
   return new Response(object.body, { headers })
 })
 
-// Helper: no-store JSON response for all dynamic DB data
-function dbJson(c: any, data: any, status = 200) {
-  return c.json(data, status, { 'Cache-Control': 'no-store, no-cache, must-revalidate' })
+// Helper: JSON response for DB-backed endpoints.
+function dbJson(c: any, data: any, status = 200, headers: Record<string, string> = { 'Cache-Control': 'no-store, no-cache, must-revalidate' }) {
+  return c.json(data, status, headers)
 }
 
 // ── Auth helpers ─────────────────────────────────────────────
-// The Bearer token is the session userId. Routes that mutate data
-// verify it is present and matches the resource owner or admin.
-function getRequestUserId(c: any): string | null {
+const JWT_TTL_SECONDS = 30 * 24 * 60 * 60
+const PBKDF2_ITERATIONS = 100_000
+const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 1000
+const AUTH_RATE_LIMIT_MAX = 5
+const loginRateLimits = new Map<string, { count: number; resetAt: number }>()
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
+
+function base64UrlEncode(input: string | ArrayBuffer | Uint8Array): string {
+  const bytes = typeof input === 'string'
+    ? textEncoder.encode(input)
+    : input instanceof Uint8Array
+      ? input
+      : new Uint8Array(input)
+
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function base64UrlDecode(segment: string): Uint8Array | null {
+  try {
+    let input = segment.replace(/-/g, '+').replace(/_/g, '/')
+    const padding = input.length % 4
+    if (padding) input += '='.repeat(4 - padding)
+    const binary = atob(input)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes
+  } catch {
+    return null
+  }
+}
+
+function base64UrlJson(data: unknown): string {
+  return base64UrlEncode(JSON.stringify(data))
+}
+
+function parseBase64UrlJson<T>(segment: string): T | null {
+  const bytes = base64UrlDecode(segment)
+  if (!bytes) return null
+  try {
+    return JSON.parse(textDecoder.decode(bytes)) as T
+  } catch {
+    return null
+  }
+}
+
+async function getJwtKey(secret: string, usages: Array<'sign' | 'verify'>): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    'raw',
+    textEncoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    usages
+  )
+}
+
+async function signJwt(payload: { uid: string; role?: string; exp?: number }, secret: string): Promise<string> {
+  if (!secret) throw new Error('JWT_SECRET is not configured')
+  const header = { alg: 'HS256', typ: 'JWT' }
+  const now = Math.floor(Date.now() / 1000)
+  const fullPayload: JwtPayload = {
+    uid: payload.uid,
+    role: payload.role || 'user',
+    exp: payload.exp || now + JWT_TTL_SECONDS,
+  }
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(fullPayload)}`
+  const key = await getJwtKey(secret, ['sign'])
+  const signature = await crypto.subtle.sign('HMAC', key, textEncoder.encode(signingInput))
+  return `${signingInput}.${base64UrlEncode(signature)}`
+}
+
+async function verifyJwt(token: string, secret: string): Promise<JwtPayload | null> {
+  if (!token || !secret) return null
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+
+  const header = parseBase64UrlJson<{ alg?: string; typ?: string }>(parts[0])
+  if (!header || header.alg !== 'HS256' || header.typ !== 'JWT') return null
+
+  const signature = base64UrlDecode(parts[2])
+  if (!signature) return null
+
+  const key = await getJwtKey(secret, ['verify'])
+  const signingInput = `${parts[0]}.${parts[1]}`
+  const valid = await crypto.subtle.verify('HMAC', key, signature, textEncoder.encode(signingInput))
+  if (!valid) return null
+
+  const payload = parseBase64UrlJson<JwtPayload>(parts[1])
+  if (!payload || typeof payload.uid !== 'string' || typeof payload.exp !== 'number') return null
+  if (Math.floor(Date.now() / 1000) >= payload.exp) return null
+
+  return {
+    uid: payload.uid,
+    role: typeof payload.role === 'string' && payload.role ? payload.role : 'user',
+    exp: payload.exp,
+  }
+}
+
+function getAuthSecret(c: any): string {
+  return c.env.JWT_SECRET || c.env.GEMINI_API_KEY || ''
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function hexToBytes(hex: string): Uint8Array | null {
+  if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2 !== 0) return null
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  return bytes
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
+async function derivePasswordHash(password: string, salt: Uint8Array): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', textEncoder.encode(password), 'PBKDF2', false, ['deriveBits'])
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERATIONS },
+    key,
+    256
+  )
+  return bytesToHex(new Uint8Array(bits))
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const hashHex = await derivePasswordHash(password, salt)
+  return `pbkdf2:${bytesToHex(salt)}:${hashHex}`
+}
+
+function isLegacyHash(stored: string): boolean {
+  return stored.startsWith('h_') && stored.length < 20
+}
+
+function legacyHash(password: string): string {
+  let hash = 0
+  for (let i = 0; i < password.length; i++) {
+    hash = ((hash << 5) - hash) + password.charCodeAt(i)
+    hash |= 0
+  }
+  return `h_${Math.abs(hash).toString(36)}`
+}
+
+async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
+  if (!stored) return false
+  if (isLegacyHash(stored)) return constantTimeEqual(legacyHash(password), stored)
+  if (!stored.startsWith('pbkdf2:')) return false
+
+  const parts = stored.split(':')
+  if (parts.length !== 3) return false
+  const salt = hexToBytes(parts[1])
+  if (!salt) return false
+
+  const actualHex = await derivePasswordHash(password, salt)
+  return constantTimeEqual(actualHex, parts[2])
+}
+
+function shouldRehashPassword(stored: string | null | undefined): boolean {
+  return typeof stored === 'string' && isLegacyHash(stored)
+}
+
+function normalizeEmail(email: unknown): string {
+  return String(email || '').trim().toLowerCase()
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function generateUserId(): string {
+  return `user_${crypto.randomUUID()}`
+}
+
+function generateStripeCustomerId(): string {
+  return `cus_${crypto.randomUUID().replace(/-/g, '').slice(0, 14)}`
+}
+
+function getClientIp(c: any): string {
+  const forwardedFor = c.req.header('X-Forwarded-For') || ''
+  return c.req.header('CF-Connecting-IP') || forwardedFor.split(',')[0].trim() || 'unknown'
+}
+
+function consumeLoginRateLimit(c: any): { allowed: boolean; retryAfter: number } {
+  const key = getClientIp(c)
+  const now = Date.now()
+  const current = loginRateLimits.get(key)
+
+  if (!current || current.resetAt <= now) {
+    loginRateLimits.set(key, { count: 1, resetAt: now + AUTH_RATE_LIMIT_WINDOW_MS })
+    return { allowed: true, retryAfter: 0 }
+  }
+
+  if (current.count >= AUTH_RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfter: Math.ceil((current.resetAt - now) / 1000) }
+  }
+
+  current.count += 1
+  return { allowed: true, retryAfter: 0 }
+}
+
+async function getVerifiedJwtPayload(c: any): Promise<JwtPayload | null> {
   const auth = c.req.header('Authorization') || ''
-  if (!auth.startsWith('Bearer ')) return null
-  const id = auth.slice(7).trim()
-  return id || null
+  const match = auth.match(/^Bearer\s+(.+)$/i)
+  if (!match) return null
+  return verifyJwt(match[1].trim(), getAuthSecret(c))
+}
+
+function getRequestJwtPayload(c: any): JwtPayload | null {
+  return c.get('jwtPayload') || null
+}
+
+// The bearer token must be a signed JWT verified by the auth middleware.
+function getRequestUserId(c: any): string | null {
+  return getRequestJwtPayload(c)?.uid || null
+}
+
+function getRequestRole(c: any): string {
+  return getRequestJwtPayload(c)?.role || ''
+}
+
+function toPublicUser(row: any): Record<string, any> {
+  const user = { ...row }
+  delete user.password_hash
+  delete user.passwordHash
+
+  if ('is_active' in user) user.is_active = !!user.is_active
+  if ('profileComplete' in user) user.profileComplete = !!user.profileComplete
+  if ('emailVerified' in user) user.emailVerified = !!user.emailVerified
+  if ('id_verified' in user) user.id_verified = !!user.id_verified
+  if ('phone_verified' in user) user.phone_verified = !!user.phone_verified
+
+  const jsonFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens']
+  jsonFields.forEach((field) => {
+    if (typeof user[field] === 'string') {
+      try { user[field] = JSON.parse(user[field]) } catch { user[field] = [] }
+    }
+  })
+
+  return user
+}
+
+function setJsonResponse(c: any, data: any, status = 200): Response {
+  const response = dbJson(c, data, status)
+  c.res = response
+  return response
 }
 
 async function requireAuth(c: any): Promise<string | null> {
   const userId = getRequestUserId(c)
   if (!userId) {
-    dbJson(c, { error: 'Authentication required' }, 401)
+    setJsonResponse(c, { error: 'Authentication required' }, 401)
     return null
   }
   return userId
@@ -225,15 +487,9 @@ async function requireAuth(c: any): Promise<string | null> {
 
 async function requireAdmin(c: any): Promise<boolean> {
   const userId = getRequestUserId(c)
-  if (!userId) { dbJson(c, { error: 'Authentication required' }, 401); return false }
-  try {
-    const user = await c.env.DB.prepare('SELECT role FROM users WHERE user_id = ?').bind(userId).first()
-    if (!user || (user as any).role !== 'admin') {
-      dbJson(c, { error: 'Forbidden' }, 403)
-      return false
-    }
-  } catch {
-    dbJson(c, { error: 'Authentication check failed' }, 500)
+  if (!userId) { setJsonResponse(c, { error: 'Authentication required' }, 401); return false }
+  if (getRequestRole(c) !== 'admin') {
+    setJsonResponse(c, { error: 'Forbidden' }, 403)
     return false
   }
   return true
@@ -300,31 +556,146 @@ app.post('/api/ai-assist', async (c) => {
   }
 })
 
+// ── Auth: server-side registration and login ─────────────────
+app.post('/auth/register', async (c) => {
+  try {
+    const body = await c.req.json()
+    const email = normalizeEmail(body.email)
+    const password = String(body.password || '')
+    const displayName = String(body.display_name || body.fullName || body.name || '').trim()
+
+    if (!isValidEmail(email)) return dbJson(c, { error: 'A valid email is required.' }, 400)
+    if (password.length < 8) return dbJson(c, { error: 'Password must be at least 8 characters.' }, 400)
+
+    const existing = await c.env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = ?')
+      .bind(email)
+      .first()
+    if (existing) return dbJson(c, { error: 'An account with this email already exists.' }, 409)
+
+    const now = new Date().toISOString()
+    const user = {
+      user_id: generateUserId(),
+      email,
+      display_name: displayName || email.split('@')[0],
+      profile_photo: '',
+      bio: '',
+      city: '',
+      country: '',
+      age_range: '',
+      occupation: '',
+      lifestyle_tags: '[]',
+      verification_level: 'basic',
+      subscription_tier: 'free',
+      stripe_customer_id: generateStripeCustomerId(),
+      saved_listings: '[]',
+      saved_searches: '[]',
+      blocked_users: '[]',
+      password_hash: await hashPassword(password),
+      role: 'user',
+      is_active: 1,
+      profileComplete: 0,
+      emailVerified: 1,
+      budgetMin: 500,
+      budgetMax: 2500,
+      moveInTimeline: '',
+      created_at: now,
+      last_active: now,
+      push_tokens: '[]',
+    }
+
+    const cols = Object.keys(user)
+    const placeholders = cols.map(() => '?').join(', ')
+    await c.env.DB.prepare(
+      `INSERT INTO users (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...Object.values(user)).run()
+
+    const token = await signJwt({ uid: user.user_id, role: user.role }, getAuthSecret(c))
+    return dbJson(c, { success: true, user: toPublicUser(user), token }, 201)
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.post('/auth/login', async (c) => {
+  const rateLimit = consumeLoginRateLimit(c)
+  if (!rateLimit.allowed) {
+    return c.json(
+      { error: 'Too many login attempts. Please try again later.' },
+      429,
+      { 'Retry-After': String(rateLimit.retryAfter), 'Cache-Control': 'no-store, no-cache, must-revalidate' }
+    )
+  }
+
+  try {
+    const body = await c.req.json()
+    const email = normalizeEmail(body.email)
+    const password = String(body.password || '')
+
+    if (!isValidEmail(email) || !password) return dbJson(c, { error: 'Invalid email or password.' }, 401)
+
+    const user = await c.env.DB.prepare('SELECT * FROM users WHERE LOWER(email) = ?')
+      .bind(email)
+      .first()
+    const storedHash = (user as any)?.password_hash
+    const passwordOk = await verifyPassword(password, storedHash)
+    if (!user || !passwordOk) return dbJson(c, { error: 'Invalid email or password.' }, 401)
+
+    const now = new Date().toISOString()
+    if (shouldRehashPassword(storedHash)) {
+      await c.env.DB.prepare('UPDATE users SET password_hash = ?, last_active = ? WHERE user_id = ?')
+        .bind(await hashPassword(password), now, (user as any).user_id)
+        .run()
+    } else {
+      await c.env.DB.prepare('UPDATE users SET last_active = ? WHERE user_id = ?')
+        .bind(now, (user as any).user_id)
+        .run()
+    }
+
+    const publicUser = toPublicUser({ ...(user as any), last_active: now })
+    const token = await signJwt({ uid: publicUser.user_id, role: publicUser.role || 'user' }, getAuthSecret(c))
+    return dbJson(c, { success: true, user: publicUser, token })
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
+app.post('/auth/change-password', async (c) => {
+  const userId = await requireAuth(c)
+  if (!userId) return c.res
+
+  try {
+    const body = await c.req.json()
+    const currentPassword = String(body.currentPassword || body.current_password || '')
+    const newPassword = String(body.newPassword || body.new_password || '')
+
+    if (newPassword.length < 8) return dbJson(c, { error: 'New password must be at least 8 characters.' }, 400)
+
+    const user = await c.env.DB.prepare('SELECT password_hash FROM users WHERE user_id = ?')
+      .bind(userId)
+      .first()
+    const storedHash = (user as any)?.password_hash
+    const passwordOk = await verifyPassword(currentPassword, storedHash)
+    if (!user || !passwordOk) return dbJson(c, { error: 'Current password is incorrect.' }, 401)
+
+    await c.env.DB.prepare('UPDATE users SET password_hash = ?, updated_at = datetime(\'now\') WHERE user_id = ?')
+      .bind(await hashPassword(newPassword), userId)
+      .run()
+
+    return dbJson(c, { success: true })
+  } catch (err) {
+    const error = err as Error
+    return dbJson(c, { error: error.message }, 500)
+  }
+})
+
 // ── D1: Users ────────────────────────────────────────────────
 app.get('/users', async (c) => {
   if (!await requireAdmin(c)) return c.res
   try {
     const { results } = await c.env.DB.prepare('SELECT * FROM users LIMIT 1000').all()
-    // Map D1 snake_case back to camelCase for frontend compatibility
-    const mapped = results.map((u: any) => {
-      const user = { ...u }
-      // Never expose password hashes to clients
-      delete user.password_hash
-      delete user.passwordHash
-      // Normalize booleans for SQLite (0/1 -> true/false)
-      if ('is_active' in user) user.is_active = !!user.is_active
-      if ('profileComplete' in user) user.profileComplete = !!user.profileComplete
-      if ('emailVerified' in user) user.emailVerified = !!user.emailVerified
-
-      // Parse JSON fields if they are strings
-      const jsonFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens']
-      jsonFields.forEach(f => {
-        if (typeof user[f] === 'string') {
-          try { user[f] = JSON.parse(user[f]); } catch(e) { user[f] = []; }
-        }
-      })
-      return user
-    })
+    const mapped = results.map(toPublicUser)
     return dbJson(c, mapped)
   } catch (err) {
     return dbJson(c, { error: 'Database error' }, 500)
@@ -338,11 +709,11 @@ app.post('/users', async (c) => {
     const body = await c.req.json()
     const id = body.user_id || `usr_${Date.now()}`
     // Caller may only create their own user record (registration sync) unless admin
-    const callerRow = await c.env.DB.prepare('SELECT role FROM users WHERE user_id = ?').bind(callerId).first().catch(() => null)
-    const isAdmin = (callerRow as any)?.role === 'admin'
+    const isAdmin = getRequestRole(c) === 'admin'
     if (!isAdmin && id !== callerId) return dbJson(c, { error: 'Forbidden' }, 403)
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
+      if (!isAdmin && ['passwordHash', 'password_hash', 'role'].includes(k)) continue
       if (k === 'passwordHash') {
         mapped['password_hash'] = v
       } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens'].includes(k)) {
@@ -383,14 +754,15 @@ app.put('/users/:id', async (c) => {
   const callerId = getRequestUserId(c)
   if (!callerId) return dbJson(c, { error: 'Authentication required' }, 401)
   const id = c.req.param('id')
+  const isAdmin = getRequestRole(c) === 'admin'
   if (callerId !== id) {
-    const callerRow = await c.env.DB.prepare('SELECT role FROM users WHERE user_id = ?').bind(callerId).first().catch(() => null)
-    if ((callerRow as any)?.role !== 'admin') return dbJson(c, { error: 'Forbidden' }, 403)
+    if (!isAdmin) return dbJson(c, { error: 'Forbidden' }, 403)
   }
   try {
     const body = await c.req.json()
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
+      if (!isAdmin && ['passwordHash', 'password_hash', 'role'].includes(k)) continue
       if (k === 'passwordHash') {
         mapped['password_hash'] = v
       } else if (['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens'].includes(k)) {
