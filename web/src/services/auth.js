@@ -316,12 +316,29 @@ export async function updateProfile(userId, profileData) {
         dbData.profileComplete = Boolean(profileData.display_name || currentUser?.display_name);
     }
 
-    if (profileData.profilePhoto !== undefined) dbData.profile_photo = profileData.profilePhoto;
-    if (profileData.ageRange !== undefined) dbData.age_range = profileData.ageRange;
-    if (profileData.lifestyleTags !== undefined) dbData.lifestyle_tags = profileData.lifestyleTags;
+    if (profileData.profilePhoto !== undefined) {
+        dbData.profile_photo = profileData.profilePhoto;
+        delete dbData.profilePhoto;
+    }
+    if (profileData.ageRange !== undefined) {
+        dbData.age_range = profileData.ageRange;
+        delete dbData.ageRange;
+    }
+    if (profileData.lifestyleTags !== undefined) {
+        dbData.lifestyle_tags = profileData.lifestyleTags;
+        delete dbData.lifestyleTags;
+    }
 
     const user = await db.users.update(userId, dbData);
     if (!user) return { success: false, error: 'User not found.' };
+
+    _upsertLocalUser(user);
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    const token = localStorage.getItem('token') || session?.token || user.token || user.jwt || user.user_id;
+    if (session?.userId === user.user_id || session?.userId === user.id) {
+        _setSession({ ...user, token });
+    }
+    window.dispatchEvent(new CustomEvent('auth:user-updated', { detail: { user } }));
 
     return { success: true, user: { ...user, id: user.user_id, fullName: user.display_name } };
 }
