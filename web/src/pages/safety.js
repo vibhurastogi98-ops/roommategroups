@@ -77,6 +77,13 @@ const SAFETY_TIPS = [
     }
 ];
 
+const SAFE_MEETUP_SPOTS = [
+    { icon: 'fa-building-shield', title: 'Police station lobby', text: 'Choose this for high-value items or when meeting someone for the first time.' },
+    { icon: 'fa-book-open-reader', title: 'Public library', text: 'Staffed, quiet, well-lit, and easy to leave if the meetup feels wrong.' },
+    { icon: 'fa-mug-saucer', title: 'Busy coffee shop', text: 'Good for small items, quick inspections, and short conversations.' },
+    { icon: 'fa-store', title: 'Retail entrance or pickup area', text: 'Use a visible entrance, pickup counter, or customer-service desk.' },
+];
+
 export function renderSafetyPage(app) {
     // SEO Update
     setSEO({
@@ -101,8 +108,19 @@ export function renderSafetyPage(app) {
         .alert-box { background: linear-gradient(135deg, #1a1a1a, #333333); color: white; border-radius: 16px; padding: 32px; margin-bottom: 40px; }
         .alert-box h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
         .alert-box p { opacity: 0.9; line-height: 1.7; }
+        .meetup-section { background:#fff; border:1px solid #e2e8f0; border-radius:20px; padding:32px; margin-bottom:40px; box-shadow:0 4px 16px rgba(15,23,42,.04); }
+        .meetup-section h2 { font-size:1.55rem; font-weight:900; color:#0f172a; margin:0 0 10px; display:flex; align-items:center; gap:10px; }
+        .meetup-section p { color:#64748b; line-height:1.7; margin:0 0 22px; }
+        .meetup-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:22px; }
+        .meetup-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:18px; display:grid; gap:9px; }
+        .meetup-card i { width:42px; height:42px; border-radius:12px; background:#111827; color:#fff; display:flex; align-items:center; justify-content:center; }
+        .meetup-card strong { color:#0f172a; font-size:.98rem; }
+        .meetup-card small { color:#64748b; line-height:1.45; }
+        .meetup-rules { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+        .meetup-rule { background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; border-radius:14px; padding:14px; font-weight:800; line-height:1.45; }
         .report-cta { background: #f2f2f2; border: 1px solid #e2e8f0; border-radius: 16px; padding: 40px; text-align: center; color: #1a1a1a; margin-top: 40px; }
-        @media (max-width: 768px) { .tips-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 900px) { .meetup-grid, .meetup-rules { grid-template-columns:1fr 1fr; } }
+        @media (max-width: 768px) { .tips-grid { grid-template-columns: 1fr; } .meetup-grid, .meetup-rules { grid-template-columns:1fr; } }
     </style>
 
     ${renderNavbar()}
@@ -118,6 +136,25 @@ export function renderSafetyPage(app) {
             <h2>⚠️ Golden Rule</h2>
             <p><strong>Never pay any money before you have signed a lease and seen the property in person (or via live video).</strong> Any request for payment before a signed agreement is a major red flag. When in doubt, report the listing and contact our Safety Team.</p>
         </div>
+
+        <section class="meetup-section" id="safe-meetup">
+            <h2><i class="fa-solid fa-location-dot"></i> Safe Meetup Spots</h2>
+            <p>For marketplace buying and selling, keep the conversation in RoommateGroups chat, choose a public location, inspect the item before paying, and avoid sharing personal phone numbers.</p>
+            <div class="meetup-grid">
+                ${SAFE_MEETUP_SPOTS.map(spot => `
+                    <div class="meetup-card">
+                        <i class="fa-solid ${spot.icon}"></i>
+                        <strong>${spot.title}</strong>
+                        <small>${spot.text}</small>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="meetup-rules">
+                <div class="meetup-rule">Meet during daylight or business hours.</div>
+                <div class="meetup-rule">Inspect the item before sending payment.</div>
+                <div class="meetup-rule">Do not move the conversation off-platform.</div>
+            </div>
+        </section>
 
         <div class="tips-grid">
             ${SAFETY_TIPS.map(section => `
@@ -149,4 +186,3 @@ export function renderSafetyPage(app) {
 
     initNavbar();
 }
-

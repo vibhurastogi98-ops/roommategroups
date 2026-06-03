@@ -6,16 +6,16 @@ const SITE_URL    = 'https://roommategroups.com';
 const DEFAULT_OG  = 'https://roommategroups.com/logo.png';
 
 /**
- * setSEO({ title, description, canonical, ogImage, schema })
+ * setSEO({ title, description, canonical, ogImage, robots, schema })
  * Call at the top of every page render function.
  */
-export function setSEO({ title, description, canonical, ogImage = DEFAULT_OG, schema } = {}) {
+export function setSEO({ title, description, canonical, ogImage = DEFAULT_OG, robots = 'index, follow', schema } = {}) {
     // ── Title ────────────────────────────────────────────────────────
     document.title = title || SITE_NAME;
 
     // ── Core meta ────────────────────────────────────────────────────
     setMeta('name', 'description',  description || '');
-    setMeta('name', 'robots',       'index, follow');
+    setMeta('name', 'robots',       robots);
     setMeta('name', 'theme-color',  '#7C3AED');
 
     // ── Open Graph ───────────────────────────────────────────────────
@@ -37,6 +37,61 @@ export function setSEO({ title, description, canonical, ogImage = DEFAULT_OG, sc
 
     // ── JSON-LD Schema ───────────────────────────────────────────────
     if (schema) setSchema(schema);
+}
+
+export function buildProductOfferSchema({
+    name,
+    description,
+    image,
+    url,
+    price,
+    priceCurrency = 'USD',
+    availability = 'https://schema.org/InStock',
+    seller,
+} = {}) {
+    const numericPrice = Number(price);
+    const sellerName = seller?.display_name || seller?.name || seller?.email || 'RoommateGroups member';
+
+    return {
+        '@type': 'Product',
+        name: name || 'Marketplace listing',
+        description: description || name || 'Local marketplace listing on RoommateGroups',
+        image: Array.isArray(image) ? image.filter(Boolean) : (image ? [image] : [DEFAULT_OG]),
+        url,
+        offers: {
+            '@type': 'Offer',
+            price: Number.isFinite(numericPrice) ? numericPrice : 0,
+            priceCurrency,
+            availability,
+            seller: {
+                '@type': seller?.is_dealer ? 'Organization' : 'Person',
+                name: sellerName,
+            },
+        },
+    };
+}
+
+export function buildListingProductSchema(listing = {}, { image, url, seller, priceCurrency = 'USD' } = {}) {
+    return {
+        '@context': 'https://schema.org',
+        ...buildProductOfferSchema({
+            name: listing.title,
+            description: listing.description,
+            image,
+            url,
+            price: listing.price ?? listing.rent,
+            priceCurrency,
+            availability: getAvailabilityForStatus(listing.status),
+            seller,
+        }),
+    };
+}
+
+function getAvailabilityForStatus(status) {
+    const normalized = String(status || 'active').toLowerCase();
+    if (normalized === 'sold') return 'https://schema.org/SoldOut';
+    if (normalized === 'expired') return 'https://schema.org/OutOfStock';
+    return 'https://schema.org/InStock';
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   saved_listings   TEXT,           -- JSON array
   saved_searches   TEXT,           -- JSON array
   blocked_users    TEXT,           -- JSON array
+  notification_prefs TEXT,          -- JSON object
   password_hash    TEXT,
   role             TEXT DEFAULT 'user',
   is_active        INTEGER DEFAULT 1,
@@ -35,6 +36,17 @@ CREATE TABLE IF NOT EXISTS users (
   budgetMin        INTEGER,
   budgetMax        INTEGER,
   moveInTimeline   TEXT,
+  seller_default_country TEXT,
+  seller_default_city TEXT,
+  seller_payment_note TEXT,
+  phone            TEXT,
+  show_phone       INTEGER DEFAULT 0,
+  is_dealer        INTEGER DEFAULT 0,
+  business_name    TEXT,
+  seller_rating_avg REAL DEFAULT 0,
+  seller_rating_count INTEGER DEFAULT 0,
+  response_time_mins INTEGER,
+  promote_credits  INTEGER DEFAULT 0,
   created_at       TEXT DEFAULT (datetime('now')),
   last_active      TEXT,
   updated_at       TEXT DEFAULT (datetime('now')),
@@ -106,6 +118,13 @@ CREATE TABLE IF NOT EXISTS cities (
   meta_description TEXT,
   faq_items        TEXT,           -- JSON array
   reviews          TEXT,           -- JSON array
+  marketplace_enabled INTEGER DEFAULT 0,
+  marketplace_hero_image TEXT,
+  marketplace_description TEXT,
+  marketplace_meta_title TEXT,
+  marketplace_meta_description TEXT,
+  marketplace_faq_items TEXT,      -- JSON array
+  marketplace_reviews TEXT,        -- JSON array
   FOREIGN KEY (country) REFERENCES countries(country_id)
 );
 

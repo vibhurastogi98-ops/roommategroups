@@ -5,6 +5,7 @@
 
 import { getCurrentUser, isAdmin } from '../../../web/src/services/auth.js';
 import { db, initDB } from '../../../web/src/services/db.js';
+import { api } from '../../../web/src/services/api.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -32,6 +33,28 @@ export async function init(container) {
 
   let tab = 'overview';
   let userPage = 0;
+  let listingFilter = 'all';
+  let mpCategories = [];
+  let mpCategoriesLoading = true;
+  let showCategoryForm = false;
+  let editingCategoryId = null;
+
+  const isMarketplaceListing = l => (l.kind || 'rental') !== 'rental';
+  const categoryById = id => mpCategories.find(c => c.category_id === id) || null;
+  const slugify = value => String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  async function loadMarketplaceCategories() {
+    mpCategoriesLoading = true;
+    try {
+      mpCategories = await api.getMarketplaceCategories(true) || [];
+    } catch (err) {
+      console.debug('[MobileAdmin] Marketplace categories unavailable:', err);
+      mpCategories = [];
+    } finally {
+      mpCategoriesLoading = false;
+      _render();
+    }
+  }
 
   function _render() {
     const users = db.users.findAll().filter(u => u.role !== 'admin');
@@ -53,8 +76,9 @@ export async function init(container) {
           ${_tab('overview', 'Overview')}
           ${_tab('users', 'Users')}
           ${_tab('listings', 'Listings')}
+          ${_tab('marketplace', 'Market')}
         </div>
-        ${tab === 'users' ? _users(users) : tab === 'listings' ? _listings(listings) : _overview({ pending, reports, notifs })}
+        ${tab === 'users' ? _users(users) : tab === 'listings' ? _listings(listings) : tab === 'marketplace' ? _marketplace(listings) : _overview({ pending, reports, notifs })}
       </div>
     `;
 
@@ -111,9 +135,19 @@ export async function init(container) {
   }
 
   function _listings(listings) {
-    const sorted = [...listings].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 25);
+    const filtered = listings.filter(l => {
+      if (listingFilter === 'marketplace') return isMarketplaceListing(l);
+      if (listingFilter === 'rental') return !isMarketplaceListing(l);
+      return true;
+    });
+    const sorted = [...filtered].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 25);
     return `
       <div style="display:flex;flex-direction:column;gap:12px;">
+        <select id="mobile-admin-listing-filter" style="width:100%;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:12px;font-size:0.86rem;font-weight:800;color:#1e293b;">
+          <option value="all" ${listingFilter === 'all' ? 'selected' : ''}>All listing types</option>
+          <option value="rental" ${listingFilter === 'rental' ? 'selected' : ''}>Rentals only</option>
+          <option value="marketplace" ${listingFilter === 'marketplace' ? 'selected' : ''}>Marketplace only</option>
+        </select>
         ${sorted.length ? sorted.map(l => `
           <div style="background:#fff;border:1px solid #f1f5f9;border-radius:16px;padding:14px;">
             ${_listingMini(l)}
@@ -130,15 +164,132 @@ export async function init(container) {
   function _listingMini(l) {
     const id = l.listing_id || l.id;
     const status = l.moderation_status || l.status || 'pending';
+    const marketplace = isMarketplaceListing(l);
+    const priceText = marketplace
+      ? `$${Number(l.price ?? l.rent ?? 0).toLocaleString('en-US')}`
+      : `$${Number(l.rent ?? l.price ?? 0).toLocaleString('en-US')}/mo`;
     return `
       <div class="admin-listing-mini" data-id="${id}" style="cursor:pointer;">
         <div style="display:flex;justify-content:space-between;gap:10px;">
           <div style="font-size:0.9rem;font-weight:800;color:#1e293b;line-height:1.35;">${_esc(l.title || 'Untitled listing')}</div>
           <span style="height:fit-content;font-size:0.65rem;font-weight:900;border-radius:999px;padding:4px 8px;background:#f1f5f9;color:#64748b;text-transform:uppercase;">${_esc(status)}</span>
         </div>
-        <div style="font-size:0.78rem;color:#94a3b8;margin-top:4px;">${_esc(l.city || l.city_id || 'No city')} · $${Number(l.rent ?? l.price ?? 0).toLocaleString('en-US')}/mo</div>
+        <div style="font-size:0.78rem;color:#94a3b8;margin-top:4px;">${marketplace ? 'Marketplace' : 'Rental'} · ${_esc(l.city || l.city_id || 'No city')} · ${priceText}</div>
+        ${l.rejection_reason ? `<div style="font-size:0.72rem;color:#b45309;margin-top:5px;">${_esc(l.rejection_reason)}</div>` : ''}
       </div>
     `;
+  }
+
+  function _marketplace(listings) {
+    const queue = listings
+      .filter(l => isMarketplaceListing(l) && ['pending', 'flagged'].includes(l.moderation_status || ''))
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .slice(0, 12);
+
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        ${_panel('Marketplace queue', queue.length ? queue.map(l => `
+          <div style="padding:12px 0;border-bottom:1px solid #f8fafc;">
+            ${_listingMini(l)}
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="admin-approve" data-id="${l.listing_id || l.id}" style="flex:1;border:none;border-radius:10px;background:#dcfce7;color:#166534;padding:10px;font-size:0.78rem;font-weight:900;cursor:pointer;">Approve</button>
+              <button class="admin-reject" data-id="${l.listing_id || l.id}" style="flex:1;border:none;border-radius:10px;background:#fee2e2;color:#991b1b;padding:10px;font-size:0.78rem;font-weight:900;cursor:pointer;">Reject</button>
+            </div>
+          </div>
+        `).join('') : _emptyLine('No marketplace listings need review'))}
+        <div style="background:#fff;border:1px solid #f1f5f9;border-radius:18px;padding:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+            <div style="font-size:0.95rem;font-weight:900;color:#1e293b;">Categories</div>
+            <button id="mobile-mp-add" style="border:none;border-radius:10px;background:#1a1a1a;color:#fff;padding:9px 12px;font-size:0.76rem;font-weight:900;">Add</button>
+          </div>
+          ${_categoryForm()}
+          ${_categoryList()}
+        </div>
+      </div>
+    `;
+  }
+
+  function _categoryForm() {
+    if (!showCategoryForm && !editingCategoryId) return '';
+    const cat = editingCategoryId ? categoryById(editingCategoryId) || {} : {};
+    const schemaValue = cat.attributes_schema ? JSON.stringify(cat.attributes_schema, null, 2) : '';
+    const parentOptions = mpCategories
+      .filter(c => c.category_id !== cat.category_id)
+      .map(c => `<option value="${_esc(c.category_id)}" ${cat.parent_id === c.category_id ? 'selected' : ''}>${c.parent_id ? '— ' : ''}${_esc(c.name)}</option>`)
+      .join('');
+
+    return `
+      <div style="border:1px solid #e2e8f0;border-radius:14px;padding:12px;margin-bottom:12px;background:#f8fafc;">
+        <input id="mobile-mp-name" value="${_esc(cat.name || '')}" placeholder="Category name" style="${_inputStyle()}">
+        <input id="mobile-mp-slug" value="${_esc(cat.slug || '')}" placeholder="slug" style="${_inputStyle()}">
+        <select id="mobile-mp-parent" style="${_inputStyle()}"><option value="">Top level</option>${parentOptions}</select>
+        <input id="mobile-mp-icon" value="${_esc(cat.icon || 'fa-tag')}" placeholder="fa-couch" style="${_inputStyle()}">
+        <select id="mobile-mp-kind" style="${_inputStyle()}">
+          ${['product', 'vehicle'].map(k => `<option value="${k}" ${(cat.kind || 'product') === k ? 'selected' : ''}>${k}</option>`).join('')}
+        </select>
+        <input id="mobile-mp-sort" type="number" value="${_esc(cat.sort_order || 0)}" placeholder="Sort order" style="${_inputStyle()}">
+        <textarea id="mobile-mp-schema" placeholder='{"brand":"text"}' style="${_inputStyle()}height:92px;font-family:monospace;">${_esc(schemaValue)}</textarea>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:800;color:#334155;margin:8px 0 12px;"><input id="mobile-mp-active" type="checkbox" ${cat.is_active !== false ? 'checked' : ''}> Active</label>
+        <div style="display:flex;gap:8px;">
+          <button id="mobile-mp-save" style="flex:1;border:none;border-radius:10px;background:#1a1a1a;color:#fff;padding:11px;font-size:0.82rem;font-weight:900;">Save</button>
+          <button id="mobile-mp-cancel" style="flex:1;border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:#64748b;padding:11px;font-size:0.82rem;font-weight:900;">Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function _categoryList() {
+    if (mpCategoriesLoading) return _emptyLine('Loading categories');
+    if (!mpCategories.length) return _emptyLine('No marketplace categories yet');
+    return mpCategories.map(cat => {
+      const parent = categoryById(cat.parent_id);
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f8fafc;">
+          <div style="width:36px;height:36px;border-radius:12px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#1e293b;"><i class="fa-solid ${_esc(cat.icon || 'fa-tag')}"></i></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.88rem;font-weight:900;color:#1e293b;">${_esc(cat.name)}</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">${_esc(parent?.name || 'Top level')} · ${_esc(cat.kind || 'product')}</div>
+          </div>
+          <button class="mobile-mp-edit" data-id="${_esc(cat.category_id)}" style="border:none;background:#f1f5f9;color:#334155;border-radius:9px;padding:8px;font-weight:900;">Edit</button>
+          <button class="mobile-mp-delete" data-id="${_esc(cat.category_id)}" style="border:none;background:#fee2e2;color:#991b1b;border-radius:9px;padding:8px;font-weight:900;">Del</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function _inputStyle() {
+    return 'width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:10px 12px;font-size:0.84rem;margin-bottom:8px;color:#1e293b;box-sizing:border-box;';
+  }
+
+  async function _saveCategory() {
+    const name = container.querySelector('#mobile-mp-name')?.value.trim() || '';
+    const slug = container.querySelector('#mobile-mp-slug')?.value.trim() || slugify(name);
+    if (!name || !slug) { alert('Name and slug are required.'); return; }
+    const rawSchema = container.querySelector('#mobile-mp-schema')?.value.trim() || '';
+    let schema = null;
+    if (rawSchema) {
+      try { schema = JSON.parse(rawSchema); }
+      catch { alert('Attributes schema must be valid JSON.'); return; }
+    }
+    const payload = {
+      parent_id: container.querySelector('#mobile-mp-parent')?.value || null,
+      name,
+      slug,
+      icon: container.querySelector('#mobile-mp-icon')?.value.trim() || 'fa-tag',
+      kind: container.querySelector('#mobile-mp-kind')?.value || 'product',
+      sort_order: parseInt(container.querySelector('#mobile-mp-sort')?.value || '0', 10) || 0,
+      is_active: !!container.querySelector('#mobile-mp-active')?.checked,
+      attributes_schema: schema,
+    };
+    try {
+      if (editingCategoryId) await api.updateMarketplaceCategory(editingCategoryId, payload);
+      else await api.saveMarketplaceCategory(payload);
+      showCategoryForm = false;
+      editingCategoryId = null;
+      await loadMarketplaceCategories();
+    } catch (err) {
+      alert(err.message || 'Could not save category.');
+    }
   }
 
   function _panel(title, body) {
@@ -153,6 +304,10 @@ export async function init(container) {
     container.querySelectorAll('.admin-tab').forEach(btn => {
       btn.addEventListener('click', () => { tab = btn.dataset.tab; _render(); });
     });
+    container.querySelector('#mobile-admin-listing-filter')?.addEventListener('change', e => {
+      listingFilter = e.target.value;
+      _render();
+    });
     container.querySelector('#admin-prev-users')?.addEventListener('click', () => { userPage--; _render(); });
     container.querySelector('#admin-next-users')?.addEventListener('click', () => { userPage++; _render(); });
     container.querySelectorAll('.admin-listing-mini').forEach(el => {
@@ -162,7 +317,7 @@ export async function init(container) {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
         btn.disabled = true;
-        await db.listings.update(btn.dataset.id, { status: 'active', is_active: true, moderation_status: 'approved' }).catch(() => alert('Could not approve listing.'));
+        await db.listings.update(btn.dataset.id, { status: 'active', is_active: true, moderation_status: 'approved', rejection_reason: '' }).catch(() => alert('Could not approve listing.'));
         _render();
       });
     });
@@ -170,13 +325,48 @@ export async function init(container) {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
         btn.disabled = true;
-        await db.listings.update(btn.dataset.id, { status: 'rejected', is_active: false, moderation_status: 'rejected' }).catch(() => alert('Could not reject listing.'));
+        const reason = prompt('Rejection reason (optional):') || 'Violates marketplace guidelines';
+        await db.listings.update(btn.dataset.id, { status: 'rejected', is_active: false, moderation_status: 'rejected', rejection_reason: reason }).catch(() => alert('Could not reject listing.'));
         _render();
+      });
+    });
+    container.querySelector('#mobile-mp-add')?.addEventListener('click', () => {
+      showCategoryForm = true;
+      editingCategoryId = null;
+      _render();
+    });
+    container.querySelector('#mobile-mp-cancel')?.addEventListener('click', () => {
+      showCategoryForm = false;
+      editingCategoryId = null;
+      _render();
+    });
+    container.querySelector('#mobile-mp-name')?.addEventListener('input', e => {
+      const slugEl = container.querySelector('#mobile-mp-slug');
+      if (slugEl && !editingCategoryId) slugEl.value = slugify(e.target.value);
+    });
+    container.querySelector('#mobile-mp-save')?.addEventListener('click', _saveCategory);
+    container.querySelectorAll('.mobile-mp-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editingCategoryId = btn.dataset.id;
+        showCategoryForm = false;
+        _render();
+      });
+    });
+    container.querySelectorAll('.mobile-mp-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this marketplace category?')) return;
+        try {
+          await api.deleteMarketplaceCategory(btn.dataset.id);
+          await loadMarketplaceCategories();
+        } catch (err) {
+          alert(err.message || 'Could not delete category.');
+        }
       });
     });
   }
 
   _render();
+  loadMarketplaceCategories();
 }
 
 function _esc(str) {

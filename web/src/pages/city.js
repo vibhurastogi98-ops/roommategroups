@@ -8,6 +8,10 @@ import { setSEO } from '../seo.js'; // SEO Update
 const FALLBACK_HERO = 'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=1600&h=700&fit=crop';
 const FALLBACK_CITY_IMG = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&h=400&fit=crop';
 
+function isRentalListing(listing) {
+    return String(listing?.kind || 'rental').toLowerCase() === 'rental';
+}
+
 export function renderCityPage(app, params) {
     try {
         const citySlug = (params.slug || '').toLowerCase();
@@ -25,7 +29,16 @@ export function renderCityPage(app, params) {
         }
 
         const heroImage = city.hero_image ? getAssetUrl(city.hero_image) : FALLBACK_HERO;
-        const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active');
+        const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active' && isRentalListing(l));
+        const citySaleListings = db.listings.find(l =>
+            l.city === city.city_id &&
+            l.status === 'active' &&
+            String(l.kind || '').toLowerCase() === 'sale'
+        ).slice(0, 8);
+        const cityMarketplaceUrl = city.marketplace_enabled
+            ? `/marketplace/${city.slug}`
+            : `/search/rooms?kind=sale&city=${city.slug}`;
+        const sellItemUrl = `/post-listing?kind=sale&city=${city.slug}`;
         const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
         const roommateProfiles = db.listings.find(l => 
             l.city === city.city_id && 
@@ -58,7 +71,8 @@ export function renderCityPage(app, params) {
                 { q: `How do I join the ${city.name} community?`, a: `Simply browse the available listings or connect with roommates looking in ${city.name}. Our platform helps you find verified matches hassle-free.` },
                 { q: `Is it free to find a roommate in ${city.name}?`, a: 'Yes! Our community is free to join and use. We believe finding a home should be accessible to everyone.' },
                 { q: 'How can I avoid scams during my search?', a: 'Never send money before seeing a room in person. We recommend meeting potential roommates in public first and checking their profiles for authenticity.' },
-                { q: 'Can I post my own room for rent?', a: 'Absolutely! You can post your room for free and reach thousands of people actively searching for a home right now.' }
+                { q: 'Can I post my own room for rent?', a: 'Absolutely! You can post your room for free and reach thousands of people actively searching for a home right now.' },
+                { q: `Can I buy and sell items in ${city.name}?`, a: `Yes — alongside rooms and roommates, you can trade furniture, electronics and other local items with verified members in ${city.name}, free to list.` }
             ];
 
         app.innerHTML = `
@@ -147,6 +161,18 @@ export function renderCityPage(app, params) {
 
             .gd-section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; gap: 24px; text-align: left; }
             .gd-section-link { color: #7c3aed; font-weight: 700; font-size: 0.95rem; text-decoration: none; display: flex; align-items: center; gap: 6px; }
+            .city-market-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
+            .city-market-card { background: #fff; border-radius: 20px; overflow: hidden; border: 1px solid #e8edf4; color: inherit; text-decoration: none; box-shadow: 0 10px 24px rgba(15,23,42,0.05); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+            .city-market-card:hover { transform: translateY(-5px); box-shadow: 0 16px 34px rgba(15,23,42,0.08); }
+            .city-market-img { height: 170px; background-size: cover; background-position: center; position: relative; display: flex; align-items: center; justify-content: center; color: #fff; }
+            .city-market-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.48), rgba(0,0,0,.05)); }
+            .city-market-img > i { position: relative; z-index: 1; font-size: 1.8rem; opacity: .9; }
+            .city-market-condition, .city-market-price { position: absolute; z-index: 2; background: rgba(255,255,255,.94); color: #0f172a; border-radius: 8px; padding: 6px 10px; font-size: .7rem; font-weight: 900; }
+            .city-market-condition { left: 12px; bottom: 12px; text-transform: uppercase; letter-spacing: .04em; }
+            .city-market-price { right: 12px; bottom: 12px; }
+            .city-market-body { padding: 18px; }
+            .city-market-title { font-size: 1rem; font-weight: 850; color: #1a2740; line-height: 1.35; margin-bottom: 8px; }
+            .city-market-meta { color: #64748b; font-size: .82rem; font-weight: 650; display: flex; align-items: center; gap: 7px; }
         </style>
         <div class="city-page">
 
@@ -162,7 +188,7 @@ export function renderCityPage(app, params) {
                             <span>${city.name}</span>
                         </nav>
                         <h1 class="city-hero-title">Roommate Groups in ${city.name}</h1>
-                        <p class="city-hero-sub">Find your perfect room or roommate in ${city.name}'s most vibrant neighborhoods</p>
+                        <p class="city-hero-sub">Find your perfect room or roommate — and buy &amp; sell local items — in ${city.name}'s most vibrant neighborhoods.</p>
                         <div class="city-hero-stats">
                             <div class="hero-stat-pill">
                                 <div class="hero-stat-icon"><i class="fa-solid fa-house"></i></div>
@@ -222,7 +248,7 @@ export function renderCityPage(app, params) {
                             <h2 style="font-size: 1.8rem; font-weight: 800;">Available Rooms in ${city.name}</h2>
                             <p style="color: #64748b; margin-top: 8px;">Browse the latest verified listings in the ${city.name} area.</p>
                         </div>
-                        <a href="/search/rooms?city=${city.slug}" class="gd-section-link">
+                        <a href="/search/rooms?kind=rental&city=${city.slug}" class="gd-section-link">
                             View all ${cityListings.length} <i class="fa-solid fa-arrow-right"></i>
                         </a>
                     </div>
@@ -277,6 +303,32 @@ export function renderCityPage(app, params) {
                             <h4>No roommate profiles yet</h4>
                             <p>Create a profile to find your perfect match in ${city.name}.</p>
                             <a href="/post-listing" class="btn btn-primary mt-md">Create Profile</a>
+                           </div>`
+            }
+                </div>
+            </section>
+
+            <!-- ── BUY & SELL ── -->
+            <section class="city-section">
+                <div class="container">
+                    <div class="gd-section-header">
+                        <div>
+                            <a href="${cityMarketplaceUrl}" style="color:inherit;text-decoration:none;">
+                                <h2 style="font-size: 1.8rem; font-weight: 800;">Buy &amp; Sell in ${city.name}</h2>
+                            </a>
+                            <p style="color: #64748b; margin-top: 8px;">Find furniture, electronics and more from verified members in ${city.name} — or list your own in minutes.</p>
+                        </div>
+                        <a href="${cityMarketplaceUrl}" class="gd-section-link">
+                            View all in ${city.name} <i class="fa-solid fa-arrow-right"></i>
+                        </a>
+                    </div>
+                    ${citySaleListings.length > 0
+                ? `<div class="city-market-grid">${citySaleListings.map(l => renderMarketplaceCityCard(l, city)).join('')}</div>`
+                : `<div class="city-empty-state">
+                            <div class="empty-icon"><i class="fa-solid fa-store"></i></div>
+                            <h4>Be the first to sell something in ${city.name}.</h4>
+                            <p>Furniture, electronics, appliances, and local finds are welcome.</p>
+                            <a href="${sellItemUrl}" class="btn btn-primary mt-md">Post a Listing</a>
                            </div>`
             }
                 </div>
@@ -465,7 +517,7 @@ export function renderCityPage(app, params) {
             if (searchBtn) {
                 searchBtn.addEventListener('click', () => {
                     const typeVal = app.querySelector('#listing-type').value;
-                    let url = `/search/rooms?city=${city.slug}`;
+                    let url = `/search/rooms?kind=rental&city=${city.slug}`;
                     if (typeVal) url += `&type=${typeVal}`;
                     navigate(url);
                 });
@@ -523,6 +575,35 @@ function renderListingCard(l) {
     `;
 }
 
+function renderMarketplaceCityCard(l, city) {
+    let imgs = l.images || l.photos || [];
+    if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { imgs = []; } }
+    let photo = Array.isArray(imgs) ? imgs[0] : imgs;
+    if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || '';
+    if (photo) photo = getAssetUrl(photo);
+    const fallback = 'linear-gradient(135deg,#0f172a,#115e59)';
+    const id = l.listing_id || l.id;
+    const condition = (l.condition || 'Local item').replace(/[_-]+/g, ' ');
+    const symbol = l.currency === 'INR' ? '₹' : l.currency === 'EUR' ? '€' : l.currency === 'GBP' ? '£' : '$';
+    const price = l.price === undefined || l.price === null || l.price === ''
+        ? 'Ask seller'
+        : `${symbol}${Number(l.price).toLocaleString(l.currency === 'INR' ? 'en-IN' : 'en-US')}`;
+
+    return `
+        <a href="/listing/${id}" class="city-market-card">
+            <div class="city-market-img" style="${photo ? `background-image:url('${photo}')` : `background:${fallback}`}">
+                ${!photo ? '<i class="fa-solid fa-store"></i>' : ''}
+                <span class="city-market-condition">${condition}</span>
+                <span class="city-market-price">${price}</span>
+            </div>
+            <div class="city-market-body">
+                <div class="city-market-title">${l.title || 'Marketplace item'}</div>
+                <div class="city-market-meta"><i class="fa-solid fa-location-dot"></i>${city.name}</div>
+            </div>
+        </a>
+    `;
+}
+
 /* ─── Helper: Neighborhood Card ─── */
 const NH_PALETTES = [
     { bg: 'linear-gradient(135deg,#1a1a1a,#333333)', text: '#fff' },
@@ -549,7 +630,7 @@ function renderNeighborhoodCard(n, index, city) {
                     <span class="nh-rent-value">$${n.avg_rent}<em>/mo</em></span>
                 </div>
                 <p class="nh-description">${n.description}</p>
-                <a href="/search/rooms?city=${city.slug}&neighborhood=${n.neighborhood_id}" class="nh-link">
+                <a href="/search/rooms?kind=rental&city=${city.slug}&neighborhood=${n.neighborhood_id}" class="nh-link">
                     Explore Guide <i class="fa-solid fa-arrow-right"></i>
                 </a>
             </div>
@@ -610,7 +691,7 @@ function renderNearbyCities(currentCity) {
     const allListings = db.listings.findAll();
     return nearby.map(c => {
         const img = c.hero_image ? getAssetUrl(c.hero_image) : FALLBACK_CITY_IMG;
-        const liveCount = allListings.filter(l => l.city === c.city_id && l.status === 'active').length;
+        const liveCount = allListings.filter(l => l.city === c.city_id && l.status === 'active' && isRentalListing(l)).length;
         return `
             <a href="/cities/${c.slug}" class="gd-related-card">
                 <div class="gd-related-img">

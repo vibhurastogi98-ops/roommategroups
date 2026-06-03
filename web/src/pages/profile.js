@@ -4,6 +4,14 @@ import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
+function formatProfileListingPrice(listing) {
+    const isSale = (listing?.kind || 'rental') === 'sale';
+    const value = isSale ? (listing.price ?? listing.rent) : (listing.rent ?? listing.price);
+    if (value === undefined || value === null || value === '') return 'Price TBC';
+    const formatted = '$' + Number(value).toLocaleString('en-US');
+    return isSale ? formatted : formatted + '/mo';
+}
+
 export function renderProfilePage(app, params) {
     const userId = params.id;
     const user = db.users.findById(userId);
@@ -109,7 +117,7 @@ export function renderProfilePage(app, params) {
                                 <a href="/listing/${l.listing_id}" class="prof-listing-card">
                                     <img src="${(() => { let _i = l.images || l.photos || []; if (typeof _i === 'string') { try { _i = JSON.parse(_i); } catch(e) { _i = []; } } let p = _i[0] || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'; if (typeof p === 'object' && p !== null) p = p.medium || p.thumb || p.full || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'; return getAssetUrl(p); })()}" class="plc-img" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600';">
                                     <div class="plc-body">
-                                        <div class="plc-price">$${l.rent ?? l.price ?? '?'}/mo</div>
+                                        <div class="plc-price">${formatProfileListingPrice(l)}</div>
                                         <div class="plc-title">${l.title}</div>
                                     </div>
                                 </a>

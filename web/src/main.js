@@ -9,6 +9,9 @@ import { renderProfileSetupPage } from './pages/profile-setup.js';
 import { renderDashboardPage } from './pages/dashboard.js';
 import { renderPostListingPage } from './pages/post-listing.js';
 import { renderCityPage } from './pages/city.js';
+import { renderMarketplaceLandingPage } from './pages/marketplace-landing.js';
+import { renderMarketplaceCityPage } from './pages/marketplace-city.js';
+import { renderMarketplaceCategoryCityPage } from './pages/marketplace-category-city.js';
 import { renderAdminPage } from './pages/admin.js';
 import { renderAdminLoginPage } from './pages/admin-login.js';
 import { requireAdmin, requireAuth } from './middleware/adminAuth.js';
@@ -23,13 +26,43 @@ import { renderPrivacyPage } from './pages/privacy.js';
 import { renderContactPage } from './pages/contact.js';
 import { renderListingDetailPage } from './pages/listing.js';
 import { renderProfilePage } from './pages/profile.js';
+import { renderCategoryPage } from './pages/category.js';
+import { renderSellerProfilePage } from './pages/seller-profile.js';
+import { renderOffersPage } from './pages/offers.js';
+import { renderReviewsPage } from './pages/reviews.js';
 import { renderFBGroupsPage } from './pages/fb-groups.js';
 import { renderPricingPage } from './pages/pricing.js';
 import { renderGroupDetailPage } from './pages/group-detail.js';
-import { initDB } from './services/db.js';
+import { db, initDB } from './services/db.js';
 import { installGlobalErrorBoundary } from './services/ui.js';
 
 installGlobalErrorBoundary();
+
+function slugifySegment(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function isKnownCountrySegment(segment) {
+  const normalized = slugifySegment(segment);
+  const countries = db.countries.findAll();
+  return countries.some(country => {
+    const values = [
+      country.slug,
+      country.code,
+      country.name,
+      country.country_id,
+    ].map(slugifySegment).filter(Boolean);
+    return values.includes(normalized);
+  });
+}
+
+function renderMarketplaceNestedPage(app, params = {}) {
+  const segment = params.segment || '';
+  if (isKnownCountrySegment(segment)) {
+    return renderMarketplaceCityPage(app, { country: segment, slug: params.slug });
+  }
+  return renderMarketplaceCategoryCityPage(app, { category: segment, slug: params.slug });
+}
 
 if (Capacitor.isNativePlatform()) {
   import('../../mobile/src/mobile-main.js').then(m => m.initMobile());
@@ -45,6 +78,9 @@ addRoute('/dashboard/listings', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/messages', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/saved', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/searches', renderDashboardPage, [requireAuth()]);
+addRoute('/dashboard/profile', renderDashboardPage, [requireAuth()]);
+addRoute('/dashboard/offers', renderDashboardPage, [requireAuth()]);
+addRoute('/dashboard/reviews', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/verification', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/subscription', renderDashboardPage, [requireAuth()]);
 addRoute('/dashboard/settings', renderDashboardPage, [requireAuth()]);
@@ -60,6 +96,9 @@ addRoute('/post-listing', renderPostListingPage, [requireAuth()]);
 addRoute('/post-listing/:id', renderPostListingPage, [requireAuth()]);
 addRoute('/cities/:slug', renderCityPage);
 addRoute('/cities/:country/:slug', renderCityPage);
+addRoute('/marketplace', renderMarketplaceLandingPage);
+addRoute('/marketplace/:slug', renderMarketplaceCityPage);
+addRoute('/marketplace/:segment/:slug', renderMarketplaceNestedPage);
 addRoute('/search/rooms', renderSearchPage);
 addRoute('/blog', renderBlogPage);
 addRoute('/blog/:slug', renderBlogPostPage);
@@ -71,6 +110,10 @@ addRoute('/privacy', renderPrivacyPage);
 addRoute('/contact', renderContactPage);
 addRoute('/listing/:id', renderListingDetailPage);
 addRoute('/profile/:id', renderProfilePage);
+addRoute('/category/:slug', renderCategoryPage);
+addRoute('/seller/:id', renderSellerProfilePage);
+addRoute('/offers', renderOffersPage, [requireAuth()]);
+addRoute('/reviews/:userId', renderReviewsPage);
 addRoute('/fb-groups', renderFBGroupsPage);
 addRoute('/fb-groups/:slug', renderGroupDetailPage);
 
@@ -85,10 +128,13 @@ addRoute('/admin/verifications', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/reports', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/analytics', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/cities', renderAdminPage, [requireAdmin()]);
+addRoute('/admin/marketplace', renderAdminPage, [requireAdmin()]);
+addRoute('/admin/marketplace-categories', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/content', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/settings', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/fb-groups', renderAdminPage, [requireAdmin()]);
 addRoute('/admin/queries', renderAdminPage, [requireAdmin()]);
+addRoute('/admin/images', renderAdminPage, [requireAdmin()]);
 
 // Start
 const app = document.querySelector('#app');

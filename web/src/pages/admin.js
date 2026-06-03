@@ -1,6 +1,7 @@
 import { getCurrentUser, isAdmin, logout } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db, getLiveListingCount } from '../services/db.js';
+import { api } from '../services/api.js';
 import { getTotalVisits, getTopSearchQueries, getZeroResultQueries } from '../services/analytics.js';
 import { uploadImage } from '../services/upload.js';
 import { parseMarkdown } from '../services/blog-data.js';
@@ -29,6 +30,8 @@ export function renderAdminPage(app) {
     if (path === '/admin/fb-groups') view = 'fb_groups';
     if (path === '/admin/queries') view = 'queries';
     if (path === '/admin/images') view = 'images';
+    if (path === '/admin/marketplace') view = 'marketplace';
+    if (path === '/admin/marketplace-categories') view = 'marketplace_categories';
 
     // console.log('[ADMIN PAGE] Current view:', view, 'path:', path);
 
@@ -44,9 +47,11 @@ export function renderAdminPage(app) {
         { id: 'reports', icon: 'fa-flag', label: 'Reports & Flags', href: '/admin/reports', badge: openReports, section: 'Moderation' },
         { id: 'users', icon: 'fa-users', label: 'User Management', href: '/admin/users', section: 'Management' },
         { id: 'cities', icon: 'fa-map-location-dot', label: 'City Management', href: '/admin/cities', section: 'Management' },
+        { id: 'marketplace_categories', icon: 'fa-tags', label: 'Marketplace Categories', href: '/admin/marketplace-categories', section: 'Management' },
         { id: 'fb_groups', icon: 'fa-thumbs-up', label: 'FB Groups', href: '/admin/fb-groups', section: 'Management' },
         { id: 'queries', icon: 'fa-envelope-open-text', label: 'User Queries', href: '/admin/queries', badge: newQueriesCount, section: 'Management' },
         { id: 'images', icon: 'fa-images', label: 'Image Assets', href: '/admin/images', section: 'Management' },
+        { id: 'marketplace', icon: 'fa-store', label: 'Marketplace', href: '/admin/marketplace', section: 'Insights' },
         { id: 'analytics', icon: 'fa-chart-line', label: 'Analytics', href: '/admin/analytics', section: 'Insights' },
         { id: 'content', icon: 'fa-newspaper', label: 'Content / Blog', href: '/admin/content', section: 'Insights' },
         { id: 'admin_settings', icon: 'fa-sliders', label: 'Settings', href: '/admin/settings', section: 'System' },
@@ -134,6 +139,8 @@ export function renderAdminPage(app) {
         case 'reports': renderAdminReports(content); break;
         case 'analytics': renderAdminAnalytics(content); break;
         case 'cities': renderAdminCities(content); break;
+        case 'marketplace': renderAdminMarketplace(content); break;
+        case 'marketplace_categories': renderAdminMarketplaceCategories(content); break;
         case 'content': renderAdminContent(content); break;
         case 'verifications': renderAdminVerifications(content); break;
         case 'fb_groups': renderAdminFBGroups(content); break;
@@ -260,6 +267,47 @@ function showToast(msg, type = 'success') {
     setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 300); }, 3000);
 }
 
+let adminMarketplaceCache = null;
+
+function emptyAdminMarketplaceData() {
+    return {
+        offers: [],
+        reviews: [],
+        sold: [],
+        promoted: [],
+        metrics: { items_listed: 0, items_sold: 0, open_offers: 0, avg_seller_rating: 0 },
+    };
+}
+
+async function loadAdminMarketplaceData(force = false) {
+    if (adminMarketplaceCache && !force) return adminMarketplaceCache;
+    try {
+        adminMarketplaceCache = await api.getAdminMarketplace(true) || emptyAdminMarketplaceData();
+    } catch (err) {
+        console.debug('[Admin] Marketplace admin data unavailable:', err);
+        adminMarketplaceCache = emptyAdminMarketplaceData();
+    }
+    return adminMarketplaceCache;
+}
+
+function getListingKind(listing) {
+    return String(listing?.kind || 'rental').toLowerCase() === 'rental' ? 'rental' : 'sale';
+}
+
+function getDailyCounts(items, dateGetter, days = 30) {
+    const counts = [];
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dayStr = d.toISOString().slice(0, 10);
+        counts.push(items.filter(item => {
+            const ts = typeof dateGetter === 'function' ? dateGetter(item) : item?.[dateGetter];
+            return ts && String(ts).slice(0, 10) === dayStr;
+        }).length);
+    }
+    return counts;
+}
+
 // ─────────────────────────────────────────────────────────────
 // SVG Chart Helpers
 // ─────────────────────────────────────────────────────────────
@@ -300,7 +348,8 @@ function buildBarChart(data, color = '#1a1a1a', width = 300, height = 80) {
 // Overview
 // ─────────────────────────────────────────────────────────────
 
-function renderAdminOverview(container) {
+async function renderAdminOverview(container) {
+    container.innerHTML = '<div class="adm-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading admin overview...</p></div>';
     const allUsers = db.users.findAll();
     const allListings = db.listings.findAll();
     const activeListings = allListings.filter(l => l.status === 'active');
@@ -314,10 +363,20 @@ function renderAdminOverview(container) {
     const TIER_PRICE = { free: 0, premium: 29, pro: 49, admin: 0 };
     const totalMRR = allUsers.reduce((sum, u) => sum + (TIER_PRICE[u.subscription_tier] || 0), 0);
     const todayMsgs = db.messages.find(m => new Date(m.created_at) > new Date(Date.now() - 86400000)).length;
+    const marketplaceData = await loadAdminMarketplaceData();
+    const marketplaceMetrics = marketplaceData.metrics || {};
+    const saleListings = allListings.filter(l => getListingKind(l) === 'sale');
+    const itemsListed = Number(marketplaceMetrics.items_listed ?? saleListings.filter(l => l.status === 'active').length);
+    const itemsSold = Number(marketplaceMetrics.items_sold ?? saleListings.filter(l => l.status === 'sold').length);
+    const openOffers = Number(marketplaceMetrics.open_offers ?? (marketplaceData.offers || []).filter(o => o.status === 'pending').length);
+    const avgSellerRating = Number(marketplaceMetrics.avg_seller_rating || 0);
     const flatZero = Array(30).fill(0);
     const userChart = Array(30).fill(0).map((_, i) => i === 29 ? allUsers.length : 0);
     const listingChart = Array(30).fill(0).map((_, i) => i === 29 ? activeListings.length : 0);
     const revenueChart = Array(30).fill(0).map((_, i) => i === 29 ? totalMRR : 0);
+    const saleChart = getDailyCounts(saleListings.filter(l => l.status === 'active'), 'created_at');
+    const soldChart = getDailyCounts(saleListings.filter(l => l.status === 'sold'), l => l.sold_at || l.updated_at || l.created_at);
+    const offerChart = getDailyCounts(marketplaceData.offers || [], 'created_at');
 
     // KPI cards with distinct colors
     const kpis = [
@@ -326,6 +385,10 @@ function renderAdminOverview(container) {
         { label: 'MRR', value: '$' + totalMRR.toLocaleString(), icon: 'fa-dollar-sign', bg: '#fef3c7', fg: '#92400e', chart: buildLineChart(revenueChart, '#d97706') },
         { label: 'Messages Today', value: todayMsgs, icon: 'fa-comment-dots', bg: '#dbeafe', fg: '#1e40af', chart: buildLineChart(flatZero.map((_, i) => i === 29 ? todayMsgs : 0), '#3b82f6') },
         { label: 'Active Cities', value: db.cities.find(c => c.is_active !== false).length, icon: 'fa-map-location-dot', bg: '#fee2e2', fg: '#991b1b', chart: buildLineChart(flatZero.map((_, i) => i === 29 ? db.cities.findAll().length : 0), '#ef4444') },
+        { label: 'Items Listed', value: itemsListed, icon: 'fa-box-open', bg: '#dcfce7', fg: '#166534', chart: buildLineChart(saleChart, '#16a34a') },
+        { label: 'Items Sold', value: itemsSold, icon: 'fa-handshake', bg: '#fef9c3', fg: '#854d0e', chart: buildLineChart(soldChart, '#ca8a04') },
+        { label: 'Open Offers', value: openOffers, icon: 'fa-comments-dollar', bg: '#e0f2fe', fg: '#075985', chart: buildLineChart(offerChart, '#0284c7') },
+        { label: 'Avg Seller Rating', value: avgSellerRating ? avgSellerRating.toFixed(1) : '—', icon: 'fa-star', bg: '#fae8ff', fg: '#86198f', chart: buildLineChart(flatZero.map((_, i) => i === 29 ? avgSellerRating : 0), '#c026d3') },
     ];
 
     const kpiHtml = kpis.map(k => [
@@ -473,6 +536,26 @@ function renderAdminListings(container) {
     let selectedIds = new Set();
     let cityFilter = '';
     let categoryFilter = '';
+    let kindFilter = '';
+    let marketplaceCategories = [];
+    let categoriesLoading = true;
+
+    const rentalTypes = ['room', 'apartment', 'sublet', 'roommate_wanted', 'coliving', 'house', 'student_housing', 'room_wanted'];
+    const categoryById = id => marketplaceCategories.find(c => String(c.category_id) === String(id)) || null;
+
+    async function loadMarketplaceCategories() {
+        categoriesLoading = true;
+        renderContent();
+        try {
+            marketplaceCategories = (await api.getMarketplaceCategories(true) || []).filter(c => c.kind !== 'service');
+        } catch (err) {
+            console.debug('[Admin] Listing moderation categories unavailable:', err);
+            marketplaceCategories = [];
+        } finally {
+            categoriesLoading = false;
+            renderContent();
+        }
+    }
 
     function getTabListings() {
         const statusMap = {
@@ -483,10 +566,16 @@ function renderAdminListings(container) {
             rejected: l => l.moderation_status === 'rejected',
         };
         return db.listings.find(l => {
+            const listingKind = getListingKind(l);
             const matchTab = statusMap[activeTab] ? statusMap[activeTab](l) : true;
             const matchCity = !cityFilter || l.city === cityFilter;
-            const matchCat = !categoryFilter || l.category === categoryFilter;
-            return matchTab && matchCity && matchCat;
+            const matchCat = !categoryFilter || (
+                listingKind === 'sale'
+                    ? String(l.category_id || '') === categoryFilter
+                    : String(l.category || '').toLowerCase() === categoryFilter || String(l.room_type || '').toLowerCase() === categoryFilter
+            );
+            const matchKind = !kindFilter || listingKind === kindFilter;
+            return matchTab && matchCity && matchCat && matchKind;
         }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
@@ -539,6 +628,14 @@ function renderAdminListings(container) {
         const listings = getTabListings();
         const cities = db.cities.findAll();
         const tabs = ['pending', 'flagged', 'reported', 'approved', 'rejected'];
+        const categoryOptions = kindFilter === 'sale'
+            ? (categoriesLoading
+                ? '<option value="">Loading item categories...</option>'
+                : marketplaceCategories.map(c => '<option value="' + escHtml(c.category_id) + '"' + (categoryFilter === String(c.category_id) ? ' selected' : '') + '>' + (c.parent_id ? '— ' : '') + escHtml(c.name) + '</option>').join(''))
+            : kindFilter === 'rental'
+                ? rentalTypes.map(c => '<option value="' + c + '"' + (categoryFilter === c ? ' selected' : '') + '>' + c.replace(/_/g, ' ') + '</option>').join('')
+                : '';
+        const categoryHelp = !kindFilter ? '<option value="">Choose Rooms or Items first</option>' : '';
 
         const tabsHtml = tabs.map(t => {
             const count = countTab(t);
@@ -552,9 +649,15 @@ function renderAdminListings(container) {
             '<option value="">All Cities</option>',
             cities.map(c => '<option value="' + c.city_id + '"' + (cityFilter === c.city_id ? ' selected' : '') + '>' + c.name + '</option>').join(''),
             '</select>',
+            '<select class="adm-select" id="adm-kind-filter">',
+            '<option value="">All Kinds</option>',
+            '<option value="rental"' + (kindFilter === 'rental' ? ' selected' : '') + '>Rooms (rental)</option>',
+            '<option value="sale"' + (kindFilter === 'sale' ? ' selected' : '') + '>Items (sale)</option>',
+            '</select>',
             '<select class="adm-select" id="adm-cat-filter">',
             '<option value="">All Categories</option>',
-            ['room', 'apartment', 'sublet', 'roommate_wanted', 'coliving', 'house', 'student_housing', 'room_wanted'].map(c => '<option value="' + c + '"' + (categoryFilter === c ? ' selected' : '') + '>' + c + '</option>').join(''),
+            categoryHelp,
+            categoryOptions,
             '</select>',
             selectedIds.size > 0 ? [
                 '<button class="btn btn-sm btn-success" id="adm-bulk-approve"><i class="fa-solid fa-check"></i> Approve (' + selectedIds.size + ')</button>',
@@ -571,6 +674,21 @@ function renderAdminListings(container) {
                 const poster = db.users.findById(l.user_id);
                 const isSelected = selectedIds.has(l.listing_id);
                 const reportCount = db.reports.find(r => r.target_id === l.listing_id && r.status === 'pending').length;
+                const listingKind = getListingKind(l);
+                const isSale = listingKind === 'sale';
+                const category = isSale ? categoryById(l.category_id) : null;
+                const priceText = isSale ? ('$' + (l.price ?? l.rent ?? '?')) : ('$' + (l.rent ?? l.price ?? '?') + '/mo');
+                const detailFields = isSale
+                    ? [
+                        '<span><i class="fa-solid fa-tags"></i> ' + escHtml(category?.name || l.category_id || 'Uncategorized') + '</span>',
+                        l.condition ? '<span><i class="fa-solid fa-sparkles"></i> ' + escHtml(l.condition) + '</span>' : '',
+                        l.brand ? '<span><i class="fa-solid fa-copyright"></i> ' + escHtml(l.brand) + '</span>' : ''
+                    ].join('')
+                    : [
+                        '<span><i class="fa-solid fa-bed"></i> ' + escHtml(l.room_type || l.category || 'Room') + '</span>',
+                        l.bedrooms ? '<span><i class="fa-solid fa-door-open"></i> ' + escHtml(l.bedrooms) + ' bed</span>' : '',
+                        l.available_from ? '<span><i class="fa-solid fa-calendar"></i> ' + escHtml(l.available_from) + '</span>' : ''
+                    ].join('');
                 let _imgs = l.images || l.photos || [];
                 if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
                 let thumb = (_imgs && _imgs[0]) ? _imgs[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=120&h=90&fit=crop';
@@ -585,7 +703,10 @@ function renderAdminListings(container) {
                     '<div class="adm-listing-meta">',
                     '<span><i class="fa-solid fa-user"></i> ' + (poster ? escHtml(poster.display_name) : 'Unknown') + '</span>',
                     '<span><i class="fa-solid fa-location-dot"></i> ' + locationStr + '</span>',
-                    '<span><i class="fa-solid fa-tag"></i> $' + (l.rent ?? l.price ?? '?') + '/mo</span>',
+                    '<span><i class="fa-solid ' + (isSale ? 'fa-store' : 'fa-house') + '"></i> ' + (isSale ? 'Item' : 'Rental') + '</span>',
+                    '<span><i class="fa-solid fa-tag"></i> ' + priceText + '</span>',
+                    detailFields,
+                    l.rejection_reason ? '<span><i class="fa-solid fa-shield-halved"></i> ' + escHtml(l.rejection_reason) + '</span>' : '',
                     '<span><i class="fa-solid fa-clock"></i> ' + relTime(l.created_at) + '</span>',
                     reportCount > 0 ? '<span class="adm-report-badge"><i class="fa-solid fa-flag"></i> ' + reportCount + ' report' + (reportCount > 1 ? 's' : '') + '</span>' : '',
                     '</div>',
@@ -625,6 +746,7 @@ function renderAdminListings(container) {
             });
         });
         container.querySelector('#adm-city-filter')?.addEventListener('change', e => { cityFilter = e.target.value; renderContent(); });
+        container.querySelector('#adm-kind-filter')?.addEventListener('change', e => { kindFilter = e.target.value; categoryFilter = ''; renderContent(); });
         container.querySelector('#adm-cat-filter')?.addEventListener('change', e => { categoryFilter = e.target.value; renderContent(); });
         container.querySelector('#adm-bulk-approve')?.addEventListener('click', () => {
             selectedIds.forEach(id => doAction(id, 'approve'));
@@ -637,6 +759,7 @@ function renderAdminListings(container) {
     }
 
     renderContent();
+    loadMarketplaceCategories();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1217,6 +1340,12 @@ function renderAdminVerifications(container) {
 
 function renderAdminReports(container) {
     let statusFilter = 'pending';
+    let targetFilter = '';
+
+    const isMarketplaceReport = r => {
+        const listing = db.listings.findById(r.target_id);
+        return (r.target_type === 'listing' || r.type === 'listing') && listing && (listing.kind || 'rental') !== 'rental';
+    };
 
     function getReports() {
         const all = db.reports.findAll();
@@ -1227,6 +1356,16 @@ function renderAdminReports(container) {
 
         return all
             .filter(r => !statusFilter || r.status === statusFilter)
+            .filter(r => {
+                if (!targetFilter) return true;
+                if (targetFilter === 'marketplace') return isMarketplaceReport(r);
+                if (targetFilter === 'rentals') {
+                    const listing = db.listings.findById(r.target_id);
+                    return (r.target_type === 'listing' || r.type === 'listing') && (!listing || (listing.kind || 'rental') === 'rental');
+                }
+                if (targetFilter === 'users') return r.target_type === 'user' || r.type === 'user';
+                return true;
+            })
             .map(r => ({ ...r, report_count: counts[r.target_id] || 1, priority: counts[r.target_id] >= 3 ? 'high' : (counts[r.target_id] >= 2 ? 'medium' : 'low') }))
             .sort((a, b) => {
                 const pOrder = { high: 0, medium: 1, low: 2 };
@@ -1305,11 +1444,13 @@ function renderAdminReports(container) {
         }[p] || '');
 
         const reportItems = reports.length === 0 ? '<div class="adm-empty"><i class="fa-solid fa-flag"></i><p>No reports in this category.</p></div>' :
-            reports.map(r => [
+            reports.map(r => {
+                const targetType = r.target_type || r.type || 'listing';
+                return [
                 '<div class="adm-report-card' + (r.priority === 'high' ? ' escalated' : '') + '">',
                 '<div class="adm-report-left">',
                 '<div class="adm-report-priority">' + priorityBadge(r.priority) + (r.report_count >= 3 ? '<span class="adm-escalated-tag">Auto-escalated</span>' : '') + '</div>',
-                '<div class="adm-report-type-badge ' + r.type + '">' + (r.type === 'listing' ? '<i class="fa-solid fa-house"></i>' : '<i class="fa-solid fa-user"></i>') + ' ' + r.type + '</div>',
+                '<div class="adm-report-type-badge ' + targetType + '">' + (targetType === 'listing' ? '<i class="fa-solid fa-house"></i>' : '<i class="fa-solid fa-user"></i>') + ' ' + targetType + '</div>',
                 '</div>',
                 '<div class="adm-report-body">',
                 '<div class="adm-report-target">' + escHtml(r.target_name) + '</div>',
@@ -1325,11 +1466,20 @@ function renderAdminReports(container) {
                 ].join('') : '<span class="adm-status-pill pill-inactive">' + r.status + '</span>',
                 '</div>',
                 '</div>'
-            ].join('')).join('');
+                ].join('');
+            }).join('');
 
         container.innerHTML = [
             '<div class="adm-section-header"><h2>Reports & Flags</h2><span class="adm-count-badge">' + reports.length + ' shown</span></div>',
             '<div class="adm-tabs">' + tabsHtml + '</div>',
+            '<div class="adm-filters">',
+            '<select class="adm-select" id="adm-report-target-filter">',
+            '<option value="">All Report Targets</option>',
+            '<option value="marketplace"' + (targetFilter === 'marketplace' ? ' selected' : '') + '>Marketplace</option>',
+            '<option value="rentals"' + (targetFilter === 'rentals' ? ' selected' : '') + '>Rentals</option>',
+            '<option value="users"' + (targetFilter === 'users' ? ' selected' : '') + '>Users</option>',
+            '</select>',
+            '</div>',
             '<div class="adm-reports-list">' + reportItems + '</div>'
         ].join('');
 
@@ -1339,21 +1489,387 @@ function renderAdminReports(container) {
         container.querySelectorAll('[data-raction]').forEach(btn => {
             btn.addEventListener('click', () => doReportAction(btn.dataset.rid, btn.dataset.raction));
         });
+        container.querySelector('#adm-report-target-filter')?.addEventListener('change', e => { targetFilter = e.target.value; renderContent(); });
     }
 
     renderContent();
 }
 
 // ─────────────────────────────────────────────────────────────
+// Marketplace Admin
+// ─────────────────────────────────────────────────────────────
+
+async function renderAdminMarketplace(container) {
+    let activeTab = 'offers';
+    let data = emptyAdminMarketplaceData();
+    let loading = true;
+
+    const money = value => {
+        const n = Number(value || 0);
+        return '$' + (Number.isFinite(n) ? n.toLocaleString() : '0');
+    };
+    const statusPill = status => '<span class="adm-status-pill ' + (status === 'pending' ? 'pill-active' : status === 'voided' ? 'pill-rejected' : 'pill-inactive') + '">' + escHtml(status || 'unknown') + '</span>';
+
+    function renderOffers() {
+        const rows = (data.offers || []).map(o => [
+            '<tr>',
+            '<td><strong>' + escHtml(o.listing_title || o.listing_id || 'Untitled') + '</strong><br><small>' + escHtml(o.listing_id || '') + '</small></td>',
+            '<td>' + escHtml(o.buyer_name || o.buyer_id || 'Unknown') + '</td>',
+            '<td>' + escHtml(o.seller_name || o.seller_id || 'Unknown') + '</td>',
+            '<td>' + money(o.amount) + '</td>',
+            '<td>' + statusPill(o.status) + '</td>',
+            '<td>' + (o.created_at ? relTime(o.created_at) : '—') + '</td>',
+            '<td>' + (o.status !== 'voided' ? '<button class="adm-btn adm-btn-sm adm-btn-danger" data-void-offer="' + escHtml(o.offer_id) + '"><i class="fa-solid fa-ban"></i> Void</button>' : '—') + '</td>',
+            '</tr>'
+        ].join('')).join('');
+        return tableOrEmpty(rows, '<i class="fa-solid fa-hand-holding-dollar"></i><p>No marketplace offers yet.</p>', '<th>Item</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Status</th><th>Date</th><th>Action</th>');
+    }
+
+    function renderReviews() {
+        const rows = (data.reviews || []).map(r => [
+            '<tr>',
+            '<td><strong>' + escHtml(r.listing_title || r.listing_id || 'Listing') + '</strong><br><small>' + escHtml(r.review_id || '') + '</small></td>',
+            '<td>' + escHtml(r.reviewer_name || r.reviewer_id || 'Unknown') + '</td>',
+            '<td>' + escHtml(r.reviewee_name || r.reviewee_id || 'Unknown') + '</td>',
+            '<td><i class="fa-solid fa-star" style="color:#ca8a04"></i> ' + escHtml(r.rating || '—') + '</td>',
+            '<td>' + escHtml(r.comment || '') + '</td>',
+            '<td>' + (r.created_at ? relTime(r.created_at) : '—') + '</td>',
+            '<td><button class="adm-btn adm-btn-sm adm-btn-danger" data-delete-review="' + escHtml(r.review_id) + '"><i class="fa-solid fa-trash"></i> Remove</button></td>',
+            '</tr>'
+        ].join('')).join('');
+        return tableOrEmpty(rows, '<i class="fa-solid fa-star"></i><p>No marketplace reviews yet.</p>', '<th>Listing</th><th>Reviewer</th><th>Seller</th><th>Rating</th><th>Comment</th><th>Date</th><th>Action</th>');
+    }
+
+    function renderSold() {
+        const rows = (data.sold || []).map(l => [
+            '<tr>',
+            '<td><strong>' + escHtml(l.title || 'Untitled item') + '</strong><br><small>' + escHtml(l.listing_id || '') + '</small></td>',
+            '<td>' + escHtml(l.seller_name || l.user_id || 'Unknown') + '</td>',
+            '<td>' + escHtml(l.category_name || l.category_id || 'Uncategorized') + '</td>',
+            '<td>' + money(l.price ?? l.rent) + '</td>',
+            '<td>' + (l.sold_at ? new Date(l.sold_at).toLocaleDateString() : '—') + '</td>',
+            '</tr>'
+        ].join('')).join('');
+        return tableOrEmpty(rows, '<i class="fa-solid fa-box-open"></i><p>No sold marketplace items yet.</p>', '<th>Item</th><th>Seller</th><th>Category</th><th>Price</th><th>Sold</th>');
+    }
+
+    function renderPromoted() {
+        const rows = (data.promoted || []).map(l => [
+            '<tr>',
+            '<td><strong>' + escHtml(l.title || 'Untitled item') + '</strong><br><small>' + escHtml(l.listing_id || '') + '</small></td>',
+            '<td>' + escHtml(l.seller_name || l.user_id || 'Unknown') + '</td>',
+            '<td>' + escHtml(l.category_name || l.category_id || 'Uncategorized') + '</td>',
+            '<td>' + money(l.price ?? l.rent) + '</td>',
+            '<td>' + (l.promoted_until ? new Date(l.promoted_until).toLocaleString() : '—') + '</td>',
+            '</tr>'
+        ].join('')).join('');
+        return tableOrEmpty(rows, '<i class="fa-solid fa-bullhorn"></i><p>No promoted marketplace items right now.</p>', '<th>Item</th><th>Seller</th><th>Category</th><th>Price</th><th>Promoted Until</th>');
+    }
+
+    function tableOrEmpty(rows, emptyHtml, headers) {
+        return rows
+            ? '<div class="adm-table-wrap"><table class="adm-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+            : '<div class="adm-empty">' + emptyHtml + '</div>';
+    }
+
+    function renderContent() {
+        if (loading) {
+            container.innerHTML = '<div class="adm-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading marketplace oversight...</p></div>';
+            return;
+        }
+        const tabs = [
+            ['offers', 'fa-hand-holding-dollar', 'Offers', (data.offers || []).length],
+            ['reviews', 'fa-star', 'Reviews', (data.reviews || []).length],
+            ['sold', 'fa-box-open', 'Sold', (data.sold || []).length],
+            ['promoted', 'fa-bullhorn', 'Promoted', (data.promoted || []).length],
+        ];
+        const tabHtml = tabs.map(([id, icon, label, count]) =>
+            '<button class="adm-tab' + (activeTab === id ? ' active' : '') + '" data-mp-overview-tab="' + id + '">' +
+            '<i class="fa-solid ' + icon + '"></i> ' + label + (count ? ' <span class="adm-tab-count">' + count + '</span>' : '') +
+            '</button>'
+        ).join('');
+        const metrics = data.metrics || {};
+        const metricHtml = [
+            ['Items Listed', metrics.items_listed || 0, 'fa-boxes-stacked'],
+            ['Items Sold', metrics.items_sold || 0, 'fa-handshake'],
+            ['Open Offers', metrics.open_offers || 0, 'fa-comments-dollar'],
+            ['Avg Rating', metrics.avg_seller_rating ? Number(metrics.avg_seller_rating).toFixed(1) : '—', 'fa-star'],
+        ].map(m => '<div class="adm-kpi-card"><div class="adm-kpi-top"><div class="adm-kpi-icon" style="background:#f1f5f9;color:#1a1a1a"><i class="fa-solid ' + m[2] + '"></i></div><div><div class="adm-kpi-value">' + m[1] + '</div><div class="adm-kpi-label">' + m[0] + '</div></div></div><div class="adm-kpi-trend"><span>Marketplace</span></div></div>').join('');
+
+        container.innerHTML = [
+            '<div class="adm-section-header"><h2>Marketplace Oversight</h2><button class="adm-btn adm-btn-sm" id="mp-refresh"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button></div>',
+            '<div class="adm-kpi-grid" style="margin-bottom:1rem;">' + metricHtml + '</div>',
+            '<div class="adm-tabs" style="margin-bottom:1.25rem;">' + tabHtml + '</div>',
+            activeTab === 'offers' ? renderOffers() : '',
+            activeTab === 'reviews' ? renderReviews() : '',
+            activeTab === 'sold' ? renderSold() : '',
+            activeTab === 'promoted' ? renderPromoted() : '',
+        ].join('');
+
+        container.querySelectorAll('[data-mp-overview-tab]').forEach(btn => {
+            btn.addEventListener('click', () => { activeTab = btn.dataset.mpOverviewTab; renderContent(); });
+        });
+        container.querySelector('#mp-refresh')?.addEventListener('click', async () => {
+            loading = true; renderContent();
+            data = await loadAdminMarketplaceData(true);
+            loading = false; renderContent();
+        });
+        container.querySelectorAll('[data-void-offer]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Void this offer?')) return;
+                await api.voidMarketplaceOffer(btn.dataset.voidOffer);
+                showToast('Offer voided.');
+                data = await loadAdminMarketplaceData(true);
+                renderContent();
+            });
+        });
+        container.querySelectorAll('[data-delete-review]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Remove this review?')) return;
+                await api.deleteMarketplaceReview(btn.dataset.deleteReview);
+                showToast('Review removed.');
+                data = await loadAdminMarketplaceData(true);
+                renderContent();
+            });
+        });
+    }
+
+    renderContent();
+    data = await loadAdminMarketplaceData();
+    loading = false;
+    renderContent();
+}
+
+function renderAdminMarketplaceCategories(container) {
+    let categories = [];
+    let loadingCategories = true;
+    let editingCategoryId = null;
+    let showCategoryForm = false;
+
+    const categoryById = id => categories.find(c => c.category_id === id) || null;
+    const slugify = value => String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    async function loadCategories() {
+        loadingCategories = true;
+        renderContent();
+        try {
+            categories = await api.getMarketplaceCategories(true) || [];
+        } catch (err) {
+            console.debug('[Admin] Marketplace categories unavailable:', err);
+            categories = [];
+        } finally {
+            loadingCategories = false;
+            renderContent();
+        }
+    }
+
+    async function saveCategory() {
+        const editing = editingCategoryId ? categoryById(editingCategoryId) : null;
+        const name = container.querySelector('#mp-cat-name')?.value.trim() || '';
+        const slug = container.querySelector('#mp-cat-slug')?.value.trim() || slugify(name);
+        const parentId = container.querySelector('#mp-cat-parent')?.value || null;
+        const icon = container.querySelector('#mp-cat-icon')?.value.trim() || 'fa-tag';
+        const kind = container.querySelector('#mp-cat-kind')?.value || 'sale';
+        const sortOrder = parseInt(container.querySelector('#mp-cat-sort')?.value || '0', 10) || 0;
+        const isActive = !!container.querySelector('#mp-cat-active')?.checked;
+        const metaTitle = container.querySelector('#mp-cat-meta-title')?.value.trim() || '';
+        const metaDescription = container.querySelector('#mp-cat-meta-description')?.value.trim() || '';
+        const rawSchema = container.querySelector('#mp-cat-schema')?.value.trim() || '';
+
+        if (!name || !slug) { showToast('Name and slug are required.', 'error'); return; }
+        let attributesSchema = null;
+        if (rawSchema) {
+            try { attributesSchema = JSON.parse(rawSchema); }
+            catch { showToast('Attributes schema must be valid JSON.', 'error'); return; }
+        }
+
+        const payload = {
+            ...(editing ? { category_id: editing.category_id } : {}),
+            parent_id: parentId,
+            name,
+            slug,
+            icon,
+            kind,
+            attributes_schema: attributesSchema,
+            sort_order: sortOrder,
+            is_active: isActive,
+            meta_title: metaTitle,
+            meta_description: metaDescription,
+        };
+
+        try {
+            if (editing) {
+                await api.updateMarketplaceCategory(editing.category_id, payload);
+                showToast('Category updated.');
+            } else {
+                await api.saveMarketplaceCategory(payload);
+                showToast('Category added.');
+            }
+            editingCategoryId = null;
+            showCategoryForm = false;
+            await loadCategories();
+        } catch (err) {
+            showToast(err.message || 'Could not save category.', 'error');
+        }
+    }
+
+    function renderCategoryForm() {
+        if (!showCategoryForm && !editingCategoryId) return '';
+        const cat = editingCategoryId ? categoryById(editingCategoryId) || {} : {};
+        const parentOptions = categories
+            .filter(c => c.category_id !== cat.category_id)
+            .map(c => '<option value="' + escHtml(c.category_id) + '"' + (cat.parent_id === c.category_id ? ' selected' : '') + '>' + (c.parent_id ? '— ' : '') + escHtml(c.name) + '</option>')
+            .join('');
+        const schemaValue = cat.attributes_schema ? JSON.stringify(cat.attributes_schema, null, 2) : '';
+
+        return [
+            '<div class="adm-city-form-panel">',
+            '<div class="adm-panel-header"><h3>' + (cat.category_id ? 'Edit Marketplace Category' : 'Add Marketplace Category') + '</h3>',
+            '<button class="adm-close-btn" id="mp-cat-close"><i class="fa-solid fa-xmark"></i></button></div>',
+            '<div class="adm-form-grid">',
+            '<div class="adm-form-group"><label>Name *</label><input id="mp-cat-name" class="adm-input" value="' + escHtml(cat.name || '') + '" placeholder="Furniture"></div>',
+            '<div class="adm-form-group"><label>Slug *</label><input id="mp-cat-slug" class="adm-input" value="' + escHtml(cat.slug || '') + '" placeholder="furniture"></div>',
+            '<div class="adm-form-group"><label>Parent</label><select id="mp-cat-parent" class="adm-input"><option value="">Top level</option>' + parentOptions + '</select></div>',
+            '<div class="adm-form-group"><label>Icon</label><input id="mp-cat-icon" class="adm-input" value="' + escHtml(cat.icon || 'fa-tag') + '" placeholder="fa-couch"></div>',
+            '<div class="adm-form-group"><label>Kind</label><select id="mp-cat-kind" class="adm-input">',
+            ['sale', 'rental'].map(k => '<option value="' + k + '"' + ((cat.kind || 'sale') === k ? ' selected' : '') + '>' + k + '</option>').join(''),
+            '</select></div>',
+            '<div class="adm-form-group"><label>Sort Order</label><input id="mp-cat-sort" type="number" class="adm-input" value="' + escHtml(cat.sort_order || 0) + '"></div>',
+            '<div class="adm-form-group"><label>Active</label><label class="adm-toggle-wrap" style="display:inline-flex"><input type="checkbox" id="mp-cat-active"' + (cat.is_active !== false ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label></div>',
+            '<div class="adm-form-group adm-form-full"><label>Attributes Schema JSON</label><textarea id="mp-cat-schema" class="adm-textarea" style="height:120px;font-family:monospace;font-size:0.85rem;" placeholder=\'{"brand":"text","model":"text"}\'>' + escHtml(schemaValue) + '</textarea></div>',
+            '<div class="adm-form-group adm-form-full"><label>Meta Title</label><input id="mp-cat-meta-title" class="adm-input" value="' + escHtml(cat.meta_title || '') + '"></div>',
+            '<div class="adm-form-group adm-form-full"><label>Meta Description</label><textarea id="mp-cat-meta-description" class="adm-textarea">' + escHtml(cat.meta_description || '') + '</textarea></div>',
+            '<div class="adm-form-group adm-form-full adm-form-actions">',
+            '<button class="btn btn-primary" id="mp-cat-save"><i class="fa-solid fa-floppy-disk"></i> ' + (cat.category_id ? 'Save Changes' : 'Add Category') + '</button>',
+            '<button class="btn btn-outline" id="mp-cat-cancel">Cancel</button>',
+            '</div>',
+            '</div>',
+            '</div>'
+        ].join('');
+    }
+
+    function getOrderedCategories() {
+        const byParent = new Map();
+        categories.forEach(cat => {
+            const parent = cat.parent_id || '';
+            if (!byParent.has(parent)) byParent.set(parent, []);
+            byParent.get(parent).push(cat);
+        });
+        byParent.forEach(list => list.sort((a, b) => (Number(a.sort_order || 0) - Number(b.sort_order || 0)) || String(a.name || '').localeCompare(String(b.name || ''))));
+        const ordered = [];
+        const seen = new Set();
+        const pushBranch = (cat, depth) => {
+            if (!cat || seen.has(cat.category_id)) return;
+            seen.add(cat.category_id);
+            ordered.push({ ...cat, depth });
+            (byParent.get(cat.category_id) || []).forEach(child => pushBranch(child, depth + 1));
+        };
+        (byParent.get('') || []).forEach(cat => pushBranch(cat, 0));
+        categories.forEach(cat => pushBranch(cat, cat.parent_id ? 1 : 0));
+        return ordered;
+    }
+
+    function renderCategoriesPanel() {
+        const rows = loadingCategories
+            ? '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">Loading categories...</td></tr>'
+            : categories.length ? getOrderedCategories().map(cat => {
+                const listingCount = Number(cat.listing_count ?? db.listings.find(l => l.category_id === cat.category_id).length);
+                const indent = cat.depth ? '<span style="display:inline-block;width:' + (cat.depth * 18) + 'px"></span><i class="fa-solid fa-turn-up" style="transform:rotate(90deg);color:#94a3b8;margin-right:6px;"></i>' : '';
+                return [
+                    '<tr>',
+                    '<td>' + indent + '<i class="fa-solid ' + escHtml(cat.icon || 'fa-tag') + '" style="width:20px;margin-right:8px;"></i><strong>' + escHtml(cat.name) + '</strong><br><small class="text-muted">' + escHtml(cat.slug || '') + '</small></td>',
+                    '<td>' + escHtml(cat.kind || 'sale') + '</td>',
+                    '<td><code>' + escHtml(cat.icon || 'fa-tag') + '</code></td>',
+                    '<td>' + listingCount + '</td>',
+                    '<td>' + (cat.is_active ? '<span class="adm-status-pill pill-active">Active</span>' : '<span class="adm-status-pill pill-inactive">Inactive</span>') + '</td>',
+                    '<td>' + escHtml(cat.sort_order || 0) + '</td>',
+                    '<td style="display:flex;gap:8px;">',
+                    '<button class="adm-btn adm-btn-sm" data-edit-mp-cat="' + escHtml(cat.category_id) + '"><i class="fa-solid fa-pen"></i> Edit</button>',
+                    '<button class="adm-btn adm-btn-sm" data-toggle-mp-cat="' + escHtml(cat.category_id) + '"><i class="fa-solid ' + (cat.is_active ? 'fa-eye-slash' : 'fa-eye') + '"></i> ' + (cat.is_active ? 'Deactivate' : 'Activate') + '</button>',
+                    '<button class="adm-btn adm-btn-sm adm-btn-danger" data-delete-mp-cat="' + escHtml(cat.category_id) + '"><i class="fa-solid fa-trash"></i> Delete</button>',
+                    '</td>',
+                    '</tr>'
+                ].join('');
+            }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No marketplace categories yet.</td></tr>';
+
+        return [
+            '<div class="adm-section-header"><h2>Marketplace Categories</h2><button class="btn btn-primary" id="mp-cat-add"><i class="fa-solid fa-plus"></i> Add Category</button></div>',
+            renderCategoryForm(),
+            '<div class="adm-table-wrap">',
+            '<table class="adm-table">',
+            '<thead><tr><th>Category</th><th>Kind</th><th>Icon</th><th>Listings</th><th>Status</th><th>Sort</th><th>Actions</th></tr></thead>',
+            '<tbody>' + rows + '</tbody>',
+            '</table>',
+            '</div>'
+        ].join('');
+    }
+
+    function wireEvents() {
+        container.querySelector('#mp-cat-add')?.addEventListener('click', () => { showCategoryForm = true; editingCategoryId = null; renderContent(); });
+        container.querySelector('#mp-cat-close')?.addEventListener('click', () => { showCategoryForm = false; editingCategoryId = null; renderContent(); });
+        container.querySelector('#mp-cat-cancel')?.addEventListener('click', () => { showCategoryForm = false; editingCategoryId = null; renderContent(); });
+        container.querySelector('#mp-cat-name')?.addEventListener('input', e => {
+            const slugEl = container.querySelector('#mp-cat-slug');
+            if (slugEl && !editingCategoryId) slugEl.value = slugify(e.target.value);
+        });
+        container.querySelector('#mp-cat-save')?.addEventListener('click', saveCategory);
+        container.querySelectorAll('[data-edit-mp-cat]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                editingCategoryId = btn.dataset.editMpCat;
+                showCategoryForm = false;
+                renderContent();
+            });
+        });
+        container.querySelectorAll('[data-delete-mp-cat]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Delete this marketplace category?')) return;
+                try {
+                    await api.deleteMarketplaceCategory(btn.dataset.deleteMpCat);
+                    showToast('Category deleted.');
+                    await loadCategories();
+                } catch (err) {
+                    showToast(err.message || 'Could not delete category.', 'error');
+                }
+            });
+        });
+        container.querySelectorAll('[data-toggle-mp-cat]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const cat = categoryById(btn.dataset.toggleMpCat);
+                if (!cat) return;
+                try {
+                    await api.updateMarketplaceCategory(cat.category_id, { is_active: !cat.is_active });
+                    showToast(cat.is_active ? 'Category deactivated.' : 'Category activated.');
+                    await loadCategories();
+                } catch (err) {
+                    showToast(err.message || 'Could not update category.', 'error');
+                }
+            });
+        });
+    }
+
+    function renderContent() {
+        container.innerHTML = [
+            renderCategoriesPanel()
+        ].join('');
+        wireEvents();
+    }
+
+    loadCategories();
+}
+
+// ─────────────────────────────────────────────────────────────
 // Analytics
 // ─────────────────────────────────────────────────────────────
 
-function renderAdminAnalytics(container) {
+async function renderAdminAnalytics(container) {
+    container.innerHTML = '<div class="adm-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading analytics...</p></div>';
     // ── Live data from DB ──────────────────────────────────────
     const allUsers = db.users.find(u => u.role !== 'admin');
-    const activeListings = db.listings.find(l => l.status === 'active');
+    const allListings = db.listings.findAll();
+    const activeListings = allListings.filter(l => l.status === 'active');
     const allThreads = db.threads.findAll();
     const allMessages = db.messages.findAll();
+    const marketplaceData = await loadAdminMarketplaceData();
 
     // Conversion funnel — all numbers are real, percentages auto-calculated
     const visitors = getTotalVisits();
@@ -1411,6 +1927,13 @@ function renderAdminAnalytics(container) {
     const newListingCounts  = getDailyCountsFor30Days(activeListings, 'created_at');
     const newUserTotal      = newUserCounts.reduce((s, n) => s + n, 0);
     const newListingTotal   = newListingCounts.reduce((s, n) => s + n, 0);
+    const saleListings      = allListings.filter(l => getListingKind(l) === 'sale');
+    const newItemCounts     = getDailyCounts(saleListings, 'created_at');
+    const soldItemCounts    = getDailyCounts(saleListings.filter(l => l.status === 'sold'), l => l.sold_at || l.updated_at || l.created_at);
+    const offerCounts       = getDailyCounts(marketplaceData.offers || [], 'created_at');
+    const newItemTotal      = newItemCounts.reduce((s, n) => s + n, 0);
+    const soldItemTotal     = soldItemCounts.reduce((s, n) => s + n, 0);
+    const offerTotal        = offerCounts.reduce((s, n) => s + n, 0);
 
     // ── Top cities using live listing counts ───────────────────
     const citiesData = db.cities.findAll()
@@ -1475,6 +1998,16 @@ function renderAdminAnalytics(container) {
         '<div class="adm-panel">',
         '<div class="adm-panel-header"><h3>Listings Published (30 days) <span style="font-size:.85rem;font-weight:400">+' + newListingTotal + '</span></h3></div>',
         '<div class="adm-chart-box">' + buildBarChart(newListingCounts, '#333333', 500, 140) + '</div>',
+        '</div>',
+
+        // Marketplace analytics
+        '<div class="adm-panel adm-panel-full">',
+        '<div class="adm-panel-header"><h3><i class="fa-solid fa-store" style="margin-right:6px"></i>Marketplace Activity</h3><span style="font-size:.8rem;color:#64748b">Last 30 days</span></div>',
+        '<div class="adm-charts-row" style="margin:0;padding:16px;gap:16px;">',
+        '<div style="flex:1;min-width:220px;"><div style="font-size:.85rem;font-weight:700;margin-bottom:8px;">New Items <span style="font-weight:400">+' + newItemTotal + '</span></div>' + buildBarChart(newItemCounts, '#16a34a', 420, 110) + '</div>',
+        '<div style="flex:1;min-width:220px;"><div style="font-size:.85rem;font-weight:700;margin-bottom:8px;">Items Sold <span style="font-weight:400">+' + soldItemTotal + '</span></div>' + buildBarChart(soldItemCounts, '#ca8a04', 420, 110) + '</div>',
+        '<div style="flex:1;min-width:220px;"><div style="font-size:.85rem;font-weight:700;margin-bottom:8px;">Offer Volume <span style="font-weight:400">+' + offerTotal + '</span></div>' + buildBarChart(offerCounts, '#0284c7', 420, 110) + '</div>',
+        '</div>',
         '</div>',
 
         // Top cities
@@ -1550,6 +2083,8 @@ function renderAdminCities(container) {
 
         const cityForm = (editingCity || showCityForm) ? (() => {
             const c = editingCity || {};
+            const marketplaceEnabled = c.marketplace_enabled === true || c.marketplace_enabled === 1 || c.marketplace_enabled === '1';
+            const marketplaceHero = c.marketplace_hero_image || '';
             return [
                 '<div class="adm-city-form-panel">',
                 '<div class="adm-panel-header"><h3>' + (editingCity ? 'Edit: ' + escHtml(c.name) : 'Add New City') + '</h3>',
@@ -1586,6 +2121,28 @@ function renderAdminCities(container) {
                 '<div class="adm-form-group adm-form-full"><label>Community Reviews (JSON Format)</label><textarea id="f-reviews" class="adm-textarea" style="height:120px;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"name": "John Doe", "text": "Amazing city!", "rating": 5, "date": "2 days ago"}]\'>' + escHtml(JSON.stringify(c.reviews || [], null, 2)) + '</textarea><p style="font-size:0.75rem;color:#64748b;margin-top:4px;">Format: Array of objects with "name", "text", "rating", and "date" keys.</p></div>',
                 '<div class="adm-form-group adm-form-full"><label>Meta Title</label><input id="f-meta-title" class="adm-input" value="' + escHtml(c.meta_title || '') + '"></div>',
                 '<div class="adm-form-group adm-form-full"><label>Meta Description</label><textarea id="f-meta-desc" class="adm-textarea">' + escHtml(c.meta_description || '') + '</textarea></div>',
+                '<div class="adm-form-group adm-form-full" style="border-top:1px solid var(--border);padding-top:1rem;margin-top:.5rem;"><h4 style="margin:0 0 .25rem;font-size:1rem;color:var(--text);">Marketplace Page</h4><p style="margin:0;color:#64748b;font-size:.82rem;">Optional city marketplace landing page content.</p></div>',
+                '<div class="adm-form-group"><label>Enable Marketplace Page</label><label class="adm-toggle-wrap" style="display:inline-flex"><input type="checkbox" id="f-mp-enabled"' + (marketplaceEnabled ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label></div>',
+                '<div class="adm-form-group adm-form-full"><label>Marketplace Hero Image</label>',
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">',
+                '<i class="fa-solid fa-link" style="color:#64748b;flex-shrink:0;"></i>',
+                '<input id="f-mp-hero-url" class="adm-input" style="flex:1;" value="' + escHtml((marketplaceHero && typeof marketplaceHero === 'string' && !marketplaceHero.startsWith('data:')) ? marketplaceHero : '') + '" placeholder="Paste marketplace hero image URL">',
+                '</div>',
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">',
+                '<i class="fa-solid fa-upload" style="color:#64748b;flex-shrink:0;"></i>',
+                '<label class="adm-btn" style="cursor:pointer;margin:0;flex-shrink:0;"><i class="fa-solid fa-image"></i> Upload Image File',
+                '<input type="file" id="f-mp-hero-file" accept="image/*" style="display:none;"></label>',
+                '<span id="f-mp-hero-filename" style="font-size:0.8rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">' + (marketplaceHero && typeof marketplaceHero === 'string' && marketplaceHero.startsWith('data:') ? 'Uploaded image stored' : 'No file chosen') + '</span>',
+                '<button type="button" id="f-mp-hero-clear" style="flex-shrink:0;background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.8rem;display:' + (marketplaceHero ? 'inline' : 'none') + '"><i class="fa-solid fa-xmark"></i> Clear</button>',
+                '</div>',
+                '<input type="hidden" id="f-mp-hero-data" value="' + (marketplaceHero && typeof marketplaceHero === 'string' && marketplaceHero.startsWith('data:') ? escHtml(marketplaceHero) : '') + '">',
+                (marketplaceHero ? '<img id="f-mp-hero-preview" src="' + escHtml(getAssetUrl(marketplaceHero)) + '" style="margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;display:block;">' : '<img id="f-mp-hero-preview" style="display:none;margin-top:4px;max-height:100px;border-radius:8px;object-fit:cover;">'),
+                '</div>',
+                '<div class="adm-form-group adm-form-full"><label>Marketplace Description</label><textarea id="f-mp-description" class="adm-textarea" style="height:120px;" placeholder="Describe the local buy/sell marketplace for this city...">' + escHtml(c.marketplace_description || '') + '</textarea></div>',
+                '<div class="adm-form-group adm-form-full"><label>Marketplace Meta Title</label><input id="f-mp-meta-title" class="adm-input" value="' + escHtml(c.marketplace_meta_title || '') + '"></div>',
+                '<div class="adm-form-group adm-form-full"><label>Marketplace Meta Description</label><textarea id="f-mp-meta-desc" class="adm-textarea">' + escHtml(c.marketplace_meta_description || '') + '</textarea></div>',
+                '<div class="adm-form-group adm-form-full"><label>Marketplace FAQ Items (JSON Format)</label><textarea id="f-mp-faqs" class="adm-textarea" style="height:140px;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"question": "How do I buy safely?", "answer": "Meet in public..."}]\'>' + escHtml(JSON.stringify(c.marketplace_faq_items || [], null, 2)) + '</textarea><p style="font-size:0.75rem;color:#64748b;margin-top:4px;">Invalid JSON falls back to an empty list.</p></div>',
+                '<div class="adm-form-group adm-form-full"><label>Marketplace Reviews (JSON Format)</label><textarea id="f-mp-reviews" class="adm-textarea" style="height:120px;font-family:monospace;font-size:0.85rem;" placeholder=\'[{"name": "Jane Doe", "text": "Sold my desk fast.", "rating": 5, "date": "1 week ago"}]\'>' + escHtml(JSON.stringify(c.marketplace_reviews || [], null, 2)) + '</textarea><p style="font-size:0.75rem;color:#64748b;margin-top:4px;">Invalid JSON falls back to an empty list.</p></div>',
                 '<div class="adm-form-group"><label>Active</label><label class="adm-toggle-wrap" style="display:inline-flex"><input type="checkbox" id="f-active"' + (c.is_active !== false ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label></div>',
                 '<div class="adm-form-group"><label>Show on Homepage</label><label class="adm-toggle-wrap" style="display:inline-flex"><input type="checkbox" id="f-popular"' + (c.show_in_popular !== false ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label></div>',
                 '<div class="adm-form-group"><label>Show in Popular Cities Section</label><label class="adm-toggle-wrap" style="display:inline-flex"><input type="checkbox" id="f-popular-section"' + (c.show_in_popular_section ? ' checked' : '') + '><span class="adm-toggle-slider"></span></label></div>',
@@ -1628,6 +2185,7 @@ function renderAdminCities(container) {
                 '<td>' + (country ? escHtml((country.flag_emoji ? country.flag_emoji + ' ' : '') + country.name) : '—') + '</td>',
                 '<td style="display:flex;gap:8px;">',
                 '<a href="/cities/' + c.slug + '" target="_blank" class="adm-btn adm-btn-sm" style="text-decoration:none;"><i class="fa-solid fa-eye"></i> View</a>',
+                ((c.marketplace_enabled === true || c.marketplace_enabled === 1 || c.marketplace_enabled === '1') ? '<a href="/marketplace/' + c.slug + '" target="_blank" class="adm-btn adm-btn-sm" style="text-decoration:none;"><i class="fa-solid fa-store"></i> View Marketplace</a>' : ''),
                 '<button class="adm-btn adm-btn-sm" data-edit-city="' + c.city_id + '"><i class="fa-solid fa-pen"></i> Edit</button>',
                 '<button class="adm-btn adm-btn-sm adm-btn-danger" data-del-city="' + c.city_id + '"><i class="fa-solid fa-trash"></i> Delete</button>',
                 '</td>',
@@ -1916,6 +2474,73 @@ function renderAdminCities(container) {
             preview.style.display = 'none';
         });
 
+        // Marketplace city image file upload
+        container.querySelector('#f-mp-hero-file')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const filenameSpan = container.querySelector('#f-mp-hero-filename');
+            filenameSpan.textContent = 'Uploading...';
+
+            try {
+                const imageUrl = await uploadImage(file, 'marketplace-city-hero.jpg');
+                container.querySelector('#f-mp-hero-data').value = imageUrl;
+                container.querySelector('#f-mp-hero-url').value = '';
+                container.querySelector('#f-mp-hero-filename').textContent = file.name;
+                container.querySelector('#f-mp-hero-clear').style.display = 'inline';
+                const preview = container.querySelector('#f-mp-hero-preview');
+                preview.src = imageUrl;
+                preview.style.display = 'block';
+                showToast('Marketplace image uploaded successfully.');
+            } catch (err) {
+                console.warn('[ADMIN] Marketplace upload failed, falling back to Base64:', err);
+                const reader = new FileReader();
+                reader.onload = (rev) => {
+                    const base64Data = rev.target.result;
+                    container.querySelector('#f-mp-hero-data').value = base64Data;
+                    container.querySelector('#f-mp-hero-url').value = '';
+                    container.querySelector('#f-mp-hero-filename').textContent = file.name + ' (Local)';
+                    container.querySelector('#f-mp-hero-clear').style.display = 'inline';
+                    const preview = container.querySelector('#f-mp-hero-preview');
+                    preview.src = base64Data;
+                    preview.style.display = 'block';
+                    showToast('Marketplace image saved locally.', 'success');
+                };
+                reader.onerror = () => {
+                    showToast('Upload failed and local fallback failed.', 'error');
+                    filenameSpan.textContent = 'Upload failed';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        container.querySelector('#f-mp-hero-url')?.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            const preview = container.querySelector('#f-mp-hero-preview');
+            if (val) {
+                container.querySelector('#f-mp-hero-data').value = '';
+                container.querySelector('#f-mp-hero-filename').textContent = 'No file chosen';
+                container.querySelector('#f-mp-hero-file').value = '';
+                container.querySelector('#f-mp-hero-clear').style.display = 'inline';
+                preview.src = val;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+                container.querySelector('#f-mp-hero-clear').style.display = 'none';
+            }
+        });
+
+        container.querySelector('#f-mp-hero-clear')?.addEventListener('click', () => {
+            container.querySelector('#f-mp-hero-url').value = '';
+            container.querySelector('#f-mp-hero-data').value = '';
+            container.querySelector('#f-mp-hero-file').value = '';
+            container.querySelector('#f-mp-hero-filename').textContent = 'No file chosen';
+            container.querySelector('#f-mp-hero-clear').style.display = 'none';
+            const preview = container.querySelector('#f-mp-hero-preview');
+            preview.src = '';
+            preview.style.display = 'none';
+        });
+
         // Auto-generate slug from city name (new cities only)
         const nameInput = container.querySelector('#f-name');
         const slugInput = container.querySelector('#f-slug');
@@ -1971,6 +2596,15 @@ function renderAdminCities(container) {
                 return;
             }
 
+            const mpHeroUrl = (container.querySelector('#f-mp-hero-url')?.value || '').trim();
+            const mpHeroData = (container.querySelector('#f-mp-hero-data')?.value || '').trim();
+            const marketplaceHeroImage = mpHeroUrl || mpHeroData;
+            if (marketplaceHeroImage && typeof marketplaceHeroImage === 'string' && marketplaceHeroImage.startsWith('data:') && marketplaceHeroImage.length > 200000) {
+                showToast('Marketplace image is too large. Please use a smaller image or paste an image URL instead.', 'error');
+                btn.innerHTML = originalText; btn.disabled = false;
+                return;
+            }
+
             let faqs = [];
             try {
                 faqs = JSON.parse(container.querySelector('#f-faqs').value || '[]');
@@ -1987,6 +2621,20 @@ function renderAdminCities(container) {
                 showToast('Invalid Reviews JSON format.', 'error');
                 btn.innerHTML = originalText; btn.disabled = false;
                 return;
+            }
+
+            let marketplaceFaqs = [];
+            try {
+                marketplaceFaqs = JSON.parse(container.querySelector('#f-mp-faqs')?.value || '[]');
+            } catch(e) {
+                marketplaceFaqs = [];
+            }
+
+            let marketplaceReviews = [];
+            try {
+                marketplaceReviews = JSON.parse(container.querySelector('#f-mp-reviews')?.value || '[]');
+            } catch(e) {
+                marketplaceReviews = [];
             }
 
             const data = {
@@ -2009,6 +2657,13 @@ function renderAdminCities(container) {
                 faq_items: faqs,
                 reviews,
                 description: container.querySelector('#f-description').value.trim(),
+                marketplace_enabled: container.querySelector('#f-mp-enabled')?.checked || false,
+                marketplace_hero_image: marketplaceHeroImage,
+                marketplace_description: container.querySelector('#f-mp-description')?.value.trim() || '',
+                marketplace_meta_title: container.querySelector('#f-mp-meta-title')?.value.trim() || '',
+                marketplace_meta_description: container.querySelector('#f-mp-meta-desc')?.value.trim() || '',
+                marketplace_faq_items: Array.isArray(marketplaceFaqs) ? marketplaceFaqs : [],
+                marketplace_reviews: Array.isArray(marketplaceReviews) ? marketplaceReviews : [],
             };
 
             try {

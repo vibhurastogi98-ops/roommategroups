@@ -620,7 +620,7 @@ ol {
   margin-bottom: 24px;
   font-weight: 400;
   line-height: 1.5;
-  max-width: 680px;
+  max-width: 760px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -3438,6 +3438,16 @@ ol {
   align-items: center;
   gap: 8px;
   flex: 1;
+}
+
+.pl-step.clickable {
+  cursor: pointer;
+}
+
+.pl-step.clickable:hover .pl-step-circle,
+.pl-step.clickable:focus-visible .pl-step-circle {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.08);
 }
 
 .pl-step-circle {

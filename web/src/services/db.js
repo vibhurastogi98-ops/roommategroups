@@ -36,6 +36,17 @@ const SEED_DATA = {
             saved_listings: [],
             saved_searches: [],
             blocked_users: [],
+            notification_prefs: { messages: true, matches: true, price_drops: true, digest: false, offers: true, offer_updates: true, reviews: true, saved_search: true },
+            seller_default_country: '',
+            seller_default_city: '',
+            seller_payment_note: '',
+            phone: '',
+            show_phone: false,
+            is_dealer: false,
+            business_name: '',
+            seller_rating_avg: 0,
+            seller_rating_count: 0,
+            response_time_mins: null,
             passwordHash: 'h_n7qt9z',
             role: 'admin',
             is_active: true,
@@ -58,6 +69,17 @@ const SEED_DATA = {
             saved_listings: [],
             saved_searches: [],
             blocked_users: [],
+            notification_prefs: { messages: true, matches: true, price_drops: true, digest: false, offers: true, offer_updates: true, reviews: true, saved_search: true },
+            seller_default_country: '',
+            seller_default_city: '',
+            seller_payment_note: '',
+            phone: '',
+            show_phone: false,
+            is_dealer: false,
+            business_name: '',
+            seller_rating_avg: 0,
+            seller_rating_count: 0,
+            response_time_mins: null,
             passwordHash: 'h_sa5p9x', // Hash for Vibhu$12345
             role: 'admin',
             is_active: true,
@@ -192,6 +214,54 @@ function saveDB(data) {
 }
 function generateId(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
 
+function isPresent(value) {
+    return value !== undefined && value !== null && value !== '';
+}
+
+function parseListingAttributes(value) {
+    if (!value) return {};
+    if (typeof value === 'object' && !Array.isArray(value)) return value;
+    if (typeof value !== 'string') return {};
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function hasMarketplaceShape(listing = {}) {
+    return Boolean(
+        isPresent(listing.category_id) ||
+        isPresent(listing.condition) ||
+        isPresent(listing.brand) ||
+        Object.keys(parseListingAttributes(listing.attributes)).length > 0 ||
+        (isPresent(listing.price) && !isPresent(listing.rent))
+    );
+}
+
+function normalizeListingRecord(listing) {
+    if (!listing || typeof listing !== 'object') return listing;
+    const normalized = { ...listing };
+    const shouldBeSale = normalized.kind === 'sale' || (!normalized.kind && hasMarketplaceShape(normalized));
+    normalized.kind = shouldBeSale ? 'sale' : (normalized.kind || 'rental');
+    if (normalized.kind === 'sale' && !isPresent(normalized.price) && isPresent(normalized.rent)) {
+        normalized.price = normalized.rent;
+    }
+    return normalized;
+}
+
+function normalizeListingCollection(raw) {
+    if (!Array.isArray(raw.listings)) return false;
+    let changed = false;
+    raw.listings = raw.listings.map(listing => {
+        const normalized = normalizeListingRecord(listing);
+        if (JSON.stringify(normalized) !== JSON.stringify(listing)) changed = true;
+        return normalized;
+    });
+    return changed;
+}
+
 // Collections that are synced to D1 so all devices share the same data
 const D1_SYNC_MAP = {
     users:        { save: (item) => api.createUser(item, true), update: (id,d) => api.updateUser(id,d,true), del: (id) => api.deleteUser(id,true) },
@@ -226,10 +296,25 @@ class Collection {
             })
         );
     }
+    upsertLocal(data) {
+        const raw = getDB();
+        if (!raw[this.name]) raw[this.name] = [];
+        const id = data?.[this.idField] || data?.id;
+        if (!id) return null;
+        const item = this.name === 'listings' ? normalizeListingRecord(data) : data;
+        const idx = raw[this.name].findIndex(i => (i[this.idField] === id) || (i.id === id));
+        if (idx >= 0) raw[this.name][idx] = { ...raw[this.name][idx], ...item };
+        else raw[this.name].push(item);
+        saveDB(raw);
+        window.dispatchEvent(new CustomEvent('db-synced', { detail: { type: this.name, action: idx >= 0 ? 'update' : 'create' } }));
+        return item;
+    }
     async create(data) {
         const raw = getDB();
         if (!raw[this.name]) raw[this.name] = [];
-        const item = { [this.idField]: generateId(this.prefix), created_at: new Date().toISOString(), ...data };
+        const item = this.name === 'listings'
+            ? normalizeListingRecord({ [this.idField]: generateId(this.prefix), created_at: new Date().toISOString(), ...data })
+            : { [this.idField]: generateId(this.prefix), created_at: new Date().toISOString(), ...data };
         raw[this.name].push(item);
         saveDB(raw);
         // 🔄 Sync to D1 so all devices see this immediately
@@ -249,7 +334,9 @@ class Collection {
         const items = raw[this.name] || [];
         const idx = items.findIndex(i => (i[this.idField] === id) || (i.id === id));
         if (idx === -1) return null;
-        const updated = { ...items[idx], ...data, updated_at: new Date().toISOString() };
+        const updated = this.name === 'listings'
+            ? normalizeListingRecord({ ...items[idx], ...data, updated_at: new Date().toISOString() })
+            : { ...items[idx], ...data, updated_at: new Date().toISOString() };
         items[idx] = updated;
         saveDB(raw);
         // 🔄 Sync to D1
@@ -321,6 +408,7 @@ export async function initDB() {
     if (!raw.categories)    { raw.categories   = SEED_DATA.categories;    updated = true; }
     if (!raw.posts)         { raw.posts        = SEED_DATA.posts;         updated = true; }
     if (!raw.fb_cities)     { raw.fb_cities    = SEED_DATA.fb_cities;     updated = true; }
+    if (normalizeListingCollection(raw)) updated = true;
     if (updated) saveDB(raw);
 
     // ── Step 3: Global Sync with D1 ───────────────────────────
@@ -358,8 +446,11 @@ export async function initDB() {
                     if (localHash && !item.passwordHash) return { ...item, passwordHash: localHash };
                     return item;
                   })
+                : name === 'listings'
+                    ? d1Data.map(item => normalizeListingRecord(item))
                 : d1Data;
             live[name] = [...mergedD1, ...localOnly];
+            if (name === 'listings') live[name] = live[name].map(item => normalizeListingRecord(item));
             liveUpdated = true;
         };
 
@@ -417,8 +508,11 @@ export async function syncMessagesAndThreads() {
                     if (localHash && !item.passwordHash) return { ...item, passwordHash: localHash };
                     return item;
                   })
+                : name === 'listings'
+                    ? d1Data.map(item => normalizeListingRecord(item))
                 : d1Data;
             dbData[name] = [...mergedD1, ...localOnly];
+            if (name === 'listings') dbData[name] = dbData[name].map(item => normalizeListingRecord(item));
             if (old !== JSON.stringify(dbData[name])) changed = true;
         };
 

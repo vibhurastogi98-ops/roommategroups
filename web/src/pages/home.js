@@ -4,6 +4,8 @@ import { renderFooter } from '../components/footer.js';
 import { navigate } from '../router.js';
 import { setSEO } from '../seo.js'; // SEO Update
 import { getAssetUrl } from '../services/assets.js';
+import { api } from '../services/api.js';
+import { getCurrentUser } from '../services/auth.js';
 
 // ── Data ───────────────────────────────────────────
 
@@ -16,9 +18,253 @@ const testimonials = [
   { name: 'Emily R.', city: 'San Francisco, CA', quote: "I've used other platforms before, but this one actually had real, verified listings. No scams, no fake posts.", rating: 5, initials: 'ER', color: '#555555' },
 ];
 
+const RENTAL_VIEW_KEY = 'rg_recent_rental_view';
+
 
 
 // ── Helper functions ────────────────────────────────
+
+function escHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function getListingId(listing) {
+  return listing?.listing_id || listing?.id || '';
+}
+
+function getListingKind(listing) {
+  return (listing?.kind || 'rental').toLowerCase();
+}
+
+function isRentalListing(listing) {
+  return !listing || getListingKind(listing) === 'rental';
+}
+
+function isActiveListing(listing) {
+  return listing?.status === 'active' && listing?.is_active !== false;
+}
+
+function findListingById(id, extras = []) {
+  if (!id) return null;
+  return db.listings.findById(id) || extras.find(l => getListingId(l) === id) || null;
+}
+
+function rememberRentalView(id, extras = []) {
+  const listing = findListingById(id, extras);
+  if (listing && isRentalListing(listing)) {
+    localStorage.setItem(RENTAL_VIEW_KEY, JSON.stringify({ id, ts: Date.now() }));
+  }
+}
+
+function shouldShowRentalCrossSell() {
+  if (localStorage.getItem(RENTAL_VIEW_KEY)) return true;
+  const user = getCurrentUser();
+  const savedIds = parseJsonArray(user?.saved_listings);
+  return savedIds.some(id => {
+    const listing = db.listings.findById(id);
+    return listing && isRentalListing(listing);
+  });
+}
+
+function iconClass(icon) {
+  const raw = String(icon || 'fa-tag').trim();
+  if (raw.includes('fa-solid') || raw.includes('fa-regular') || raw.includes('fa-brands') || raw.includes('fab ')) {
+    return raw.replace(/\bfas\b/g, 'fa-solid').replace(/\bfab\b/g, 'fa-brands');
+  }
+  return raw.startsWith('fa-') ? `fa-solid ${raw}` : `fa-solid fa-${raw}`;
+}
+
+function humanize(value, fallback = '') {
+  if (!value) return fallback;
+  return String(value).replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function marketplaceCategoryLabel(listing) {
+  const categoryId = listing?.category_id || listing?.category;
+  if (listing?.category_name) return listing.category_name;
+  if (!categoryId) return listing?.condition || 'Item';
+  const category = db.mp_categories?.findById?.(categoryId)
+    || db.mp_categories?.findOne?.(c => c.slug === categoryId || c.name === categoryId);
+  return category?.name || String(categoryId).replace(/^cat_/, '').replace(/[_-]+/g, ' ');
+}
+
+function renderCategoryGrid(categories = []) {
+  const topLevel = categories.filter(c => !c.parent_id && String(c.kind || '').toLowerCase() !== 'service').slice(0, 8);
+  if (!topLevel.length) {
+    return `
+      <div class="home-market-empty">
+        <i class="fa-solid fa-store"></i>
+        <div>
+          <strong>Marketplace categories are loading.</strong>
+          <span>Try Furniture, Electronics, Vehicles, and more.</span>
+        </div>
+      </div>
+    `;
+  }
+
+  return topLevel.map(cat => {
+    const slug = encodeURIComponent(cat.slug || cat.category_id || '');
+    const children = Array.isArray(cat.children) ? cat.children.length : 0;
+    return `
+      <a href="/search/rooms?kind=sale&category=${slug}" class="home-market-card">
+        <span class="home-market-icon"><i class="${iconClass(cat.icon)}"></i></span>
+        <span class="home-market-name">${escHtml(cat.name)}</span>
+        <span class="home-market-meta">${children ? `${children} options` : humanize(cat.kind, 'Browse')}</span>
+      </a>
+    `;
+  }).join('');
+}
+
+function getListingPhoto(listing) {
+  let photos = listing?.images || listing?.photos || [];
+  if (typeof photos === 'string') {
+    try { photos = JSON.parse(photos); } catch { photos = []; }
+  }
+  let photo = Array.isArray(photos) ? photos[0] : photos;
+  if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || '';
+  return photo ? getAssetUrl(photo) : '';
+}
+
+function formatListingPrice(listing) {
+  const symbol = listing?.currency === 'INR' ? '₹' : listing?.currency === 'EUR' ? '€' : listing?.currency === 'GBP' ? '£' : '$';
+  const value = listing?.price ?? listing?.rent;
+  if (value === undefined || value === null || value === '') return getListingKind(listing) === 'rental' ? 'Price TBC' : 'Ask seller';
+  const formatted = `${symbol}${Number(value).toLocaleString(listing?.currency === 'INR' ? 'en-IN' : 'en-US')}`;
+  return getListingKind(listing) === 'rental' ? `${formatted}/mo` : formatted;
+}
+
+function listingLocation(listing) {
+  const cityId = listing?.city || listing?.city_id;
+  const city = cityId ? db.cities.findById(cityId)?.name || String(cityId).replace('city_', '').replace(/_/g, ' ') : '';
+  return [listing?.area, city].filter(Boolean).join(', ') || 'Location TBC';
+}
+
+function renderNearListingCard(listing, index) {
+  const id = getListingId(listing);
+  const photo = getListingPhoto(listing);
+  const kind = getListingKind(listing);
+  const badge = kind === 'rental'
+    ? (listing.room_type || listing.category || 'Rental')
+    : marketplaceCategoryLabel(listing);
+  const fallback = ['#0f172a', '#115e59', '#4338ca', '#7f1d1d'][index % 4];
+
+  return `
+    <a href="/listing/${encodeURIComponent(id)}" class="home-near-card" data-listing-id="${escHtml(id)}">
+      <div class="home-near-image" style="${photo ? `background-image:url('${photo}')` : `background:${fallback}`}">
+        ${!photo ? `<i class="fa-solid ${kind === 'rental' ? 'fa-house' : 'fa-store'}"></i>` : ''}
+        <span>${escHtml(humanize(badge, 'Listing'))}</span>
+      </div>
+      <div class="home-near-body">
+        <div class="home-near-price">${escHtml(formatListingPrice(listing))}</div>
+        <div class="home-near-title">${escHtml(listing.title || 'Untitled listing')}</div>
+        <div class="home-near-location"><i class="fa-solid fa-location-dot"></i>${escHtml(listingLocation(listing))}</div>
+      </div>
+    </a>
+  `;
+}
+
+function renderNearNotice(title, body, icon = 'fa-location-crosshairs') {
+  return `
+    <div class="home-near-notice">
+      <i class="fa-solid ${icon}"></i>
+      <div>
+        <strong>${escHtml(title)}</strong>
+        <span>${escHtml(body)}</span>
+      </div>
+      <a href="/search/rooms?sort=newest" class="btn btn-outline">Browse newest</a>
+    </div>
+  `;
+}
+
+function renderRentalCrossSell() {
+  return `
+    <section class="section home-cross-sell-section">
+      <div class="container">
+        <a href="/category/furniture" class="home-cross-sell-card animate-on-scroll">
+          <div class="home-cross-sell-icon"><i class="fa-solid fa-couch"></i></div>
+          <div class="home-cross-sell-copy">
+            <div class="home-cross-sell-title">Just found a place? Furnish it -> Furniture &amp; Home</div>
+            <p>Browse couches, tables, decor, and home essentials from nearby members.</p>
+          </div>
+          <span class="home-cross-sell-action">Shop now <i class="fa-solid fa-arrow-right"></i></span>
+        </a>
+      </div>
+    </section>
+  `;
+}
+
+async function hydrateHomeCategories(app) {
+  const grid = app.querySelector('#home-category-grid');
+  if (!grid) return;
+  try {
+    const categories = await api.getCategoryTree(true);
+    grid.innerHTML = renderCategoryGrid(Array.isArray(categories) ? categories : []);
+  } catch {
+    grid.innerHTML = renderCategoryGrid([]);
+  }
+}
+
+function hydrateNearYou(app) {
+  const strip = app.querySelector('#home-near-strip');
+  if (!strip) return;
+
+  const loadListings = async (lat, lng) => {
+    strip.innerHTML = renderNearNotice('Finding listings near you', 'Sorting rooms and items by distance.', 'fa-spinner fa-spin');
+    try {
+      const payload = await api.searchListings({ lat, lng, radius: 50, sort: 'distance', page: 1, limit: 8 }, true);
+      const listings = Array.isArray(payload) ? payload : payload?.results || [];
+      strip.innerHTML = listings.length
+        ? listings.map((listing, index) => renderNearListingCard(listing, index)).join('')
+        : renderNearNotice('No nearby listings yet', 'Browse newest listings while your local marketplace fills up.', 'fa-map-pin');
+      wireRentalViewTracking(app, listings);
+    } catch {
+      strip.innerHTML = renderNearNotice('Could not load nearby listings', 'The newest listings are still available.', 'fa-triangle-exclamation');
+    }
+  };
+
+  if (!navigator.geolocation) {
+    strip.innerHTML = renderNearNotice('Location is not available', 'Browse newest listings or search by city.', 'fa-location-dot');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => loadListings(pos.coords.latitude, pos.coords.longitude),
+    () => {
+      strip.innerHTML = renderNearNotice('Use location to see what is nearby', 'Rooms, furniture, vehicles, and more will sort by distance.', 'fa-location-crosshairs');
+    },
+    { timeout: 7000, maximumAge: 300000 }
+  );
+}
+
+function wireRentalViewTracking(app, extras = []) {
+  app.querySelectorAll('a[href^="/listing/"]').forEach(link => {
+    if (link.dataset.rentalViewTracking === 'true') return;
+    link.dataset.rentalViewTracking = 'true';
+    link.addEventListener('click', () => {
+      const id = decodeURIComponent((link.getAttribute('href') || '').split('/listing/')[1] || '').split('?')[0];
+      rememberRentalView(id, extras);
+    });
+  });
+}
 
 
 function renderListingCard(listing, index) {
@@ -57,8 +303,8 @@ function renderListingCard(listing, index) {
 export function renderHomePage(app) {
   // SEO Update — unique title, description, canonical, schemas
   setSEO({
-    title: 'Find Roommate Groups Near You | RoommateGroups',
-    description: 'Browse roommate groups in your city. Find compatible roommates, join housing communities, and list your room for free on RoommateGroups.',
+    title: 'Find Rooms, Roommates & Local Deals | RoommateGroups',
+    description: 'Find compatible roommates and rooms, join housing communities, and buy & sell furniture, electronics and more locally — free on RoommateGroups.',
     canonical: 'https://roommategroups.com/',
     schema: [
       {
@@ -86,6 +332,7 @@ export function renderHomePage(app) {
           { '@type': 'Question', name: 'Is RoommateGroups free?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Browsing listings, creating a profile, and contacting roommates is completely free on RoommateGroups.' } },
           { '@type': 'Question', name: 'What cities does RoommateGroups cover?', acceptedAnswer: { '@type': 'Answer', text: 'RoommateGroups covers 65+ US cities including New York, Los Angeles, Chicago, Austin, Miami, Seattle, Boston, Denver, and more.' } },
           { '@type': 'Question', name: 'How is RoommateGroups different from Craigslist or Facebook?', acceptedAnswer: { '@type': 'Answer', text: 'RoommateGroups is purpose-built for roommate matching. It offers lifestyle compatibility filters, verified profiles, AI-assisted listing descriptions, and city-based roommate communities — features not available on general classifieds sites.' } },
+          { '@type': 'Question', name: 'Can I buy and sell items on RoommateGroups?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Alongside rooms and roommates, you can buy, sell and find local items like furniture, electronics and appliances from verified members in your city — free to list.' } },
         ],
       },
       {
@@ -122,6 +369,10 @@ export function renderHomePage(app) {
     .filter(g => g.is_popular !== false)
     .sort((a, b) => (a.priority || 0) - (b.priority || 0));
   const countries = db.countries.findAll().filter(c => c.is_active);
+  const recentSaleListings = db.listings.find(l => l.status === 'active' && String(l.kind || '').toLowerCase() === 'sale')
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 4);
+  const activeRentalListings = db.listings.find(l => isActiveListing(l) && isRentalListing(l));
 
   app.innerHTML = `
     <!-- Navigation -->
@@ -131,16 +382,16 @@ export function renderHomePage(app) {
     <section class="hero" id="hero">
       <div class="hero-content">
         <div class="hero-badge animate-fade-in-up">
-          ✅ Verified Listings · 🚫 No Bots · 🚫 No Spam · 🛡️ 1,500,000+ Trusted Members
+          ✅ Verified Members · 🏠 Rooms & Roommates · 🛒 Buy & Sell Locally · 🛡️ 1,500,000+ Trusted
         </div>
         <h1 class="hero-title animate-fade-in-up delay-1">
-          Easily Find Rooms, Rentals & <span class="gradient-text">Roommates</span><br>
+          Find Rooms, Roommates & <span class="gradient-text">Local Deals</span><br>
           — All in One Place
         </h1>
         <p class="hero-subtitle animate-fade-in-up delay-2">
           Search verified rooms, apartments, sublets, co-living spaces and more. 
           Whether you need a roommate or a place to stay — we've got you covered. 
-          No bots. No spam. Just real listings.
+          No bots. No spam. Just real listings. Plus, buy and sell furniture, electronics and more with verified neighbors in your city.
         </p>
         <div class="hero-search animate-fade-in-up delay-3" id="hero-search">
           <div class="search-field">
@@ -158,6 +409,7 @@ export function renderHomePage(app) {
           <div class="search-field">
             <select id="search-type" aria-label="Search types">
               <option value="">🏠 Rooms & More</option>
+              <option value="__sale">🛒 Buy & Sell Items</option>
               <option value="room">Room for Rent</option>
               <option value="apartment">Apartment for Rent</option>
               <option value="sublet">Sublet</option>
@@ -192,6 +444,7 @@ export function renderHomePage(app) {
         </div>
       </div>
     </section>
+
     <section class="section home-cities-section" id="cities">
       <div class="container">
         <div class="section-header animate-on-scroll" style="text-align: center; margin-bottom: 24px;">
@@ -221,6 +474,72 @@ export function renderHomePage(app) {
               `).join('')}
             </div>`
     }
+      </div>
+    </section>
+
+
+    <section class="section home-marketplace-section" id="marketplace-home">
+      <style>
+        .home-marketplace-section { background:#fff; }
+        .home-market-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+        .home-market-card { min-height:132px; display:flex; flex-direction:column; justify-content:space-between; gap:12px; padding:18px; border:1px solid #e2e8f0; border-radius:8px; background:#fff; color:#0f172a; text-decoration:none; box-shadow:0 8px 22px rgba(15,23,42,0.04); transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+        .home-market-card:hover { transform:translateY(-3px); border-color:#94a3b8; box-shadow:0 14px 28px rgba(15,23,42,0.08); }
+        .home-market-icon { width:44px; height:44px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#f0fdfa; color:#0f766e; font-size:1.15rem; }
+        .home-market-name { font-weight:900; font-size:1rem; line-height:1.25; }
+        .home-market-meta { color:#64748b; font-size:.78rem; font-weight:700; }
+        .home-market-actions { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:24px; }
+        .home-market-empty, .home-near-notice { display:flex; align-items:center; gap:14px; padding:18px; border:1px dashed #cbd5e1; border-radius:8px; background:#f8fafc; color:#475569; }
+        .home-market-empty i, .home-near-notice > i { width:42px; height:42px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#fff; color:#0f766e; flex-shrink:0; }
+        .home-market-empty strong, .home-near-notice strong { display:block; color:#0f172a; font-size:.95rem; margin-bottom:3px; }
+        .home-market-empty span, .home-near-notice span { display:block; font-size:.82rem; line-height:1.45; }
+        .home-near-track { display:flex; gap:16px; overflow-x:auto; padding:2px 2px 18px; scroll-snap-type:x mandatory; scrollbar-width:none; }
+        .home-near-track::-webkit-scrollbar { display:none; }
+        .home-near-card { width:250px; flex:0 0 250px; scroll-snap-align:start; background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; color:#0f172a; text-decoration:none; box-shadow:0 10px 24px rgba(15,23,42,.05); }
+        .home-near-image { height:150px; background-size:cover; background-position:center; position:relative; display:flex; align-items:center; justify-content:center; color:#fff; }
+        .home-near-image::after { content:''; position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,.08)); }
+        .home-near-image > i { position:relative; z-index:1; font-size:1.7rem; opacity:.9; }
+        .home-near-image span { position:absolute; left:12px; bottom:12px; z-index:2; background:rgba(255,255,255,.92); color:#0f172a; border-radius:6px; padding:5px 9px; font-size:.66rem; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+        .home-near-body { padding:14px; }
+        .home-near-price { font-size:1.08rem; font-weight:900; color:#0f172a; margin-bottom:5px; }
+        .home-near-title { font-size:.92rem; font-weight:800; line-height:1.35; margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .home-near-location { display:flex; align-items:center; gap:6px; color:#64748b; font-size:.76rem; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .home-cross-sell-card { display:flex; align-items:center; gap:18px; padding:22px; border:1px solid #d1fae5; border-radius:8px; background:linear-gradient(135deg,#ecfdf5,#f8fafc); color:#0f172a; text-decoration:none; box-shadow:0 12px 28px rgba(15,118,110,.08); }
+        .home-cross-sell-icon { width:54px; height:54px; border-radius:8px; background:#0f766e; color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.35rem; flex-shrink:0; }
+        .home-cross-sell-copy { flex:1; min-width:0; }
+        .home-cross-sell-title { font-size:1.15rem; font-weight:900; line-height:1.25; }
+        .home-cross-sell-copy p { margin:5px 0 0; color:#475569; line-height:1.5; }
+        .home-cross-sell-action { display:inline-flex; align-items:center; gap:7px; font-weight:900; color:#0f766e; white-space:nowrap; }
+        @media (max-width:700px) {
+          .home-market-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .home-cross-sell-card { align-items:flex-start; flex-direction:column; }
+        }
+      </style>
+      <div class="container">
+        <div class="section-header-row animate-on-scroll">
+          <div class="section-header-text">
+            <h2>Buy &amp; Sell Locally</h2>
+            <p>Furnish your new place or declutter your old one — trade safely with verified members near you.</p>
+          </div>
+          <a href="/marketplace" class="section-explore-link">Browse the Marketplace <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div class="home-market-grid" id="home-category-grid">
+          ${renderCategoryGrid([])}
+        </div>
+        <div class="home-market-actions animate-on-scroll">
+          <a href="/marketplace" class="btn btn-primary">Browse the Marketplace</a>
+          <a href="/post-listing?kind=sale" class="section-explore-link">Sell an item -&gt;</a>
+        </div>
+        ${recentSaleListings.length ? `
+          <div class="section-header-row animate-on-scroll" style="margin-top:34px;margin-bottom:16px;">
+            <div class="section-header-text">
+              <h3 style="margin:0;font-size:1.2rem;font-weight:900;">Near you</h3>
+              <p>Recently listed marketplace items from local members</p>
+            </div>
+          </div>
+          <div class="home-near-track">
+            ${recentSaleListings.map((listing, index) => renderNearListingCard(listing, index)).join('')}
+          </div>
+        ` : ''}
       </div>
     </section>
 
@@ -384,6 +703,21 @@ export function renderHomePage(app) {
       </div>
     </section>
 
+    <section class="section section-light home-nearby-section" id="near-you">
+      <div class="container">
+        <div class="section-header-row animate-on-scroll">
+          <div class="section-header-text">
+            <h2>Near you</h2>
+            <p>Rooms, furniture, vehicles, and more sorted by distance</p>
+          </div>
+          <a href="/search/rooms?sort=distance" class="section-explore-link">Open search <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div class="home-near-track" id="home-near-strip">
+          ${renderNearNotice('Finding listings near you', 'Allow location access to sort the marketplace by distance.', 'fa-location-crosshairs')}
+        </div>
+      </div>
+    </section>
+
     <!-- How It Works -->
     <section class="section section-light" id="how-it-works">
       <div class="container">
@@ -427,10 +761,10 @@ export function renderHomePage(app) {
           <h2>Listings</h2>
           <p>Hand-picked rooms and apartments from our verified hosts</p>
         </div>
-        ${db.listings.find(l => l.status === 'active').length > 0 ? `
+        ${activeRentalListings.length > 0 ? `
         <div class="listings-wrapper">
           <div class="listings-track" id="listings-track">
-            ${db.listings.find(l => l.status === 'active').slice(0, 6).map((l, i) => renderListingCard(l, i)).join('')}
+            ${activeRentalListings.slice(0, 6).map((l, i) => renderListingCard(l, i)).join('')}
           </div>
         </div>
         <div class="carousel-controls">
@@ -450,6 +784,8 @@ export function renderHomePage(app) {
         `}
       </div>
     </section>
+
+    ${shouldShowRentalCrossSell() ? renderRentalCrossSell() : ''}
 
     <!-- Testimonials -->
     <section class="section section-light" id="testimonials">
@@ -512,6 +848,7 @@ export function renderHomePage(app) {
       { q: 'Is RoommateGroups free?', a: 'Yes. Browsing listings, creating a profile, and contacting roommates is completely free on RoommateGroups.' },
       { q: 'What cities does RoommateGroups cover?', a: 'RoommateGroups covers 65+ US cities including New York, Los Angeles, Chicago, Austin, Miami, Seattle, Boston, Denver, and more.' },
       { q: 'How is RoommateGroups different from Craigslist or Facebook?', a: 'RoommateGroups is purpose-built for roommate matching. It offers lifestyle compatibility filters, verified profiles, AI-assisted listing descriptions, and city-based roommate communities — features not available on general classifieds sites.' },
+      { q: 'Can I buy and sell items on RoommateGroups?', a: 'Yes. Alongside rooms and roommates, you can buy, sell and find local items like furniture, electronics and appliances from verified members in your city — free to list.' },
     ].map(item => `
             <div class="home-faq-item animate-on-scroll" itemscope itemtype="https://schema.org/Question">
               <div class="home-faq-icon"><i class="fas fa-question-circle"></i></div>
@@ -532,6 +869,9 @@ export function renderHomePage(app) {
 
   // ── Interactivity ───────────────────────────────────
   initNavbar();
+  hydrateHomeCategories(app);
+  hydrateNearYou(app);
+  wireRentalViewTracking(app);
 
   // Carousel controls
   const track = document.getElementById('listings-track');
@@ -602,12 +942,14 @@ export function renderHomePage(app) {
       const countryQuery = countrySelect.value;
       const cityQuery = citySelect.value;
       const typeQuery = document.getElementById('search-type').value;
+      const isMarketplaceSearch = typeQuery === '__sale';
 
-      if (cityQuery || countryQuery) {
+      if (cityQuery || countryQuery || isMarketplaceSearch) {
         const params = new URLSearchParams();
+        params.set('kind', isMarketplaceSearch ? 'sale' : 'rental');
         if (countryQuery) params.set('country', countryQuery);
         if (cityQuery) params.set('city', cityQuery);
-        if (typeQuery) params.set('type', typeQuery);
+        if (typeQuery && !isMarketplaceSearch) params.set('type', typeQuery);
         navigate('/search/rooms?' + params.toString());
       } else {
         citySelect.focus();

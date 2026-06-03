@@ -5,7 +5,7 @@
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
-export async function init(container) {
+export async function init(container, params = {}) {
   const { updateHeader } = await getMobile();
   updateHeader({ title: 'Safety Tips', showBack: true });
 
@@ -36,6 +36,12 @@ export async function init(container) {
       icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>' 
     }
   ];
+  const meetupSpots = [
+    { icon: 'fa-building-shield', title: 'Police station lobby', text: 'Best for high-value items or first-time meetups.' },
+    { icon: 'fa-book-open-reader', title: 'Public library', text: 'Staffed, well-lit, and easy to leave from.' },
+    { icon: 'fa-mug-saucer', title: 'Busy coffee shop', text: 'Good for small items and quick inspections.' },
+    { icon: 'fa-store', title: 'Retail entrance', text: 'Use a visible entrance or pickup counter.' },
+  ];
 
   container.innerHTML = `
     <div style="padding: 24px 20px; background: #f8fafc; min-height: 100%;">
@@ -45,6 +51,25 @@ export async function init(container) {
         </div>
         <h2 style="font-size: 1.6rem; font-weight: 900; color: #1e293b; margin-bottom: 8px; letter-spacing: -0.02em;">Your Safety First</h2>
         <p style="font-size: 0.9rem; color: #64748b; line-height: 1.5;">We want your experience to be safe and successful. Follow these guidelines to stay protected.</p>
+      </div>
+
+      <div id="safe-meetup" style="background:#fff;border-radius:20px;padding:20px;border:1px solid #f1f5f9;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:#111827;color:#fff;display:flex;align-items:center;justify-content:center;">
+            <i class="fa-solid fa-location-dot"></i>
+          </div>
+          <div style="font-size:1.05rem;font-weight:900;color:#1e293b;">Safe meetup spots</div>
+        </div>
+        <p style="font-size:0.85rem;color:#64748b;line-height:1.55;margin:0 0 14px;">For marketplace handoffs, keep contact in chat, meet somewhere public, inspect first, then pay.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          ${meetupSpots.map(spot => `
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;display:grid;gap:6px;">
+              <i class="fa-solid ${spot.icon}" style="color:#111827;"></i>
+              <strong style="font-size:0.78rem;color:#0f172a;line-height:1.25;">${spot.title}</strong>
+              <small style="font-size:0.7rem;color:#64748b;line-height:1.35;">${spot.text}</small>
+            </div>
+          `).join('')}
+        </div>
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px;">
@@ -73,4 +98,8 @@ export async function init(container) {
     const { navigate } = await getMobile();
     navigate('contact');
   });
+
+  if (params.section === 'safe-meetup') {
+    setTimeout(() => container.querySelector('#safe-meetup')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+  }
 }

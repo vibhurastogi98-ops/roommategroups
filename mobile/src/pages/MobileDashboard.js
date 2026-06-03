@@ -7,6 +7,7 @@
 import { getCurrentUser } from '../../../web/src/services/auth.js';
 import { db, initDB, syncMessagesAndThreads } from '../../../web/src/services/db.js';
 import { getTotalUnread, getUnreadCountForThread } from '../../../web/src/services/messaging.js';
+import { api } from '../../../web/src/services/api.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -39,7 +40,7 @@ export async function init(container) {
     }, 15000);
   }
 
-  function _render() {
+  async function _render() {
     const dbUser = db.users.findById(user.user_id || user.id);
     if (!dbUser) {
       container.innerHTML = `<div style="padding:40px;text-align:center;color:#94a3b8;font-size:0.9rem;">Could not load your profile. Pull to refresh or restart the app.</div>`;
@@ -49,11 +50,23 @@ export async function init(container) {
     const userListings = db.listings.find(l => l.user_id === dbUser.user_id || l.user_id === dbUser.id);
     const _isActive = (l) => l && l.status === 'active' && l.is_active !== false;
     const activeListings = userListings.filter(_isActive).length;
+    const soldItems = userListings.filter(l => l.kind === 'sale' && (l.status === 'sold' || l.sold_at)).length;
     const totalViews = userListings.reduce((s, l) => s + (l.view_count || l.views_count || 0), 0);
     let savedIds = dbUser.saved_listings || [];
     if (typeof savedIds === 'string') { try { savedIds = JSON.parse(savedIds); } catch(e) { savedIds = []; } }
     const savedCount = savedIds.length;
     const unread = getTotalUnread(dbUser.user_id || dbUser.id);
+    const sellerRating = Number(dbUser.seller_rating_avg || dbUser.rating_avg || 0);
+    const sellerRatingCount = Number(dbUser.seller_rating_count || dbUser.rating_count || 0);
+    let dashboardOffers = { sent: [], received: [] };
+    try {
+      const payload = await api.getOffers(true);
+      dashboardOffers = {
+        sent: Array.isArray(payload?.sent) ? payload.sent : [],
+        received: Array.isArray(payload?.received) ? payload.received : []
+      };
+    } catch (_) {}
+    const pendingOffers = dashboardOffers.received.filter(o => String(o.status || 'pending').toLowerCase() === 'pending');
 
     const threads = db.threads.find(t => {
       let parts = [];
@@ -94,6 +107,16 @@ export async function init(container) {
       });
     });
 
+    pendingOffers.slice(0, 2).forEach(o => {
+      activityItems.push({
+        icon: `<i class="fa-solid fa-tag"></i>`,
+        bold: true,
+        text: `New offer of <strong>$${Number(o.amount || 0).toLocaleString()}</strong> on <em>${_esc(o.listing_title || 'your item')}</em>`,
+        time: _relTime(o.created_at),
+        route: 'offers', params: {},
+      });
+    });
+
     const firstName = (dbUser.display_name || 'there').split(' ')[0];
     const greeting = unread > 0
       ? `You have <strong>${unread} unread message${unread !== 1 ? 's' : ''}</strong> waiting.`
@@ -124,6 +147,10 @@ export async function init(container) {
           ${_stat('👁️', totalViews, 'Total Views', 'my-listings')}
           ${_stat('💬', unread, 'Messages', 'chat')}
           ${_stat('❤️', savedCount, 'Saved', 'saved')}
+          ${_stat('✅', soldItems, 'Items Sold', 'my-listings')}
+          ${_stat('🏷️', pendingOffers.length, 'Offers', 'offers')}
+          ${_stat('⭐', sellerRating ? sellerRating.toFixed(1) : '—', 'Seller Rating', 'reviews')}
+          ${_stat('📝', sellerRatingCount, 'Reviews', 'reviews')}
         </div>
 
         <!-- Quick Actions -->
@@ -131,6 +158,10 @@ export async function init(container) {
           <h3 style="font-size:1rem;font-weight:800;color:#1e293b;margin-bottom:16px;">Quick Actions</h3>
           <div style="display:flex;flex-direction:column;gap:4px;">
             ${_action('➕', 'Post New Listing', 'post')}
+            ${_action('🛍️', 'List an Item', 'post')}
+            ${_action('👤', 'Profile', 'profile')}
+            ${_action('🏷️', 'Offers', 'offers', pendingOffers.length)}
+            ${_action('⭐', 'Reviews', 'reviews')}
             ${_action('💬', 'Messages', 'chat', unread)}
             ${_action('📋', 'My Listings', 'my-listings')}
             ${_action('🔔', 'Notifications', 'notifications')}

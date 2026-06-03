@@ -11,6 +11,9 @@ directory           = "../web/dist"
 binding             = "ASSETS"
 not_found_handling  = "single-page-application"
 
+[triggers]
+crons = ["*/15 * * * *"]
+
 # ── Cloudflare D1 (SQLite) ───────────────────────────────────
 [[d1_databases]]
 binding       = "DB"

@@ -15,6 +15,7 @@ export function getNavAuthButtons() {
             : '';
         return `
             ${adminBtn}
+            <a href="/post-listing" class="btn btn-outline" style="display:inline-flex;align-items:center;gap:6px;"><i class="fa-solid fa-plus"></i> Post</a>
             <a href="/dashboard/notifications" class="nav-msg-btn" id="nav-notif-btn" title="Notifications" aria-label="Notifications">
                 <i class="fa-solid fa-bell"></i>
                 <span class="nav-msg-badge" id="nav-notif-badge" style="display:none;"></span>
@@ -55,7 +56,7 @@ export function getNavAuthButtons() {
         `;
     }
     return `
-        <a href="/post-listing" class="btn btn-outline">List Your Room</a>
+        <a href="/post-listing" class="btn btn-outline">Post Listing</a>
         <a href="/auth/login" class="btn btn-primary">Sign In</a>
     `;
 }
@@ -80,9 +81,7 @@ export function renderNavbar() {
           </span>
         </a>
         <div class="nav-links" id="nav-links">
-          <a href="/#cities" class="nav-anchor" data-external="true">Cities</a>
-          <a href="/#how-it-works" class="nav-anchor" data-external="true">How It Works</a>
-          <a href="/#listings" class="nav-anchor" data-external="true">Listings</a>
+          <a href="/marketplace" class="${(active('/marketplace') || active('/search/rooms')).trim()}" style="display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-store"></i> Marketplace</a>
           <a href="/pricing" class="${active('/pricing').trim()}">Pricing</a>
           <a href="/blog" class="${active('/blog').trim()}">Blog</a>
           <a href="/fb-groups" class="${active('/fb-groups').trim()}" style="display:inline-flex;align-items:center;gap:5px;"><i class="fab fa-facebook" style="color:#1877f2;"></i> FB Groups</a>

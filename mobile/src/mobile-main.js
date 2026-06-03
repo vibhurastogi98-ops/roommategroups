@@ -32,7 +32,9 @@ const PATH_TO_ROUTE = {
   '/auth/register': 'auth',
   '/pricing': 'pricing',
   '/fb-groups': 'fbGroups',
+  '/marketplace': 'marketplace',
   '/blog': 'blog',
+  '/offers': 'offers',
 };
 
 // ── Route state ───────────────────────────────────────────────
@@ -46,7 +48,12 @@ const state = {
 const ROUTE_LOADERS = {
   home: () => import('./pages/MobileHome.js'),
   search: () => import('./pages/MobileSearch.js'),
+  marketplace: () => import('./pages/MobileMarketplaceLanding.js'),
   listing: () => import('./pages/MobileListing.js'),
+  category: () => import('./pages/MobileCategory.js'),
+  seller: () => import('./pages/MobileSellerProfile.js'),
+  offers: () => import('./pages/MobileOffers.js'),
+  reviews: () => import('./pages/MobileReviews.js'),
   post: () => import('./pages/MobilePost.js'),
   chat: () => import('./pages/MobileMessages.js'),
   'chat-detail': () => import('./pages/MobileChatDetail.js'),
@@ -73,14 +80,21 @@ const ROUTE_LOADERS = {
   'profile-setup': () => import('./pages/MobileProfileSetup.js'),
   about: () => import('./pages/MobileAbout.js'),
   city: () => import('./pages/MobileCity.js'),
+  marketplaceCity: () => import('./pages/MobileMarketplaceCity.js'),
 };
 
 // Route name → bottom-nav tab id (null = hide nav, undefined falls back to 'home')
 const ROUTE_TO_TAB = {
   home: 'home',
   search: 'search',
+  marketplace: 'search',
   listing: 'home',
+  category: 'search',
+  seller: 'dashboard',
+  offers: 'messages',
+  reviews: 'dashboard',
   city: 'home',
+  marketplaceCity: 'home',
   faq: 'home',
   about: 'home',
   safety: 'home',
@@ -111,7 +125,12 @@ const ROUTE_TO_TAB = {
 const ROUTE_TITLES = {
   home: 'RoommateGroups',
   search: 'Search',
+  marketplace: 'Marketplace',
   listing: 'Listing',
+  category: 'Category',
+  seller: 'Seller',
+  offers: 'Offers',
+  reviews: 'Reviews',
   post: 'Post a Listing',
   chat: 'Messages',
   'chat-detail': 'Chat',
@@ -126,6 +145,7 @@ const ROUTE_TITLES = {
   about: 'About Us',
   faq: 'FAQ',
   city: 'City',
+  marketplaceCity: 'Marketplace',
   contact: 'Contact Us',
   dashboard: 'Dashboard',
   admin: 'Admin Dashboard',
@@ -157,12 +177,25 @@ export async function navigate(routeOrPath, params = {}, direction = 'forward') 
     if (routeOrPath.startsWith('/listing/')) {
       route = 'listing';
       resolvedParams.id = routeOrPath.split('/listing/')[1].split('?')[0];
+    } else if (routeOrPath.startsWith('/category/')) {
+      route = 'category';
+      resolvedParams.slug = routeOrPath.split('/category/')[1].split('?')[0];
+    } else if (routeOrPath.startsWith('/seller/')) {
+      route = 'seller';
+      resolvedParams.id = routeOrPath.split('/seller/')[1].split('?')[0];
+    } else if (routeOrPath.startsWith('/reviews/')) {
+      route = 'reviews';
+      resolvedParams.userId = routeOrPath.split('/reviews/')[1].split('?')[0];
     } else if (routeOrPath.startsWith('/profile/')) {
       route = 'profile';
       resolvedParams.userId = routeOrPath.split('/profile/')[1].split('?')[0];
     } else if (routeOrPath.startsWith('/cities/')) {
       route = 'city';
       resolvedParams.slug = routeOrPath.split('/cities/')[1].split('?')[0];
+    } else if (routeOrPath.startsWith('/marketplace/')) {
+      route = 'marketplaceCity';
+      const slugPart = routeOrPath.split('/marketplace/')[1].split('?')[0];
+      resolvedParams.slug = slugPart.split('/').filter(Boolean).pop() || '';
     } else {
       route = PATH_TO_ROUTE[routeOrPath] || 'home';
     }

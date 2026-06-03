@@ -5,15 +5,16 @@
   "type": "module",
   "scripts": {
     "dev:web": "cd web && vite",
-    "dev:backend": "cd backend && node --env-file=../.env server.js",
-    "dev:full": "concurrently \"npm run dev:web\" \"npm run dev:backend\"",
+    "dev:backend": "npx wrangler dev --local --port 8787",
+    "dev:server": "cd backend && node --env-file=../.env server.js",
+    "dev:full": "concurrently \"npm run dev:backend\" \"npm run dev:web\"",
     "build:web": "cd web && vite build",
     "build:android": "npm run build:web && cd mobile && npx cap sync android && npx cap open android",
     "build:ios": "npm run build:web && cd mobile && npx cap sync ios && npx cap open ios",
     "deploy": "npm run build:web && cd backend && wrangler deploy",
     "dev": "npm run dev:web",
     "build": "npm run build:web",
-    "server": "npm run dev:backend"
+    "server": "npm run dev:server"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.33.1",

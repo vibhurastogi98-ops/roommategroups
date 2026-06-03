@@ -9,16 +9,25 @@ import { api } from '../services/api.js';
 const DRAFT_KEY = 'rg_draft_listing';
 const defaultDraft = {
     step: 1,
+    kind: '',
     category: '',
+    marketplaceCategoryId: '',
     country: '', city: '', neighborhood: '', address: '',
     title: '', price: '', currency: 'USD', availableFrom: '', leaseDuration: '',
     roomType: '', furnished: '', bedrooms: '', bathrooms: '', sizeSqft: '',
     budgetMin: '', budgetMax: '', preferredArea: '', moveInTimeline: '',
     amenities: [], photos: [], description: '',
     prefGender: 'Any', prefAgeMin: 18, prefAgeMax: 99, lifestyleTags: [],
+    condition: '',
+    negotiable: true,
+    brand: '',
+    attributes: {},
 };
 let draft = { ...defaultDraft };
 let editingListingId = null;
+let marketplaceCategories = [];
+let marketplaceCategoriesLoaded = false;
+let marketplaceCategoriesLoading = false;
 
 function loadDraft() {
     const saved = localStorage.getItem(DRAFT_KEY);
@@ -27,6 +36,75 @@ function loadDraft() {
 function saveDraft() { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); draft = { ...defaultDraft }; }
 
+const MARKETPLACE_KINDS = new Set(['sale']);
+function isMarketplaceFlow() { return MARKETPLACE_KINDS.has(draft.kind); }
+function isRentalFlow() { return !isMarketplaceFlow(); }
+function getFlowSteps() {
+    return isMarketplaceFlow()
+        ? ['Kind', 'Location', 'Details', 'Photos', 'Description', 'Publish']
+        : ['Kind', 'Location', 'Details', 'Amenities', 'Photos', 'Description', 'Publish'];
+}
+
+function escAttr(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+}
+
+function ensureMarketplaceCategories(container) {
+    if (marketplaceCategoriesLoaded || marketplaceCategoriesLoading) return;
+    marketplaceCategoriesLoading = true;
+    api.getCategoryTree(true)
+        .then(tree => {
+            marketplaceCategories = Array.isArray(tree) ? tree : [];
+            marketplaceCategoriesLoaded = true;
+        })
+        .catch(err => {
+            console.debug('[POST] Marketplace category tree unavailable:', err);
+            marketplaceCategories = [];
+            marketplaceCategoriesLoaded = true;
+        })
+        .finally(() => {
+            marketplaceCategoriesLoading = false;
+            if (container && isMarketplaceFlow() && draft.step === 1) renderFullPage(container);
+        });
+}
+
+function flattenCategories(categories = []) {
+    return categories.flatMap(cat => [cat, ...flattenCategories(cat.children || [])]);
+}
+
+function getSelectedMarketplaceCategory() {
+    return flattenCategories(marketplaceCategories).find(cat => cat.category_id === draft.marketplaceCategoryId) || null;
+}
+
+function getMarketplaceCategoryTree() {
+    const allowedKinds = new Set(['sale', 'product', 'vehicle']);
+    const filterNode = (cat) => {
+        const children = (cat.children || []).map(filterNode).filter(Boolean);
+        if (allowedKinds.has(cat.kind) || children.length) return { ...cat, children };
+        return null;
+    };
+    return marketplaceCategories.map(filterNode).filter(Boolean);
+}
+
+function getSchemaFields(category = getSelectedMarketplaceCategory()) {
+    const schema = category?.attributes_schema;
+    if (!schema) return [];
+    if (Array.isArray(schema.fields)) return schema.fields;
+    if (Array.isArray(schema)) return schema;
+    if (typeof schema === 'object') return Object.keys(schema);
+    return [];
+}
+
+function fieldLabel(name) {
+    return String(name || '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function fieldInputType(name) {
+    return ['year', 'mileage', 'storage'].includes(name) ? 'number' : 'text';
+}
+
 function loadListingIntoDraft(listing) {
     let photos = listing.images || listing.photos || [];
     if (typeof photos === 'string') { try { photos = JSON.parse(photos || '[]'); } catch (e) { photos = []; } }
@@ -34,17 +112,21 @@ function loadListingIntoDraft(listing) {
     if (typeof amenities === 'string') { try { amenities = JSON.parse(amenities || '[]'); } catch (e) { amenities = []; } }
     let prefs = listing.roommate_prefs || {};
     if (typeof prefs === 'string') { try { prefs = JSON.parse(prefs || '{}'); } catch (e) { prefs = {}; } }
+    let attributes = listing.attributes || {};
+    if (typeof attributes === 'string') { try { attributes = JSON.parse(attributes || '{}'); } catch (e) { attributes = {}; } }
 
     draft = {
         ...defaultDraft,
         step: 1,
+        kind: listing.kind && listing.kind !== 'rental' ? 'sale' : 'rental',
         category: listing.category || '',
+        marketplaceCategoryId: listing.category_id || '',
         country: listing.country || '',
         city: listing.city || '',
         neighborhood: listing.neighborhood || '',
         address: listing.address || '',
         title: listing.title || '',
-        price: listing.rent || listing.price || '',
+        price: listing.kind && listing.kind !== 'rental' ? (listing.price ?? listing.rent ?? '') : (listing.rent ?? listing.price ?? ''),
         currency: listing.currency || 'USD',
         availableFrom: listing.available_from || listing.availableFrom || listing.available_date || '',
         leaseDuration: listing.lease_duration || listing.leaseDuration || '',
@@ -64,6 +146,10 @@ function loadListingIntoDraft(listing) {
         prefAgeMin: prefs.ageMin || 18,
         prefAgeMax: prefs.ageMax || 99,
         lifestyleTags: prefs.tags || [],
+        condition: listing.condition || '',
+        negotiable: listing.negotiable !== undefined ? !!listing.negotiable : true,
+        brand: listing.brand || '',
+        attributes,
     };
 }
 
@@ -157,7 +243,7 @@ function getPhotoSrc(photo, size) {
 
 // ── Progress Bar ──
 function renderProgressBar() {
-    const steps = ["Category", "Location", "Details", "Amenities", "Photos", "Description", "Publish"];
+    const steps = getFlowSteps();
     const pct = ((draft.step - 1) / (steps.length - 1)) * 100;
     return `
         <nav class="pl-progress" aria-label="Listing steps">
@@ -168,8 +254,9 @@ function renderProgressBar() {
                     ${steps.map((label, i) => {
         const n = i + 1;
         const s = n < draft.step ? 'completed' : n === draft.step ? 'active' : 'upcoming';
+        const canJump = n <= draft.step;
         return `
-                        <li class="pl-step ${s}">
+                        <li class="pl-step ${s} ${canJump ? 'clickable' : ''}" data-step="${n}" ${canJump ? `role="button" tabindex="0" aria-label="Go to ${label} step"` : ''}>
                             <div class="pl-step-circle">
                                 ${n < draft.step ? '<i class="fa-solid fa-check"></i>' : `<span>${n}</span>`}
                             </div>
@@ -194,18 +281,80 @@ const CAT_CONFIG = {
     room_wanted: { icon: 'fa-magnifying-glass', label: 'Room Wanted', desc: 'I am looking for a room to rent in someone\'s property.', bg: '#f5f5f5', color: '#1a1a1a' }
 };
 
+const KIND_CONFIG = {
+    sale: { icon: 'fa-tag', label: 'Sell an item', desc: 'Furniture, electronics, home goods, vehicles, and other items.' },
+    rental: { icon: 'fa-bed', label: 'List a room', desc: 'Use the existing room and roommate rental flow.' },
+};
+
+function renderMarketplaceCategoryPicker() {
+    if (!draft.kind || draft.kind === 'rental') return '';
+    if (marketplaceCategoriesLoading || !marketplaceCategoriesLoaded) {
+        return `
+            <div class="pl-form-card" style="margin-top:24px;text-align:center;">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <p class="step-subtitle" style="margin:8px 0 0;">Loading categories...</p>
+            </div>
+        `;
+    }
+
+    const tree = getMarketplaceCategoryTree();
+    if (!tree.length) {
+        return `<div class="pl-form-card" style="margin-top:24px;"><p class="step-subtitle" style="margin:0;">No categories are available for this kind yet.</p></div>`;
+    }
+
+    return `
+        <div class="pl-step-header" style="margin-top:32px;">
+            <h3 style="margin:0 0 8px;">Choose a category</h3>
+            <p class="step-subtitle">Pick the closest match so buyers can filter accurately.</p>
+        </div>
+        <div class="category-cards marketplace-category-cards">
+            ${tree.map(parent => `
+                <div class="mp-category-group">
+                    <button type="button" class="category-card mp-category-card ${draft.marketplaceCategoryId === parent.category_id ? 'selected' : ''}" data-mp-cat="${parent.category_id}">
+                        <div class="cat-icon-wrap">
+                            <i class="fa-solid ${parent.icon || 'fa-tag'}"></i>
+                        </div>
+                        <div class="cat-card-body">
+                            <h3>${parent.name}</h3>
+                            <p>${parent.children?.length ? `${parent.children.length} subcategories` : fieldLabel(parent.kind)}</p>
+                        </div>
+                        <div class="cat-check"><i class="fa-solid fa-circle-check"></i></div>
+                    </button>
+                    ${parent.children?.length ? `
+                        <div class="mp-subcategory-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px;">
+                            ${parent.children.map(child => `
+                                <button type="button" class="category-card mp-category-card ${draft.marketplaceCategoryId === child.category_id ? 'selected' : ''}" data-mp-cat="${child.category_id}" style="padding:14px;">
+                                    <div class="cat-icon-wrap">
+                                        <i class="fa-solid ${child.icon || parent.icon || 'fa-tag'}"></i>
+                                    </div>
+                                    <div class="cat-card-body">
+                                        <h3>${child.name}</h3>
+                                        <p>${fieldLabel(child.kind)}</p>
+                                    </div>
+                                    <div class="cat-check"><i class="fa-solid fa-circle-check"></i></div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
 function renderStep1() {
+    const canContinue = draft.kind && (isMarketplaceFlow() ? draft.marketplaceCategoryId : draft.category);
     return `
         <div class="post-listing-step" id="step-1">
             <div class="pl-step-header">
                 <h2>What kind of listing are you creating?</h2>
-                <p class="step-subtitle">Select the category that best matches what you're posting.</p>
+                <p class="step-subtitle">Start with the branch that matches what you're posting.</p>
             </div>
             <div class="category-cards">
-                ${Object.entries(CAT_CONFIG).map(([key, cfg]) => `
-                    <div class="category-card ${draft.category === key ? 'selected' : ''}" data-cat="${key}">
-                        <div class="cat-icon-wrap" style="background:${cfg.bg}">
-                            <i class="fa-solid ${cfg.icon}" style="color:${cfg.color}"></i>
+                ${Object.entries(KIND_CONFIG).map(([key, cfg]) => `
+                    <div class="category-card kind-card ${draft.kind === key ? 'selected' : ''}" data-kind="${key}">
+                        <div class="cat-icon-wrap">
+                            <i class="fa-solid ${cfg.icon}"></i>
                         </div>
                         <div class="cat-card-body">
                             <h3>${cfg.label}</h3>
@@ -215,9 +364,29 @@ function renderStep1() {
                     </div>
                 `).join('')}
             </div>
+            ${draft.kind === 'rental' ? `
+                <div class="pl-step-header" style="margin-top:32px;">
+                    <h3 style="margin:0 0 8px;">Choose the rental category</h3>
+                    <p class="step-subtitle">This keeps the existing room listing flow unchanged.</p>
+                </div>
+                <div class="category-cards">
+                    ${Object.entries(CAT_CONFIG).map(([key, cfg]) => `
+                        <div class="category-card ${draft.category === key ? 'selected' : ''}" data-cat="${key}">
+                            <div class="cat-icon-wrap" style="background:${cfg.bg}">
+                                <i class="fa-solid ${cfg.icon}" style="color:${cfg.color}"></i>
+                            </div>
+                            <div class="cat-card-body">
+                                <h3>${cfg.label}</h3>
+                                <p>${cfg.desc}</p>
+                            </div>
+                            <div class="cat-check"><i class="fa-solid fa-circle-check"></i></div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : renderMarketplaceCategoryPicker()}
             <div class="step-actions">
                 <span></span>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.category ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next" ${canContinue ? '' : 'disabled'}>
                     Next Step <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
@@ -419,6 +588,92 @@ function renderStep3() {
     return html;
 }
 
+function renderMarketplaceAttributeFields() {
+    const schemaFields = getSchemaFields()
+        .filter(name => !['brand', 'condition'].includes(String(name).toLowerCase()));
+    if (!schemaFields.length) return '';
+
+    return `
+        <div class="form-row">
+            ${schemaFields.map(name => `
+                <div class="form-group">
+                    <label class="pl-label">${fieldLabel(name)}</label>
+                    <input
+                        type="${fieldInputType(name)}"
+                        class="form-control mp-attr-field"
+                        data-attr="${escAttr(name)}"
+                        value="${escAttr(draft.attributes?.[name] || '')}"
+                    >
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderMarketplaceDetails() {
+    const category = getSelectedMarketplaceCategory();
+    return `
+        <div class="post-listing-step" id="step-3">
+            <div class="pl-step-header">
+                <h2>Item Details</h2>
+                <p class="step-subtitle">${category ? `Posting in ${category.name}.` : 'Add the details buyers will use to compare listings.'}</p>
+            </div>
+            <div class="pl-form-card">
+                <div class="form-group">
+                    <label class="pl-label">Title <span class="required-asterisk">*</span></label>
+                    <input type="text" id="pl-title" class="form-control" placeholder="e.g. IKEA desk in great condition" value="${escAttr(draft.title)}" minlength="3">
+                    <small class="form-help">Minimum 3 characters required.</small>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="pl-label">Price <span class="required-asterisk">*</span></label>
+                        <div class="pl-input-group">
+                            <select id="pl-currency" class="form-control pl-currency-select">
+                                <option value="USD" ${draft.currency === 'USD' ? 'selected' : ''}>$</option>
+                                <option value="EUR" ${draft.currency === 'EUR' ? 'selected' : ''}>€</option>
+                                <option value="GBP" ${draft.currency === 'GBP' ? 'selected' : ''}>£</option>
+                            </select>
+                            <input type="number" id="pl-price" class="form-control" min="0" step="0.01" placeholder="75" value="${escAttr(draft.price)}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="pl-label">Condition</label>
+                        <select id="pl-condition" class="form-control">
+                            <option value="">Select condition</option>
+                            ${['new', 'like_new', 'good', 'fair', 'used'].map(value => `
+                                <option value="${value}" ${draft.condition === value ? 'selected' : ''}>${fieldLabel(value)}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="pl-label">Brand <span class="pl-optional">(Optional)</span></label>
+                        <input type="text" id="pl-brand" class="form-control" placeholder="e.g. Apple, IKEA, Toyota" value="${escAttr(draft.brand)}">
+                    </div>
+                    <div class="form-group">
+                        <label class="pl-label">Negotiable</label>
+                        <label class="publish-option-card selected" style="margin:0;min-height:54px;">
+                            <input type="checkbox" id="pl-negotiable" ${draft.negotiable ? 'checked' : ''}>
+                            <div class="po-content">
+                                <h4>Accept offers</h4>
+                                <p>Buyers can make offers below the asking price.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                ${renderMarketplaceAttributeFields()}
+            </div>
+            <div class="step-actions">
+                <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.title && draft.title.length >= 3 && Number(draft.price) > 0 ? '' : 'disabled'}>
+                    Next Step <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
 // ── Step 4: Amenities ──
 function renderStep4() {
     const amenities = db.amenities.findAll();
@@ -558,8 +813,101 @@ function renderStep6() {
     `;
 }
 
+function renderMarketplaceDescription() {
+    return `
+        <div class="post-listing-step" id="step-5">
+            <div class="pl-step-header">
+                <h2>Description</h2>
+                <p class="step-subtitle">Describe condition, pickup details, what is included, and anything buyers should know.</p>
+            </div>
+            <div class="pl-form-card">
+                <div class="form-group">
+                    <div class="pl-label-row">
+                        <label class="pl-label" style="margin:0">Description <span class="required-asterisk">*</span></label>
+                        <button class="btn btn-sm btn-outline ai-assist-btn" id="btn-ai-assist">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> AI Assist
+                        </button>
+                    </div>
+                    <textarea id="pl-desc" class="form-control" rows="6" maxlength="2000" placeholder="Share the important details...">${draft.description || ''}</textarea>
+                    <div class="pl-desc-footer">
+                        <span class="form-help">At least 50 characters required</span>
+                        <span class="char-count" id="pl-desc-count">${draft.description ? draft.description.length : 0} / 2000</span>
+                    </div>
+                </div>
+            </div>
+            <div class="step-actions">
+                <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.description.length >= 50 ? '' : 'disabled'}>
+                    Preview Listing <i class="fa-solid fa-eye"></i>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
 // ── Step 7: Publish ──
 function renderStep7() {
+    if (isMarketplaceFlow()) {
+        const category = getSelectedMarketplaceCategory();
+        return `
+            <div class="post-listing-step" id="step-6">
+                <div class="pl-step-header">
+                    <div class="pl-publish-icon"><i class="fa-solid fa-rocket"></i></div>
+                    <h2>Ready to Publish!</h2>
+                    <p class="step-subtitle">Review your marketplace listing before it goes live.</p>
+                </div>
+
+                <div class="preview-card">
+                    ${draft.photos.length > 0
+                ? `<img src="${getPhotoSrc(draft.photos[0], 'medium')}" class="preview-hero" alt="Cover photo">`
+                : `<div class="preview-hero placeholder"><i class="fa-solid fa-image"></i><span>No cover photo</span></div>`
+            }
+                    <div class="preview-content">
+                        <div class="preview-header">
+                            <h3>${draft.title || 'Untitled Listing'}</h3>
+                            <div class="preview-price">
+                                $${draft.price || '0'}
+                            </div>
+                        </div>
+                        <div class="preview-meta">
+                            <span><i class="fa-solid ${category?.icon || 'fa-tag'}"></i> ${category?.name || 'Marketplace'}</span>
+                            <span><i class="fa-solid fa-location-dot"></i> ${draft.address || 'Location set'}</span>
+                            ${draft.condition ? `<span><i class="fa-solid fa-circle-info"></i> ${fieldLabel(draft.condition)}</span>` : ''}
+                            ${draft.negotiable ? `<span><i class="fa-solid fa-handshake"></i> Negotiable</span>` : ''}
+                        </div>
+                        ${draft.description ? `<p class="preview-desc">${draft.description.slice(0, 180)}${draft.description.length > 180 ? '…' : ''}</p>` : ''}
+                    </div>
+                </div>
+
+                <div class="publish-options">
+                    <label class="publish-option-card selected">
+                        <input type="radio" name="publish_type" value="free" checked>
+                        <div class="po-icon po-free"><i class="fa-solid fa-tag"></i></div>
+                        <div class="po-content">
+                            <h4>Standard Listing</h4>
+                            <p>Visible in marketplace search results</p>
+                        </div>
+                        <div class="po-price">Free</div>
+                    </label>
+                </div>
+
+                <div class="pl-terms-row">
+                    <input type="checkbox" id="pl-terms" class="pl-checkbox">
+                    <label for="pl-terms">
+                        I agree to the Terms of Service and confirm this listing is accurate.
+                    </label>
+                </div>
+
+                <div class="step-actions">
+                    <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Edit Draft</button>
+                    <button class="btn btn-success pl-btn-publish" id="btn-publish" disabled>
+                        <i class="fa-solid ${editingListingId ? 'fa-floppy-disk' : 'fa-rocket'}"></i> ${editingListingId ? 'Save Changes' : 'Publish Listing'}
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
     return `
         <div class="post-listing-step" id="step-7">
             <div class="pl-step-header">
@@ -648,12 +996,30 @@ function attachEventListeners(container) {
     const btnPrev = container.querySelector('#btn-prev');
     const btnPublish = container.querySelector('#btn-publish');
 
+    container.querySelectorAll('.pl-step.clickable[data-step]').forEach(stepEl => {
+        const goToStep = () => {
+            const targetStep = parseInt(stepEl.dataset.step, 10);
+            if (!targetStep || targetStep === draft.step || targetStep > draft.step) return;
+            saveStepState();
+            draft.step = targetStep;
+            saveDraft();
+            renderFullPage(container);
+        };
+        stepEl.addEventListener('click', goToStep);
+        stepEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                goToStep();
+            }
+        });
+    });
+
     if (btnNext) {
         btnNext.addEventListener('click', () => {
             saveStepState();
             const error = validateCurrentStep();
             if (error) { showToast(error, 'error'); return; }
-            draft.step++; saveDraft(); renderFullPage(container);
+            draft.step = Math.min(draft.step + 1, getFlowSteps().length); saveDraft(); renderFullPage(container);
         });
     }
     if (btnPrev) {
@@ -665,12 +1031,38 @@ function attachEventListeners(container) {
 
     // Step 1
     if (draft.step === 1) {
-        container.querySelectorAll('.category-card').forEach(card => {
+        container.querySelectorAll('.kind-card').forEach(card => {
             card.addEventListener('click', (e) => {
-                container.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
+                const nextKind = e.currentTarget.dataset.kind;
+                if (draft.kind !== nextKind) {
+                    draft.kind = nextKind;
+                    draft.category = '';
+                    draft.marketplaceCategoryId = '';
+                    draft.attributes = {};
+                }
+                saveDraft();
+                if (isMarketplaceFlow()) ensureMarketplaceCategories(container);
+                renderFullPage(container);
+            });
+        });
+        container.querySelectorAll('.category-card').forEach(card => {
+            if (card.classList.contains('kind-card') || card.classList.contains('mp-category-card')) return;
+            card.addEventListener('click', (e) => {
+                container.querySelectorAll('.category-card[data-cat]').forEach(c => c.classList.remove('selected'));
                 e.currentTarget.classList.add('selected');
                 draft.category = e.currentTarget.dataset.cat;
-                if (btnNext) btnNext.disabled = false;
+                draft.step = Math.min(draft.step + 1, getFlowSteps().length);
+                saveDraft();
+                renderFullPage(container);
+            });
+        });
+        container.querySelectorAll('.mp-category-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                draft.marketplaceCategoryId = e.currentTarget.dataset.mpCat;
+                draft.attributes = {};
+                draft.step = Math.min(draft.step + 1, getFlowSteps().length);
+                saveDraft();
+                renderFullPage(container);
             });
         });
     }
@@ -750,12 +1142,30 @@ function attachEventListeners(container) {
         const title = container.querySelector('#pl-title');
         title.addEventListener('input', (e) => {
             draft.title = e.target.value;
-            if (btnNext) btnNext.disabled = draft.title.length < 3;
+            if (btnNext) btnNext.disabled = isMarketplaceFlow()
+                ? !(draft.title.length >= 3 && Number(draft.price) > 0)
+                : draft.title.length < 3;
         });
+        if (isMarketplaceFlow()) {
+            const price = container.querySelector('#pl-price');
+            const updateDetailsReady = () => {
+                if (btnNext) btnNext.disabled = !(draft.title?.length >= 3 && Number(draft.price) > 0);
+            };
+            price?.addEventListener('input', (e) => { draft.price = e.target.value; updateDetailsReady(); });
+            container.querySelector('#pl-currency')?.addEventListener('change', (e) => { draft.currency = e.target.value; });
+            container.querySelector('#pl-condition')?.addEventListener('change', (e) => { draft.condition = e.target.value; });
+            container.querySelector('#pl-brand')?.addEventListener('input', (e) => { draft.brand = e.target.value; });
+            container.querySelector('#pl-negotiable')?.addEventListener('change', (e) => { draft.negotiable = e.target.checked; });
+            container.querySelectorAll('.mp-attr-field').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    draft.attributes = { ...(draft.attributes || {}), [e.target.dataset.attr]: e.target.value };
+                });
+            });
+        }
     }
 
     // Step 4
-    if (draft.step === 4) {
+    if (draft.step === 4 && isRentalFlow()) {
         container.querySelectorAll('.custom-checkbox-card input').forEach(cb => {
             cb.addEventListener('change', (e) => {
                 const card = e.target.closest('.custom-checkbox-card');
@@ -771,7 +1181,7 @@ function attachEventListeners(container) {
     }
 
     // Step 5
-    if (draft.step === 5) {
+    if ((isRentalFlow() && draft.step === 5) || (isMarketplaceFlow() && draft.step === 4)) {
         const dropzone = container.querySelector('#pl-dropzone');
         const fileInput = container.querySelector('#pl-file-input');
         dropzone.addEventListener('click', () => fileInput.click());
@@ -794,7 +1204,7 @@ function attachEventListeners(container) {
     }
 
     // Step 6
-    if (draft.step === 6) {
+    if ((isRentalFlow() && draft.step === 6) || (isMarketplaceFlow() && draft.step === 5)) {
         const desc = container.querySelector('#pl-desc');
         const count = container.querySelector('#pl-desc-count');
         const aiBtn = container.querySelector('#btn-ai-assist');
@@ -824,6 +1234,8 @@ function attachEventListeners(container) {
 
                 const data = await api.post('/api/ai-assist', {
                     category: draft.category,
+                    kind: draft.kind,
+                    category_id: draft.marketplaceCategoryId,
                     title: draft.title,
                     amenities: amenitiesNames,
                     lifestyleTags: tagNames,
@@ -854,13 +1266,14 @@ function attachEventListeners(container) {
         const maxAge = container.querySelector('#pl-age-max');
         const ageVal = container.querySelector('#pl-age-val');
         const updateAge = () => {
+            if (!minAge || !maxAge || !ageVal) return;
             let min = parseInt(minAge.value), max = parseInt(maxAge.value);
             if (min > max) { min = max; minAge.value = min; }
             ageVal.textContent = `${min} – ${max}`;
             draft.prefAgeMin = min; draft.prefAgeMax = max;
         };
-        minAge.addEventListener('input', updateAge);
-        maxAge.addEventListener('input', updateAge);
+        minAge?.addEventListener('input', updateAge);
+        maxAge?.addEventListener('input', updateAge);
 
         container.querySelectorAll('.pref-tag-cb').forEach(cb => {
             cb.addEventListener('change', (e) => {
@@ -881,7 +1294,7 @@ function attachEventListeners(container) {
     }
 
     // Step 7
-    if (draft.step === 7) {
+    if (draft.step === getFlowSteps().length) {
         const terms = container.querySelector('#pl-terms');
         terms.addEventListener('change', (e) => { if (btnPublish) btnPublish.disabled = !e.target.checked; });
         container.querySelectorAll('.publish-option-card').forEach(card => {
@@ -896,14 +1309,21 @@ function attachEventListeners(container) {
 
 function validateCurrentStep() {
     const isRoommate = draft.category === 'roommate_wanted' || draft.category === 'room_wanted';
-    if (draft.step === 1 && !draft.category) return 'Choose a listing category.';
+    if (draft.step === 1 && !draft.kind) return 'Choose what kind of listing you are creating.';
+    if (draft.step === 1 && isRentalFlow() && !draft.category) return 'Choose a rental category.';
+    if (draft.step === 1 && isMarketplaceFlow() && !draft.marketplaceCategoryId) return 'Choose a marketplace category.';
     if (draft.step === 2 && (!draft.country || !draft.city)) return 'Country and city are required.';
     if (draft.step === 3) {
+        if (isMarketplaceFlow()) {
+            if (!draft.title || draft.title.trim().length < 3) return 'Title must be at least 3 characters.';
+            if (!draft.price || Number(draft.price) <= 0) return 'Price is required.';
+            return '';
+        }
         if (!draft.title || draft.title.trim().length < 3) return 'Title must be at least 3 characters.';
         if (!isRoommate && (!draft.price || Number(draft.price) <= 0)) return 'Monthly rent is required.';
         if (isRoommate && (!draft.budgetMax || Number(draft.budgetMax) <= 0)) return 'Maximum budget is required.';
     }
-    if (draft.step === 6 && (!draft.description || draft.description.trim().length < 50)) return 'Description must be at least 50 characters.';
+    if (((isRentalFlow() && draft.step === 6) || (isMarketplaceFlow() && draft.step === 5)) && (!draft.description || draft.description.trim().length < 50)) return 'Description must be at least 50 characters.';
     return '';
 }
 
@@ -962,7 +1382,21 @@ function saveStepState() {
     }
 
     if (draft.step === 3) {
-        if (draft.category !== 'roommate_wanted' && draft.category !== 'room_wanted') {
+        if (isMarketplaceFlow()) {
+            const price = container.querySelector('#pl-price');
+            if (price) draft.price = price.value;
+            const currency = container.querySelector('#pl-currency');
+            if (currency) draft.currency = currency.value;
+            const condition = container.querySelector('#pl-condition');
+            if (condition) draft.condition = condition.value;
+            const brand = container.querySelector('#pl-brand');
+            if (brand) draft.brand = brand.value;
+            const negotiable = container.querySelector('#pl-negotiable');
+            if (negotiable) draft.negotiable = negotiable.checked;
+            container.querySelectorAll('.mp-attr-field').forEach(input => {
+                draft.attributes = { ...(draft.attributes || {}), [input.dataset.attr]: input.value };
+            });
+        } else if (draft.category !== 'roommate_wanted' && draft.category !== 'room_wanted') {
             const price = container.querySelector('#pl-price');
             if (price) draft.price = parseInt(price.value) || 0;
             const currency = container.querySelector('#pl-currency');
@@ -1024,6 +1458,59 @@ async function handlePublish() {
     const selType = container?.querySelector('input[name="publish_type"]:checked')?.value;
     const isFeatured = (selType === 'featured' || selType === 'premium');
 
+    if (isMarketplaceFlow()) {
+        const wasEditing = !!editingListingId;
+        const listingData = {
+            user_id: user.user_id || user.id,
+            kind: draft.kind,
+            category_id: draft.marketplaceCategoryId,
+            title: draft.title,
+            description: draft.description,
+            price: Number(draft.price) || 0,
+            currency: draft.currency,
+            country: draft.country,
+            city: draft.city,
+            neighborhood: draft.neighborhood,
+            address: draft.address,
+            condition: draft.condition || null,
+            negotiable: draft.negotiable ? 1 : 0,
+            brand: draft.brand || null,
+            attributes: draft.attributes || {},
+            images: draft.photos,
+            status: isFree ? 'pending' : 'active',
+            moderation_status: isFree ? 'pending' : 'approved',
+            is_featured: isFeatured,
+            view_count: 0,
+        };
+
+        try {
+            const item = wasEditing
+                ? await db.listings.update(editingListingId, { ...listingData, updated_at: new Date().toISOString() })
+                : await db.listings.create(listingData);
+            if (!item) throw new Error('Listing could not be saved locally.');
+
+            if (!wasEditing) {
+                await db.notifications.create({
+                    user_id: user.user_id || user.id,
+                    type: isFree ? 'moderation_pending' : 'listing_approved',
+                    title: isFree ? 'Listing Pending Review' : 'Listing Published!',
+                    description: isFree ? 'Your item is pending admin approval and will go live once approved.' : 'Your item is now live and visible to local buyers.',
+                    website_url: `/listing/${item.listing_id}`
+                });
+            }
+
+            clearDraft();
+            showToast(wasEditing ? 'Listing updated successfully!' : 'Listing published successfully!');
+            editingListingId = null;
+            navigate(wasEditing ? `/listing/${item.listing_id}` : '/dashboard');
+        } catch (err) {
+            console.error('[Publish] Failed to create marketplace listing:', err);
+            showToast(wasEditing ? 'Failed to update listing. Please try again.' : 'Failed to publish listing. Please try again.', 'error');
+            if (publishBtn) { publishBtn.disabled = false; publishBtn.innerHTML = '<i class="fa-solid ' + (wasEditing ? 'fa-floppy-disk' : 'fa-rocket') + '"></i> ' + (wasEditing ? 'Save Changes' : 'Publish Listing'); }
+        }
+        return;
+    }
+
     const listingData = {
         user_id: user.id, category: draft.category, title: draft.title, description: draft.description,
         rent: (draft.category === 'roommate_wanted' || draft.category === 'room_wanted') ? (draft.budgetMax || 0) : (draft.price || 0), 
@@ -1079,7 +1566,12 @@ async function handlePublish() {
 
 function renderFullPage(container) {
     window.scrollTo(0, 0);
-    const steps = { 1: renderStep1, 2: renderStep2, 3: renderStep3, 4: renderStep4, 5: renderStep5, 6: renderStep6, 7: renderStep7 };
+    if (isMarketplaceFlow()) ensureMarketplaceCategories(container);
+    const maxStep = getFlowSteps().length;
+    if (draft.step > maxStep) draft.step = maxStep;
+    const steps = isMarketplaceFlow()
+        ? { 1: renderStep1, 2: renderStep2, 3: renderMarketplaceDetails, 4: renderStep5, 5: renderMarketplaceDescription, 6: renderStep7 }
+        : { 1: renderStep1, 2: renderStep2, 3: renderStep3, 4: renderStep4, 5: renderStep5, 6: renderStep6, 7: renderStep7 };
     const stepContent = (steps[draft.step] || renderStep1)();
 
     container.innerHTML = `
@@ -1115,7 +1607,8 @@ export function renderPostListingPage(container, params = {}) {
     editingListingId = params.id || new URLSearchParams(window.location.search).get('id') || null;
     if (editingListingId) {
         const listing = db.listings.findById(editingListingId);
-        if (!listing || listing.user_id !== user.id) {
+        const userId = user.user_id || user.id;
+        if (!listing || listing.user_id !== userId) {
             showToast('Listing not found or you do not have permission to edit it.', 'error');
             navigate('/dashboard/listings');
             return;
@@ -1123,6 +1616,18 @@ export function renderPostListingPage(container, params = {}) {
         loadListingIntoDraft(listing);
     } else {
         loadDraft();
+        const kindParam = (params.kind || new URLSearchParams(window.location.search).get('kind') || '').toLowerCase();
+        if (['sale', 'rental'].includes(kindParam) && draft.kind !== kindParam) {
+            draft = {
+                ...draft,
+                kind: kindParam,
+                category: kindParam === 'rental' ? draft.category : '',
+                marketplaceCategoryId: kindParam === 'sale' ? draft.marketplaceCategoryId : '',
+                attributes: kindParam === 'sale' ? (draft.attributes || {}) : {},
+                step: 1,
+            };
+            saveDraft();
+        }
     }
     container.innerHTML = '<div id="post-listing-root"></div>';
     renderFullPage(container.querySelector('#post-listing-root'));

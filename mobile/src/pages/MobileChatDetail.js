@@ -8,6 +8,8 @@ import { db, initDB, syncMessagesAndThreads } from '../../../web/src/services/db
 import * as msgService from '../../../web/src/services/messaging.js';
 import { getAssetUrl, getAvatarUrl } from '../../../web/src/services/assets.js';
 import { uploadImage } from '../../../web/src/services/upload.js';
+import { api } from '../../../web/src/services/api.js';
+import { showBottomSheet } from '../components/BottomSheet.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -60,6 +62,63 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
   const listing = db.listings.findById(thread.listing_id);
   const otherName = other?.display_name || 'User';
   const otherAvatar = other?.profile_photo || other?.avatar;
+  const listingKind = listing?.kind || (listing?.price && !listing?.rent ? 'sale' : 'rental');
+  const listingIsSale = listingKind === 'sale';
+  const listingPrice = listing
+    ? `$${Number(listingIsSale ? (listing.price ?? listing.rent ?? 0) : (listing.rent ?? listing.price ?? 0)).toLocaleString('en-US')}${listingIsSale ? '' : '/mo'}`
+    : '';
+  const listingTypeLabel = listingIsSale
+    ? (listing.condition ? String(listing.condition).replace(/_/g, ' ') : 'Marketplace item')
+    : (listing.room_type?.replace(/_/g, ' ') || 'Room');
+  const listingThumb = (() => {
+    if (!listing?.images) return listingIsSale ? '🏷️' : '🏠';
+    try {
+      const imgs = Array.isArray(listing.images) ? listing.images : JSON.parse(listing.images || '[]');
+      return imgs?.[0]
+        ? `<img src="${getAssetUrl(imgs[0])}" style="width:100%; height:100%; object-fit:cover;">`
+        : (listingIsSale ? '🏷️' : '🏠');
+    } catch (_) {
+      return listingIsSale ? '🏷️' : '🏠';
+    }
+  })();
+
+  function _maybeShowMarketplaceChatSafety() {
+    if (!listing || (listing.kind || 'rental') === 'rental') return;
+    const key = `rg_marketplace_chat_safety_seen_${user.user_id}`;
+    if (localStorage.getItem(key) === '1') return;
+    localStorage.setItem(key, '1');
+    setTimeout(() => {
+      showBottomSheet({
+        title: 'Safety tips before you chat',
+        content: `
+          <div style="padding:4px 0 2px;">
+            <div style="width:54px;height:54px;border-radius:16px;background:#111827;color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+              <i class="fa-solid fa-shield-halved" style="font-size:1.3rem;"></i>
+            </div>
+            <p style="font-size:0.88rem;color:#64748b;line-height:1.55;text-align:center;margin:0 0 16px;">
+              Keep contact inside RoommateGroups chat while you coordinate the handoff.
+            </p>
+            <div style="display:grid;gap:10px;">
+              ${[
+                'Do not share phone numbers or personal payment details.',
+                'Meet in a public, well-lit location.',
+                'Inspect the item before paying.',
+              ].map(tip => `
+                <div style="display:flex;gap:9px;align-items:flex-start;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;">
+                  <i class="fa-solid fa-check-circle" style="color:#16a34a;margin-top:2px;"></i>
+                  <span style="font-size:0.82rem;color:#334155;font-weight:750;line-height:1.45;">${tip}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `,
+        actions: [
+          { label: 'I understand', variant: 'accent' },
+          { label: 'Safe meetup guide', variant: 'outline', onClick: () => navigate('safety', { section: 'safe-meetup' }) },
+        ],
+      });
+    }, 250);
+  }
 
   updateHeader({
     title: otherName,
@@ -83,14 +142,11 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
         ${listing ? `
           <div style="background: #fff; padding: 10px 16px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
             <div style="width: 40px; height: 40px; border-radius: 8px; background: #f1f5f9; flex-shrink: 0; overflow: hidden;">
-              ${(() => {
-                try { return listing.images ? `<img src="${getAssetUrl(JSON.parse(listing.images || '[]')[0])}" style="width:100%; height:100%; object-fit:cover;">` : '🏠'; }
-                catch(e) { return '🏠'; }
-              })()}
+              ${listingThumb}
             </div>
             <div style="flex: 1; min-width: 0;">
               <div style="font-size: 0.85rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${_esc(listing.title)}</div>
-              <div style="font-size: 0.75rem; color: #64748b;">$${listing.rent || listing.price || '?'}/mo &bull; ${listing.room_type?.replace('_', ' ') || 'Room'}</div>
+              <div style="font-size: 0.75rem; color: #64748b;">${listingPrice} &bull; ${_esc(listingTypeLabel)}</div>
             </div>
             <button id="view-listing-btn" style="background: #f1f5f9; border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; color: #475569; cursor: pointer;">View</button>
           </div>
@@ -196,6 +252,7 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
 
 
     _wireEvents();
+    _wireOfferActions();
     _scrollToBottom(false);
     await msgService.markThreadRead(threadId, user.user_id).catch(err => {
       console.warn('[Chat] markThreadRead failed (non-fatal):', err);
@@ -212,6 +269,12 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
         : '';
       lastDate = msgDate;
       const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const payload = _parseStructuredMessage(m.content);
+      const structuredHtml = payload?.kind === 'offer'
+        ? _renderOfferChip(payload, m)
+        : payload?.kind === 'system'
+          ? _renderSystemChip(payload)
+          : '';
       
       return `
         ${dateHeader}
@@ -228,9 +291,9 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
               </div>
             ` : ''}
             ${m.content ? `
-            <div style="background:${isMe ? '#1a1a1a' : '#fff'}; color:${isMe ? '#fff' : '#1e293b'}; padding:10px 14px; border-radius:${isMe ? '18px 4px 18px 18px' : '4px 18px 18px 18px'}; box-shadow:0 1px 2px rgba(0,0,0,0.05); font-size:0.9rem; line-height:1.45; word-break:break-word;">
+            ${structuredHtml || `<div style="background:${isMe ? '#1a1a1a' : '#fff'}; color:${isMe ? '#fff' : '#1e293b'}; padding:10px 14px; border-radius:${isMe ? '18px 4px 18px 18px' : '4px 18px 18px 18px'}; box-shadow:0 1px 2px rgba(0,0,0,0.05); font-size:0.9rem; line-height:1.45; word-break:break-word;">
               ${_escHtml(m.content)}
-            </div>
+            </div>`}
             ` : ''}
             <div class="chat-time" style="font-size:0.65rem; color:#94a3b8; font-weight:700; margin-top:4px;">
               ${time} ${isMe ? (m.is_read ? ' &bull; Read' : ' &bull; Sent') : ''}
@@ -239,6 +302,54 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
         </div>
       `;
     }).join('');
+  }
+
+  function _parseStructuredMessage(content) {
+    if (!content || typeof content !== 'string') return null;
+    const trimmed = content.trim();
+    if (!trimmed.startsWith('{')) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function _renderOfferChip(payload, message) {
+    const status = String(payload.status || 'pending').toLowerCase();
+    const canRespond = listing?.user_id === user.user_id && status === 'pending';
+    const statusStyle = status === 'accepted'
+      ? 'background:#dcfce7;color:#047857;'
+      : status === 'declined'
+        ? 'background:#fee2e2;color:#b91c1c;'
+        : 'background:#fff7ed;color:#9a3412;';
+    return `
+      <div class="chat-offer-chip" data-mid="${_esc(message.message_id || '')}" data-offer-id="${_esc(payload.offer_id || '')}"
+        style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:12px;box-shadow:0 3px 10px rgba(0,0,0,0.05);min-width:220px;max-width:280px;">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px;">
+          <strong style="font-size:0.84rem;color:#0f172a;"><i class="fa-solid fa-hand-holding-dollar"></i> Offer</strong>
+          <span style="${statusStyle}border-radius:999px;padding:3px 8px;font-size:0.66rem;font-weight:900;text-transform:capitalize;">${_esc(status)}</span>
+        </div>
+        <div style="font-size:1.2rem;font-weight:900;color:#0f172a;">$${Number(payload.amount || 0).toLocaleString()}</div>
+        <div style="font-size:0.76rem;color:#64748b;line-height:1.4;margin-top:3px;">${_esc(payload.listing_title || listing?.title || 'Marketplace listing')}</div>
+        ${canRespond ? `
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button class="chat-offer-action" data-status="accepted" style="flex:1;border:none;background:#0f172a;color:#fff;border-radius:10px;padding:8px;font-size:0.74rem;font-weight:900;">Accept</button>
+            <button class="chat-offer-action" data-status="declined" style="flex:1;border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:10px;padding:8px;font-size:0.74rem;font-weight:900;">Decline</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  function _renderSystemChip(payload) {
+    if (payload.event !== 'offer_status') return '';
+    return `
+      <div style="background:#f1f5f9;color:#475569;padding:9px 12px;border-radius:14px;font-size:0.82rem;font-weight:800;">
+        Offer ${_esc(payload.status || 'updated')}
+      </div>
+    `;
   }
 
   function _wireEvents() {
@@ -328,7 +439,6 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
         closeDropdown();
         
         const { api } = await import('../../../web/src/services/api.js');
-        const { showBottomSheet } = await getMobile();
 
         if (action === 'profile') {
           navigate('profile', { userId: otherId });
@@ -404,6 +514,34 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
     });
   }
 
+  function _wireOfferActions() {
+    container.querySelectorAll('.chat-offer-action:not([data-bound="true"])').forEach(btn => {
+      btn.dataset.bound = 'true';
+      btn.addEventListener('click', async () => {
+        const chip = btn.closest('.chat-offer-chip');
+        const offerId = chip?.dataset.offerId;
+        const messageId = chip?.dataset.mid;
+        const status = btn.dataset.status;
+        if (!offerId || !status) return;
+
+        btn.disabled = true;
+        try {
+          await api.respondOffer(offerId, status);
+          const msg = messageId ? db.messages.findById(messageId) : null;
+          const payload = _parseStructuredMessage(msg?.content);
+          if (msg && payload?.kind === 'offer') {
+            payload.status = status;
+            await db.messages.update(messageId, { content: JSON.stringify(payload) }).catch(() => {});
+          }
+          await _partialUpdate();
+        } catch (err) {
+          alert(err.message || 'Could not update offer');
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
   function _toggleDropdown(e) {
     if (e) e.stopPropagation();
     const dropdown = container.querySelector('#chat-dropdown');
@@ -432,6 +570,7 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
     const area = container.querySelector('#chat-msgs-container');
     if (area) {
       area.innerHTML = _renderMessages(msgs);
+      _wireOfferActions();
       _scrollToBottom();
       await msgService.markThreadRead(threadId, user.user_id).catch(err => {
         console.warn('[Chat] markThreadRead failed (non-fatal):', err);
@@ -458,6 +597,7 @@ async function _init(container, params, user, updateHeader, navigate, goBack) {
   }
 
   await _render();
+  _maybeShowMarketplaceChatSafety();
 
   // Polling for new messages
   const poll = setInterval(async () => {

@@ -16,6 +16,10 @@ async function getMobile() { return await import('../mobile-main.js'); }
 const FALLBACK_HERO = 'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=1600&h=700&fit=crop';
 const FALLBACK_CITY_IMG = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&h=400&fit=crop';
 
+function _isRentalListing(listing) {
+  return String(listing?.kind || 'rental').toLowerCase() === 'rental';
+}
+
 export async function init(container, params) {
   container.innerHTML = _skeletonHTML();
   await initDB().catch(() => { });
@@ -36,7 +40,12 @@ export async function init(container, params) {
   });
 
   // Data Fetching
-  const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active');
+  const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active' && _isRentalListing(l));
+  const citySaleListings = db.listings.find(l =>
+    l.city === city.city_id &&
+    l.status === 'active' &&
+    String(l.kind || '').toLowerCase() === 'sale'
+  ).slice(0, 8);
   const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
   const roommateProfiles = db.listings.find(l => 
     l.city === city.city_id && 
@@ -68,10 +77,12 @@ export async function init(container, params) {
     : [
         { q: `How do I join the ${city.name} community?`, a: `Simply browse the available listings or connect with roommates looking in ${city.name}.` },
         { q: `Is it free to find a roommate in ${city.name}?`, a: 'Yes! Our community is free to join and use.' },
-        { q: 'How can I avoid scams during my search?', a: 'Never send money before seeing a room in person. We recommend meeting potential roommates in public first.' }
+        { q: 'How can I avoid scams during my search?', a: 'Never send money before seeing a room in person. We recommend meeting potential roommates in public first.' },
+        { q: `Can I buy and sell items in ${city.name}?`, a: `Yes — alongside rooms and roommates, you can trade furniture, electronics and other local items with verified members in ${city.name}, free to list.` }
       ];
 
   const heroImage = city.hero_image || FALLBACK_HERO;
+  const cityMarketplaceRoute = city.marketplace_enabled ? 'marketplaceCity' : 'search';
 
   container.innerHTML = `
     <style>
@@ -87,6 +98,7 @@ export async function init(container, params) {
       .city-hero-overlay { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.9) 95%); display: flex; flex-direction: column; justify-content: flex-end; padding: 32px 20px; color: #fff; }
       .city-hero-subtitle { font-size: 0.95rem; font-weight: 700; opacity: 0.9; margin-bottom: 6px; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.05em; }
       .city-hero-title { font-size: 2.6rem; font-weight: 900; margin-bottom: 16px; line-height: 1; letter-spacing: -0.03em; }
+      .city-hero-copy { font-size: 0.88rem; line-height: 1.45; color: rgba(255,255,255,0.88); margin: -6px 0 16px; max-width: 320px; }
       .city-hero-stats { display: flex; gap: 10px; flex-wrap: wrap; }
       .hero-stat-pill { background: rgba(255,255,255,0.18); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 10px 18px; border-radius: 100px; font-size: 0.85rem; font-weight: 800; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,0.25); }
       .hero-stat-pill i { font-size: 0.9rem; opacity: 0.9; }
@@ -148,6 +160,7 @@ export async function init(container, params) {
         <div class="city-hero-overlay">
           <div class="city-hero-subtitle">${city.state_province || ''}${city.state_province ? ', ' : ''}${db.countries.findById(city.country)?.name || ''}</div>
           <h1 class="city-hero-title">${city.name}</h1>
+          <p class="city-hero-copy">Find your perfect room or roommate — and buy &amp; sell local items — in ${city.name}'s most vibrant neighborhoods.</p>
           <div class="city-hero-stats">
             <div class="hero-stat-pill">
               <i class="fa-solid fa-house"></i>
@@ -240,6 +253,25 @@ export async function init(container, params) {
         }
       </section>
 
+      <!-- BUY & SELL -->
+      <section class="city-section city-section-alt">
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px; gap:12px;">
+          <div>
+            <h2 class="section-title" id="city-market-heading" style="cursor:pointer;">Buy &amp; Sell in ${city.name}</h2>
+            <p style="font-size:0.75rem; color:#64748b; line-height:1.45;">Find furniture, electronics and more from verified members in ${city.name} — or list your own in minutes.</p>
+          </div>
+          <a href="#" style="color:#7c3aed; font-size:0.78rem; font-weight:800; text-decoration:none; white-space:nowrap;" id="city-market-view-all">View all</a>
+        </div>
+        ${citySaleListings.length > 0
+          ? `<div class="city-scroll-x" id="city-market-scroll">${citySaleListings.map(l => renderMobileCard(l)).join('')}</div>`
+          : `<div style="padding:20px; text-align:center; background:#fff; border-radius:16px; border:1px dashed #cbd5e1;">
+               <div style="font-size:1.5rem; margin-bottom:8px;"><i class="fa-solid fa-store"></i></div>
+               <div style="font-size:0.85rem; font-weight:800; color:#475569; margin-bottom:10px;">Be the first to sell something in ${city.name}.</div>
+               <button id="city-market-post" style="height:40px;border:none;border-radius:11px;background:#0f172a;color:#fff;font-size:0.78rem;font-weight:900;padding:0 14px;">Post a Listing</button>
+             </div>`
+        }
+      </section>
+
       <!-- FEATURES -->
       <section class="city-section city-section-alt">
         <h2 class="section-title">Why ${city.name}?</h2>
@@ -304,7 +336,7 @@ export async function init(container, params) {
   `;
 
   // Wire Events
-  _wireEvents(container, { city, navigate });
+  _wireEvents(container, { city, navigate, cityMarketplaceRoute });
 }
 
 function _renderNearbyCities(currentCity) {
@@ -320,7 +352,7 @@ function _renderNearbyCities(currentCity) {
       <img src="${getAssetUrl(c.hero_image) || FALLBACK_CITY_IMG}" class="nearby-img-m">
       <div style="flex:1;">
         <div class="nearby-name-m">${c.name}</div>
-        <div class="nearby-meta-m">$${c.avg_rent}/mo • ${db.listings.find(l => l.city === c.city_id && l.status === 'active').length} listings</div>
+        <div class="nearby-meta-m">$${c.avg_rent}/mo • ${db.listings.find(l => l.city === c.city_id && l.status === 'active' && _isRentalListing(l)).length} listings</div>
       </div>
       <i class="fa-solid fa-chevron-right" style="color:#cbd5e1; font-size:0.8rem;"></i>
     </div>
@@ -336,30 +368,42 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function _wireEvents(container, { city, navigate }) {
+function _wireEvents(container, { city, navigate, cityMarketplaceRoute }) {
   // Search
   container.querySelector('#city-search-trigger')?.addEventListener('click', () => {
-    navigate('search', { city: city.slug });
+    navigate('search', { kind: 'rental', city: city.slug });
   });
 
   // View All
   container.querySelector('#view-all-rooms')?.addEventListener('click', (e) => {
     e.preventDefault();
-    navigate('search', { city: city.slug, type: 'room' });
+    navigate('search', { kind: 'rental', city: city.slug, type: 'room' });
   });
 
   container.querySelector('#view-all-roommates')?.addEventListener('click', (e) => {
     e.preventDefault();
-    navigate('search', { city: city.slug, type: 'roommate_wanted' });
+    navigate('search', { kind: 'rental', city: city.slug, type: 'roommate_wanted' });
+  });
+
+  container.querySelectorAll('#city-market-heading, #city-market-view-all').forEach(el => el.addEventListener('click', (e) => {
+    e.preventDefault();
+    navigate(cityMarketplaceRoute, { slug: city.slug, city: city.slug, kind: 'sale' });
+  }));
+
+  container.querySelector('#city-market-post')?.addEventListener('click', () => {
+    navigate('post', { kind: 'sale', city: city.slug });
   });
 
   // Cards
   const roomsScroll = container.querySelector('#city-rooms-scroll');
   if (roomsScroll) attachMobileCardEvents(roomsScroll, (id) => { navigate('listing', { id }); });
 
+  const marketScroll = container.querySelector('#city-market-scroll');
+  if (marketScroll) attachMobileCardEvents(marketScroll, (id) => { navigate('listing', { id }); });
+
   container.querySelectorAll('.nh-card-m').forEach(el => {
     el.addEventListener('click', () => {
-      navigate('search', { city: city.slug, neighborhood: el.dataset.id });
+      navigate('search', { kind: 'rental', city: city.slug, neighborhood: el.dataset.id });
     });
   });
 

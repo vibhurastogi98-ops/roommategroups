@@ -32,6 +32,20 @@ function _getCityName(cityId) {
 }
 
 function _getPropertyType(listing) {
+  const kind = String(listing?.kind || '').toLowerCase();
+  const isSale = kind === 'sale';
+
+  if (isSale) {
+    const categoryId = listing.category_id || listing.category;
+    if (categoryId) {
+      const category = db.mp_categories?.findById?.(categoryId)
+        || db.mp_categories?.findOne?.(c => c.slug === categoryId || c.name === categoryId);
+      if (category?.name) return category.name;
+      return String(categoryId).replace(/^cat_/, '').replace(/_/g, ' ').replace(/-/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+    return 'Item';
+  }
+
   const type = listing.room_type || listing.category || listing.property_type || listing.type;
   if (!type) return 'Room'; // Default fallback
 
@@ -78,7 +92,9 @@ export function renderMobileCard(listing) {
   const category = (listing.category || '').toLowerCase();
   const isRoommate = category.includes('roommate_wanted') || category.includes('room_wanted');
 
-  const price = rent !== undefined && rent !== null && rent !== '' ? `$${Number(rent).toLocaleString('en-US')}/mo` : null;
+  const isRental = !listing.kind || listing.kind === 'rental';
+  const priceSuffix = isRental ? '/mo' : '';
+  const price = rent !== undefined && rent !== null && rent !== '' ? `$${Number(rent).toLocaleString('en-US')}${priceSuffix}` : null;
   const location = [area, city].filter(Boolean).join(', ') || 'Location TBC';
 
   // Poster info
@@ -179,6 +195,7 @@ export function renderMobileCard(listing) {
  * @param {Function}    onCardClick — called with listing id string
  */
 export function attachMobileCardEvents(container, onCardClick, onProfileClick) {
+  if (!container) return;
   // Card tap (but not on heart button)
   container.querySelectorAll('.mobile-card').forEach(card => {
     card.addEventListener('click', async (e) => {

@@ -1,13 +1,15 @@
 /**
  * src/mobile/pages/MobilePost.js
- * 7-step post-a-listing wizard for mobile — full parity with web post-listing.js
+ * Branched post-a-listing wizard for mobile — full parity with web post-listing.js
  */
 
 import { getCurrentUser } from '../../../web/src/services/auth.js';
 import { db, initDB } from '../../../web/src/services/db.js';
 import { uploadImage } from '../../../web/src/services/upload.js';
-import { API_URL } from '../../../web/src/services/config.js';
+import { api } from '../../../web/src/services/api.js';
 import { getAssetUrl } from '../../../web/src/services/assets.js';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -15,7 +17,9 @@ async function getMobile() { return await import('../mobile-main.js'); }
 const DRAFT_KEY = 'rg_mobile_draft_listing';
 const defaultWizard = {
   step: 1,
+  kind: '',
   category: '',
+  marketplaceCategoryId: '',
   country: 'country_us',
   city: '',
   neighborhood: '',
@@ -44,10 +48,16 @@ const defaultWizard = {
   prefAgeMin: 18,
   prefAgeMax: 99,
   lifestyleTags: [],
+  condition: '',
+  negotiable: true,
+  brand: '',
+  attributes: {},
 };
 let wizard = { ...defaultWizard };
 let isEdit = false;
 let editListingId = null;
+let marketplaceCategories = [];
+let marketplaceCategoriesLoaded = false;
 
 function loadDraft() {
   try {
@@ -59,6 +69,55 @@ function saveDraft() {
   if (!isEdit) localStorage.setItem(DRAFT_KEY, JSON.stringify(wizard));
 }
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); wizard = { ...defaultWizard }; }
+
+const MARKETPLACE_KINDS = new Set(['sale']);
+function _isMarketplace() { return MARKETPLACE_KINDS.has(wizard.kind); }
+function _flowSteps() {
+  return _isMarketplace()
+    ? ['Kind', 'Location', 'Details', 'Photos', 'Description', 'Publish']
+    : ['Kind', 'Location', 'Details', 'Amenities', 'Photos', 'Description', 'Publish'];
+}
+async function _loadMarketplaceCategories() {
+  if (marketplaceCategoriesLoaded) return;
+  try {
+    const tree = await api.getCategoryTree(true);
+    marketplaceCategories = Array.isArray(tree) ? tree : [];
+  } catch (err) {
+    console.debug('[MobilePost] Category tree unavailable:', err);
+    marketplaceCategories = [];
+  } finally {
+    marketplaceCategoriesLoaded = true;
+  }
+}
+function _flattenCategories(categories = []) {
+  return categories.flatMap(cat => [cat, ..._flattenCategories(cat.children || [])]);
+}
+function _selectedMpCategory() {
+  return _flattenCategories(marketplaceCategories).find(cat => cat.category_id === wizard.marketplaceCategoryId) || null;
+}
+function _mpCategoryTree() {
+  const allowedKinds = new Set(['sale', 'product', 'vehicle']);
+  const filterNode = (cat) => {
+    const children = (cat.children || []).map(filterNode).filter(Boolean);
+    if (allowedKinds.has(cat.kind) || children.length) return { ...cat, children };
+    return null;
+  };
+  return marketplaceCategories.map(filterNode).filter(Boolean);
+}
+function _schemaFields(category = _selectedMpCategory()) {
+  const schema = category?.attributes_schema;
+  if (!schema) return [];
+  if (Array.isArray(schema.fields)) return schema.fields;
+  if (Array.isArray(schema)) return schema;
+  if (typeof schema === 'object') return Object.keys(schema);
+  return [];
+}
+function _label(name) {
+  return String(name || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function _fieldType(name) {
+  return ['year', 'mileage', 'storage'].includes(name) ? 'number' : 'text';
+}
 
 function loadListingIntoWizard(listing) {
   let photos = [];
@@ -73,6 +132,12 @@ function loadListingIntoWizard(listing) {
       ? JSON.parse(listing.roommate_prefs || '{}')
       : (listing.roommate_prefs || {});
   } catch (_) { }
+  let attributes = {};
+  try {
+    attributes = typeof listing.attributes === 'string'
+      ? JSON.parse(listing.attributes || '{}')
+      : (listing.attributes || {});
+  } catch (_) { }
 
   const furnishedStr = listing.furnished === true || listing.furnished === 1 ? 'Yes'
     : listing.furnished === false || listing.furnished === 0 ? 'No'
@@ -81,13 +146,15 @@ function loadListingIntoWizard(listing) {
   wizard = {
     ...defaultWizard,
     step: 1,
+    kind: listing.kind && listing.kind !== 'rental' ? 'sale' : 'rental',
     category: listing.category || '',
+    marketplaceCategoryId: listing.category_id || '',
     country: listing.country || 'country_us',
     city: listing.city || '',
     neighborhood: listing.neighborhood || '',
     address: listing.address || '',
     title: listing.title || '',
-    price: String(listing.rent || listing.price || ''),
+    price: String(listing.kind && listing.kind !== 'rental' ? (listing.price ?? listing.rent ?? '') : (listing.rent ?? listing.price ?? '')),
     currency: listing.currency || 'USD',
     deposit: String(listing.deposit || ''),
     availableFrom: listing.available_from ? listing.available_from.slice(0, 10) : '',
@@ -110,6 +177,10 @@ function loadListingIntoWizard(listing) {
     prefAgeMin: roommatePrefs.ageMin || 18,
     prefAgeMax: roommatePrefs.ageMax || 99,
     lifestyleTags: roommatePrefs.tags || [],
+    condition: listing.condition || '',
+    negotiable: listing.negotiable !== undefined ? !!listing.negotiable : true,
+    brand: listing.brand || '',
+    attributes,
     _termsAccepted: true,
   };
 }
@@ -170,7 +241,10 @@ function getPhotoSrc(photo) {
 }
 
 // ── Constants ─────────────────────────────────────────────────
-const TOTAL_STEPS = 7;
+const KIND_CONFIG = {
+  sale: { icon: 'fa-tag', label: 'Sell an item', desc: 'Furniture, electronics, vehicles, and other goods.' },
+  rental: { icon: 'fa-bed', label: 'List a room', desc: 'Use the room rental flow.' },
+};
 const CAT_CONFIG = {
   room: { icon: 'fa-bed', label: 'Room for Rent', desc: 'I have a room available in a shared property.' },
   apartment: { icon: 'fa-building', label: 'Apartment for Rent', desc: 'I am renting out an entire property.' },
@@ -187,6 +261,7 @@ export async function init(container, params = {}) {
   const user = getCurrentUser();
   if (!user) { (await getMobile()).navigate('auth'); return; }
   await initDB().catch(() => { });
+  await _loadMarketplaceCategories();
 
   const { updateHeader, goBack } = await getMobile();
 
@@ -204,6 +279,18 @@ export async function init(container, params = {}) {
     isEdit = false;
     editListingId = null;
     loadDraft();
+    const kindParam = String(params.kind || new URLSearchParams(window.location.search).get('kind') || '').toLowerCase();
+    if (['sale', 'rental'].includes(kindParam) && wizard.kind !== kindParam) {
+      wizard = {
+        ...wizard,
+        kind: kindParam,
+        category: kindParam === 'rental' ? wizard.category : '',
+        marketplaceCategoryId: kindParam === 'sale' ? wizard.marketplaceCategoryId : '',
+        attributes: kindParam === 'sale' ? (wizard.attributes || {}) : {},
+        step: 1,
+      };
+      saveDraft();
+    }
   }
 
   updateHeader({
@@ -222,20 +309,22 @@ export const renderMobilePost = init;
 
 // ── Render shell ───────────────────────────────────────────────
 function _render(container) {
-  const stepLabels = ['Category', 'Location', 'Details', 'Amenities', 'Photos', 'Description', 'Publish'];
+  const stepLabels = _flowSteps();
+  if (wizard.step > stepLabels.length) wizard.step = stepLabels.length;
   const stepLabel = stepLabels[wizard.step - 1];
-  const showActions = (wizard.step === 1 && wizard.category) || wizard.step > 1;
+  const stepOneReady = wizard.kind && (_isMarketplace() ? wizard.marketplaceCategoryId : wizard.category);
+  const showActions = (wizard.step === 1 && stepOneReady) || wizard.step > 1;
 
   container.innerHTML = `
     <div style="height:100%; display:flex; flex-direction:column; background:#fff; position:relative;">
       <!-- Progress Bar -->
       <div style="padding:16px 20px 12px; border-bottom:1px solid #f1f5f9; flex-shrink:0;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="font-size:0.75rem; font-weight:600; color:#94a3b8;">Step ${wizard.step} of ${TOTAL_STEPS}</div>
+          <div style="font-size:0.75rem; font-weight:600; color:#94a3b8;">Step ${wizard.step} of ${stepLabels.length}</div>
           <div style="font-size:0.75rem; font-weight:800; color:var(--mobile-accent);">${stepLabel}</div>
         </div>
         <div style="height:6px; background:#f1f5f9; border-radius:10px; overflow:hidden;">
-          <div style="height:100%; background:linear-gradient(90deg,#1a1a1a,#000); width:${(wizard.step / TOTAL_STEPS) * 100}%; transition:width 0.4s ease;"></div>
+          <div style="height:100%; background:linear-gradient(90deg,#1a1a1a,#000); width:${(wizard.step / stepLabels.length) * 100}%; transition:width 0.4s ease;"></div>
         </div>
       </div>
 
@@ -248,7 +337,7 @@ function _render(container) {
       <div id="wp-actions" style="position:fixed; bottom:0; left:0; width:100%; padding:16px 20px calc(16px + var(--mobile-safe-bottom,0px)); background:rgba(255,255,255,0.98); backdrop-filter:blur(12px); border-top:1px solid #f1f5f9; z-index:1000; display:${showActions ? 'flex' : 'none'}; gap:12px;">
         ${wizard.step > 1 ? `<button id="wp-back" class="mobile-btn mobile-btn-outline" style="flex:0.4;">Back</button>` : ''}
         <button id="wp-next" class="mobile-btn mobile-btn-accent" style="flex:1;">
-          ${wizard.step < TOTAL_STEPS ? 'Next Step →' : (isEdit ? 'Save Changes' : 'Publish Listing')}
+          ${wizard.step < stepLabels.length ? 'Next Step →' : (isEdit ? 'Save Changes' : 'Publish Listing')}
         </button>
       </div>
     </div>
@@ -258,6 +347,17 @@ function _render(container) {
 }
 
 function _getStepHTML(step) {
+  if (_isMarketplace()) {
+    switch (step) {
+      case 1: return _step1();
+      case 2: return _step2();
+      case 3: return _mpDetails();
+      case 4: return _step5();
+      case 5: return _mpDescription();
+      case 6: return _step7();
+      default: return '';
+    }
+  }
   switch (step) {
     case 1: return _step1();
     case 2: return _step2();
@@ -274,12 +374,12 @@ function _getStepHTML(step) {
 function _step1() {
   return `
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">What kind of listing?</h2>
-    <p style="font-size:0.9rem; color:#64748b; margin-bottom:24px;">Select a category to continue.</p>
+    <p style="font-size:0.9rem; color:#64748b; margin-bottom:24px;">Choose the branch that matches what you are posting.</p>
     <div style="display:flex; flex-direction:column; gap:12px;">
-      ${Object.entries(CAT_CONFIG).map(([key, cfg]) => `
-        <div class="wp-cat-card ${wizard.category === key ? 'selected' : ''}" data-cat="${key}"
+      ${Object.entries(KIND_CONFIG).map(([key, cfg]) => `
+        <div class="wp-kind-card ${wizard.kind === key ? 'selected' : ''}" data-kind="${key}"
           style="display:flex; align-items:center; gap:16px; padding:16px; border-radius:16px;
-            border:2px solid ${wizard.category === key ? 'var(--mobile-accent)' : '#f1f5f9'};
+            border:2px solid ${wizard.kind === key ? 'var(--mobile-accent)' : '#f1f5f9'};
             background:#fff; cursor:pointer; transition:all 0.2s; touch-action:manipulation;">
           <div style="width:48px; height:48px; border-radius:12px; background:#f8fafc; display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:#1e293b; flex-shrink:0;">
             <i class="fa-solid ${cfg.icon}"></i>
@@ -288,7 +388,67 @@ function _step1() {
             <div style="font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:2px;">${cfg.label}</div>
             <div style="font-size:0.75rem; color:#64748b; line-height:1.3;">${cfg.desc}</div>
           </div>
-          ${wizard.category === key ? '<div style="color:var(--mobile-accent); font-size:1.2rem; flex-shrink:0;">✓</div>' : ''}
+          ${wizard.kind === key ? '<div style="color:var(--mobile-accent); font-size:1.2rem; flex-shrink:0;">✓</div>' : ''}
+        </div>
+      `).join('')}
+    </div>
+    ${wizard.kind === 'rental' ? `
+      <div style="font-size:1rem; font-weight:900; color:#1e293b; margin:26px 0 12px;">Rental category</div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        ${Object.entries(CAT_CONFIG).map(([key, cfg]) => `
+          <div class="wp-cat-card ${wizard.category === key ? 'selected' : ''}" data-cat="${key}"
+            style="display:flex; align-items:center; gap:16px; padding:16px; border-radius:16px;
+              border:2px solid ${wizard.category === key ? 'var(--mobile-accent)' : '#f1f5f9'};
+              background:#fff; cursor:pointer; transition:all 0.2s; touch-action:manipulation;">
+            <div style="width:48px; height:48px; border-radius:12px; background:#f8fafc; display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:#1e293b; flex-shrink:0;">
+              <i class="fa-solid ${cfg.icon}"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:2px;">${cfg.label}</div>
+              <div style="font-size:0.75rem; color:#64748b; line-height:1.3;">${cfg.desc}</div>
+            </div>
+            ${wizard.category === key ? '<div style="color:var(--mobile-accent); font-size:1.2rem; flex-shrink:0;">✓</div>' : ''}
+          </div>
+        `).join('')}
+      </div>
+    ` : _mpCategoryPicker()}
+  `;
+}
+
+function _mpCategoryPicker() {
+  if (!wizard.kind || wizard.kind === 'rental') return '';
+  const tree = _mpCategoryTree();
+  if (!marketplaceCategoriesLoaded) {
+    return `<div style="margin-top:24px; padding:18px; border-radius:16px; background:#f8fafc; color:#64748b; font-size:0.9rem; text-align:center;">Loading categories...</div>`;
+  }
+  if (!tree.length) {
+    return `<div style="margin-top:24px; padding:18px; border-radius:16px; background:#f8fafc; color:#64748b; font-size:0.9rem;">No categories available yet.</div>`;
+  }
+  return `
+    <div style="font-size:1rem; font-weight:900; color:#1e293b; margin:26px 0 12px;">Marketplace category</div>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      ${tree.map(parent => `
+        <div>
+          <div class="wp-mp-cat-card ${wizard.marketplaceCategoryId === parent.category_id ? 'selected' : ''}" data-mp-cat="${parent.category_id}"
+            style="display:flex; align-items:center; gap:14px; padding:14px; border-radius:14px; border:2px solid ${wizard.marketplaceCategoryId === parent.category_id ? 'var(--mobile-accent)' : '#f1f5f9'}; background:#fff; cursor:pointer; touch-action:manipulation;">
+            <div style="width:42px; height:42px; border-radius:12px; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#1e293b; flex-shrink:0;"><i class="fa-solid ${parent.icon || 'fa-tag'}"></i></div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:0.9rem; font-weight:850; color:#1e293b;">${parent.name}</div>
+              <div style="font-size:0.72rem; color:#64748b;">${parent.children?.length ? `${parent.children.length} subcategories` : _label(parent.kind)}</div>
+            </div>
+            ${wizard.marketplaceCategoryId === parent.category_id ? '<div style="color:var(--mobile-accent); font-size:1.1rem;">✓</div>' : ''}
+          </div>
+          ${parent.children?.length ? `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+              ${parent.children.map(child => `
+                <div class="wp-mp-cat-card ${wizard.marketplaceCategoryId === child.category_id ? 'selected' : ''}" data-mp-cat="${child.category_id}"
+                  style="padding:12px; border-radius:12px; border:1.5px solid ${wizard.marketplaceCategoryId === child.category_id ? 'var(--mobile-accent)' : '#f1f5f9'}; background:#fff; cursor:pointer; touch-action:manipulation;">
+                  <div style="font-size:1rem; color:#1e293b; margin-bottom:6px;"><i class="fa-solid ${child.icon || parent.icon || 'fa-tag'}"></i></div>
+                  <div style="font-size:0.78rem; font-weight:800; color:#1e293b; line-height:1.25;">${child.name}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
       `).join('')}
     </div>
@@ -462,6 +622,62 @@ function _step3() {
   `;
 }
 
+function _mpDetails() {
+  const category = _selectedMpCategory();
+  const schemaFields = _schemaFields().filter(name => !['brand', 'condition'].includes(String(name).toLowerCase()));
+  return `
+    <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Item Details</h2>
+    <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">${category ? `Posting in ${category.name}.` : 'Add the details buyers need.'}</p>
+    <div class="mobile-form-group">
+      <label class="mobile-form-label">Title *</label>
+      <input class="mobile-input" id="wp-title" type="text" placeholder="e.g. IKEA desk in great condition" value="${_esc(wizard.title)}">
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div class="mobile-form-group">
+        <label class="mobile-form-label">Price *</label>
+        <div style="display:flex; gap:8px;">
+          <select class="mobile-input" id="wp-currency" style="flex:0 0 66px; padding:0 8px;">
+            <option value="USD" ${wizard.currency === 'USD' ? 'selected' : ''}>$</option>
+            <option value="EUR" ${wizard.currency === 'EUR' ? 'selected' : ''}>€</option>
+            <option value="GBP" ${wizard.currency === 'GBP' ? 'selected' : ''}>£</option>
+          </select>
+          <input class="mobile-input" id="wp-price" type="number" min="0" step="0.01" placeholder="75" value="${wizard.price}" style="flex:1;">
+        </div>
+      </div>
+      <div class="mobile-form-group">
+        <label class="mobile-form-label">Condition</label>
+        <select class="mobile-input" id="wp-condition">
+          <option value="">Select</option>
+          ${['new', 'like_new', 'good', 'fair', 'used'].map(v => `<option value="${v}" ${wizard.condition === v ? 'selected' : ''}>${_label(v)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="mobile-form-group">
+      <label class="mobile-form-label">Brand <span style="color:#94a3b8;">(Optional)</span></label>
+      <input class="mobile-input" id="wp-brand" type="text" placeholder="e.g. Apple, IKEA, Toyota" value="${_esc(wizard.brand)}">
+    </div>
+    <div class="mobile-form-group" style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:12px 16px; border-radius:12px;">
+      <span style="font-weight:800; font-size:0.9rem; color:#475569;">Negotiable</span>
+      <label style="position:relative; display:inline-block; width:44px; height:24px;">
+        <input type="checkbox" id="wp-negotiable" ${wizard.negotiable ? 'checked' : ''} style="opacity:0; width:0; height:0;">
+        <span style="position:absolute; cursor:pointer; inset:0; background-color:${wizard.negotiable ? 'var(--mobile-accent)' : '#cbd5e1'}; transition:.4s; border-radius:24px;">
+          <span style="position:absolute; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; transform:${wizard.negotiable ? 'translateX(20px)' : 'none'};"></span>
+        </span>
+      </label>
+    </div>
+    ${schemaFields.length ? `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px;">
+        ${schemaFields.map(name => `
+          <div class="mobile-form-group" style="margin:0;">
+            <label class="mobile-form-label">${_label(name)}</label>
+            <input class="mobile-input wp-attr-field" data-attr="${_esc(name)}" type="${_fieldType(name)}" value="${_esc(wizard.attributes?.[name] || '')}">
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+  `;
+}
+
 // ── Step 4: Amenities ─────────────────────────────────────────
 function _step4() {
   const amenities = db.amenities.findAll();
@@ -495,11 +711,11 @@ function _step5() {
         </div>
       `).join('')}
       ${wizard.photos.length < 10 ? `
-        <label for="wp-upload" style="aspect-ratio:1; border-radius:12px; border:2px dashed #cbd5e1; background:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; touch-action:manipulation;">
-          <span style="font-size:1.6rem;">📷</span>
+        <button type="button" id="wp-photo-add" style="aspect-ratio:1; border-radius:12px; border:2px dashed #cbd5e1; background:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; touch-action:manipulation;">
+          <span style="font-size:1.35rem;color:#1e293b;"><i class="fa-solid fa-camera"></i></span>
           <span style="font-size:0.7rem; color:#94a3b8; margin-top:4px;">Add photo</span>
-          <input type="file" id="wp-upload" multiple accept="image/jpeg,image/png,image/webp" style="display:none;">
-        </label>
+        </button>
+        <input type="file" id="wp-upload" multiple accept="image/jpeg,image/png,image/webp" style="display:none;">
       ` : ''}
     </div>
     <div id="wp-upload-status" style="margin-top:12px; text-align:center; font-size:0.82rem; color:#64748b;"></div>
@@ -572,8 +788,51 @@ function _step6() {
   `;
 }
 
+function _mpDescription() {
+  return `
+    <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">Description</h2>
+    <div class="mobile-form-group">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <label class="mobile-form-label" style="margin:0;">Description *</label>
+        <button id="wp-ai-btn" style="background:var(--mobile-accent-soft,#f0f0f0); border:none; color:var(--mobile-accent,#1a1a1a); padding:4px 12px; border-radius:20px; font-size:0.75rem; font-weight:800; touch-action:manipulation;">AI Assist</button>
+      </div>
+      <textarea id="wp-desc" class="mobile-textarea" style="min-height:140px;" maxlength="2000" placeholder="Describe condition, pickup details, what's included, and anything buyers should know.">${_esc(wizard.description)}</textarea>
+      <div style="display:flex; justify-content:space-between; margin-top:4px;">
+        <span style="font-size:0.72rem; color:#94a3b8;">At least 50 characters required</span>
+        <span id="wp-desc-count" style="font-size:0.72rem; color:#94a3b8;">${wizard.description.length} / 2000</span>
+      </div>
+    </div>
+  `;
+}
+
 // ── Step 7: Publish / Review ──────────────────────────────────
 function _step7() {
+  if (_isMarketplace()) {
+    const category = _selectedMpCategory();
+    const coverPhoto = wizard.photos[0] ? getPhotoSrc(wizard.photos[0]) : null;
+    return `
+      <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Ready to Publish!</h2>
+      <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Review your marketplace listing before it goes live.</p>
+      <div style="border-radius:16px; border:1px solid #f1f5f9; overflow:hidden; margin-bottom:24px;">
+        ${coverPhoto
+        ? `<img src="${coverPhoto}" style="width:100%; height:160px; object-fit:cover;" alt="Cover photo">`
+        : `<div style="width:100%; height:120px; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:2rem;"><i class="fa-solid fa-image"></i></div>`
+      }
+        <div style="padding:16px;">
+          <div style="font-size:1.05rem; font-weight:900; color:#1e293b;">${_esc(wizard.title) || 'Untitled Listing'}</div>
+          <div style="font-size:0.82rem; color:#64748b; margin-top:4px;"><i class="fa-solid ${category?.icon || 'fa-tag'}"></i> ${category?.name || 'Marketplace'} · ${_esc(wizard.address) || (wizard.city ? 'Location set' : 'No location')}</div>
+          <div style="font-size:1.1rem; font-weight:900; color:var(--mobile-accent,#1a1a1a); margin-top:10px;">$${wizard.price || '0'}</div>
+          ${wizard.condition ? `<div style="font-size:0.78rem; color:#94a3b8; margin-top:6px;">${_label(wizard.condition)}${wizard.negotiable ? ' · Negotiable' : ''}</div>` : ''}
+          ${wizard.description ? `<p style="font-size:0.82rem; color:#475569; margin-top:10px; line-height:1.5;">${_esc(wizard.description.slice(0, 160))}${wizard.description.length > 160 ? '…' : ''}</p>` : ''}
+        </div>
+      </div>
+      <label style="display:flex; align-items:flex-start; gap:12px; cursor:pointer; touch-action:manipulation;">
+        <input type="checkbox" id="wp-terms" ${wizard._termsAccepted ? 'checked' : ''} style="margin-top:2px; width:18px; height:18px; accent-color:var(--mobile-accent,#1a1a1a); flex-shrink:0;">
+        <span style="font-size:0.82rem; color:#475569; line-height:1.5;">I agree to the Terms of Service and confirm this listing is accurate.</span>
+      </label>
+    `;
+  }
+
   const isRoommate = wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted';
   const priceDisplay = isRoommate
     ? (wizard.budgetMin || wizard.budgetMax ? `$${wizard.budgetMin || '0'} – $${wizard.budgetMax || '∞'}/mo budget` : 'Budget TBD')
@@ -669,8 +928,33 @@ async function _wireStep(container) {
   await getMobile();
 
   // Step 1: category select
+  container.querySelectorAll('.wp-kind-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const nextKind = card.dataset.kind;
+      if (wizard.kind !== nextKind) {
+        wizard.kind = nextKind;
+        wizard.category = '';
+        wizard.marketplaceCategoryId = '';
+        wizard.attributes = {};
+      }
+      saveDraft(); _render(container);
+    });
+  });
   container.querySelectorAll('.wp-cat-card').forEach(card => {
-    card.addEventListener('click', () => { wizard.category = card.dataset.cat; saveDraft(); _render(container); });
+    card.addEventListener('click', () => {
+      wizard.category = card.dataset.cat;
+      wizard.step = Math.min(wizard.step + 1, _flowSteps().length);
+      saveDraft();
+      _render(container);
+    });
+  });
+  container.querySelectorAll('.wp-mp-cat-card').forEach(card => {
+    card.addEventListener('click', () => {
+      wizard.marketplaceCategoryId = card.dataset.mpCat;
+      wizard.attributes = {};
+      wizard.step = Math.min(wizard.step + 1, _flowSteps().length);
+      saveDraft(); _render(container);
+    });
   });
 
   // Step 2: location
@@ -725,6 +1009,15 @@ async function _wireStep(container) {
   container.querySelector('#wp-bmax')?.addEventListener('input', e => { wizard.budgetMax = e.target.value; saveDraft(); });
   container.querySelector('#wp-pref-area')?.addEventListener('input', e => { wizard.preferredArea = e.target.value; saveDraft(); });
   container.querySelector('#wp-timeline')?.addEventListener('change', e => { wizard.moveInTimeline = e.target.value; saveDraft(); });
+  container.querySelector('#wp-condition')?.addEventListener('change', e => { wizard.condition = e.target.value; saveDraft(); });
+  container.querySelector('#wp-brand')?.addEventListener('input', e => { wizard.brand = e.target.value; saveDraft(); });
+  container.querySelector('#wp-negotiable')?.addEventListener('change', e => { wizard.negotiable = e.target.checked; saveDraft(); _render(container); });
+  container.querySelectorAll('.wp-attr-field').forEach(input => {
+    input.addEventListener('input', e => {
+      wizard.attributes = { ...(wizard.attributes || {}), [e.target.dataset.attr]: e.target.value };
+      saveDraft();
+    });
+  });
   container.querySelectorAll('input[name="wp-furnished"]').forEach(r => {
     r.addEventListener('change', e => { wizard.furnished = e.target.value; saveDraft(); _render(container); });
   });
@@ -739,16 +1032,9 @@ async function _wireStep(container) {
   });
 
   // Step 5: photos
+  container.querySelector('#wp-photo-add')?.addEventListener('click', () => _showPhotoSheet(container));
   container.querySelector('#wp-upload')?.addEventListener('change', async e => {
-    const files = Array.from(e.target.files).slice(0, 10 - wizard.photos.length);
-    const status = container.querySelector('#wp-upload-status');
-    if (status) status.textContent = 'Uploading photos…';
-    for (const file of files) {
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { _toast(`${file.name}: unsupported format`, 'error'); continue; }
-      if (file.size > 5 * 1024 * 1024) { _toast(`${file.name}: exceeds 5MB`, 'error'); continue; }
-      try { wizard.photos.push(await processImageUpload(file)); } catch (err) { _toast('Upload failed', 'error'); }
-    }
-    saveDraft(); _render(container);
+    await _handlePhotoFiles(e.target.files, container);
   });
   container.querySelectorAll('.wp-photo-del').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); wizard.photos.splice(parseInt(btn.dataset.idx), 1); saveDraft(); _render(container); });
@@ -768,23 +1054,15 @@ async function _wireStep(container) {
     try {
       const amenitiesNames = wizard.amenities.map(id => { const a = db.amenities.findById(id); return a ? a.name : id; });
       const tagNames = wizard.lifestyleTags.map(id => { const t = db.tags.findById(id); return t ? t.name : id; });
-      const res = await fetch(`${API_URL}/api/ai-assist`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: wizard.category, title: wizard.title, amenities: amenitiesNames, lifestyleTags: tagNames, draft: { ...wizard, photos: [] } })
+      const data = await api.post('/api/ai-assist', {
+        category: wizard.category,
+        kind: wizard.kind,
+        category_id: wizard.marketplaceCategoryId,
+        title: wizard.title,
+        amenities: amenitiesNames,
+        lifestyleTags: tagNames,
+        draft: { ...wizard, photos: [] },
       });
-      if (!res.ok) {
-        const errText = await res.text();
-        let errMsg;
-        try { errMsg = JSON.parse(errText)?.error; } catch { errMsg = null; }
-        throw new Error(errMsg || `Server error ${res.status}`);
-      }
-      const contentType = res.headers.get('content-type');
-      if (!contentType?.includes('application/json')) {
-        const text = await res.text();
-        console.error('[AI Assist] Expected JSON, got:', text.slice(0, 200));
-        throw new Error(`Unexpected response format: ${contentType || 'unknown'}`);
-      }
-      const data = await res.json();
       if (data.success) {
         wizard.description = data.text;
         saveDraft();
@@ -795,7 +1073,7 @@ async function _wireStep(container) {
     } catch (err) {
       console.error('[AI Assist]', err);
       _toast(err.message || 'AI Assist unavailable', 'error');
-      btn.textContent = '✨ AI Assist'; btn.disabled = false;
+      btn.textContent = 'AI Assist'; btn.disabled = false;
     }
   });
   const minAge = container.querySelector('#wp-age-min');
@@ -835,7 +1113,7 @@ async function _wireStep(container) {
     const nextBtn = container.querySelector('#wp-next');
     if (nextBtn) nextBtn.disabled = !e.target.checked;
   });
-  if (wizard.step === 7) {
+  if (wizard.step === _flowSteps().length) {
     const nextBtn = container.querySelector('#wp-next');
     if (nextBtn) nextBtn.disabled = !wizard._termsAccepted;
   }
@@ -843,7 +1121,7 @@ async function _wireStep(container) {
   // Navigation
   container.querySelector('#wp-back')?.addEventListener('click', () => { wizard.step--; saveDraft(); _render(container); });
   container.querySelector('#wp-next')?.addEventListener('click', () => {
-    if (wizard.step < TOTAL_STEPS) {
+    if (wizard.step < _flowSteps().length) {
       if (!_validateStep(wizard.step)) return;
       wizard.step++; saveDraft(); _render(container);
     } else {
@@ -852,17 +1130,84 @@ async function _wireStep(container) {
   });
 }
 
+function _showPhotoSheet(container) {
+  showBottomSheet({
+    title: 'Add Photos',
+    content: `
+      <div style="display:flex; flex-direction:column; gap:10px; padding:4px;">
+        <div style="font-size:0.85rem; color:#64748b; line-height:1.45;">Photos are compressed and uploaded to your media bucket before publishing.</div>
+      </div>`,
+    actions: [
+      {
+        label: 'Take Photo',
+        variant: 'accent',
+        closeOnClick: false,
+        onClick: async () => { await _addCameraPhoto(container, CameraSource.Camera); hideBottomSheet(); },
+      },
+      {
+        label: 'Choose From Gallery',
+        closeOnClick: false,
+        onClick: async () => { await _addCameraPhoto(container, CameraSource.Photos); hideBottomSheet(); },
+      },
+      {
+        label: 'Browse Files',
+        onClick: () => container.querySelector('#wp-upload')?.click(),
+      },
+    ],
+  });
+}
+
+async function _addCameraPhoto(container, source) {
+  if (wizard.photos.length >= 10) return;
+  try {
+    const image = await Camera.getPhoto({ quality: 88, resultType: CameraResultType.Uri, source });
+    if (!image?.webPath) return;
+    const res = await fetch(image.webPath);
+    const blob = await res.blob();
+    const file = new File([blob], 'listing-photo.jpg', { type: blob.type || 'image/jpeg' });
+    await _handlePhotoFiles([file], container);
+  } catch (err) {
+    console.debug('[MobilePost] Camera selection unavailable:', err);
+    container.querySelector('#wp-upload')?.click();
+  }
+}
+
+async function _handlePhotoFiles(files, container) {
+  const toUpload = Array.from(files || []).slice(0, 10 - wizard.photos.length);
+  if (!toUpload.length) return;
+  const status = container.querySelector('#wp-upload-status');
+  if (status) status.textContent = 'Uploading photos...';
+
+  for (const file of toUpload) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { _toast(`${file.name}: unsupported format`, 'error'); continue; }
+    if (file.size > 5 * 1024 * 1024) { _toast(`${file.name}: exceeds 5MB`, 'error'); continue; }
+    try {
+      wizard.photos.push(await processImageUpload(file));
+    } catch (err) {
+      console.error('[MobilePost] Upload failed:', err);
+      _toast('Upload failed', 'error');
+    }
+  }
+  saveDraft(); _render(container);
+}
+
 // ── Validation ────────────────────────────────────────────────
 function _validateStep(step) {
-  if (step === 1 && !wizard.category) { _toast('Please select a category', 'error'); return false; }
+  if (step === 1 && !wizard.kind) { _toast('Please choose a listing kind', 'error'); return false; }
+  if (step === 1 && !_isMarketplace() && !wizard.category) { _toast('Please select a rental category', 'error'); return false; }
+  if (step === 1 && _isMarketplace() && !wizard.marketplaceCategoryId) { _toast('Please select a marketplace category', 'error'); return false; }
   if (step === 2 && !wizard.city) { _toast('Please select a city', 'error'); return false; }
   if (step === 3 && wizard.title.length < 3) { _toast('Title must be at least 3 characters', 'error'); return false; }
   if (step === 3) {
+    if (_isMarketplace()) {
+      if (!wizard.price || Number(wizard.price) <= 0) { _toast('Price is required', 'error'); return false; }
+      return true;
+    }
     const isRoommate = wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted';
     if (!isRoommate && (!wizard.price || Number(wizard.price) <= 0)) { _toast('Monthly rent is required', 'error'); return false; }
     if (isRoommate && !wizard.budgetMax) { _toast('Budget max is required', 'error'); return false; }
   }
-  if (step === 6 && wizard.description.length < 50) { _toast('Description must be at least 50 characters', 'error'); return false; }
+  if (((!_isMarketplace() && step === 6) || (_isMarketplace() && step === 5)) && wizard.description.length < 50) { _toast('Description must be at least 50 characters', 'error'); return false; }
   return true;
 }
 
@@ -878,6 +1223,57 @@ async function _handleSubmit(container) {
   try {
     const user = getCurrentUser();
     const isRoommate = wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted';
+
+    if (_isMarketplace()) {
+      const selType = wizard._publishType || 'free';
+      const isFeatured = selType === 'featured' || selType === 'premium';
+      const isFree = user.subscription_tier === 'free';
+      const listingData = {
+        user_id: user.user_id || user.id,
+        kind: wizard.kind,
+        category_id: wizard.marketplaceCategoryId,
+        title: wizard.title,
+        description: wizard.description,
+        price: Number(wizard.price) || 0,
+        currency: wizard.currency,
+        country: wizard.country,
+        city: wizard.city,
+        neighborhood: wizard.neighborhood,
+        address: wizard.address,
+        condition: wizard.condition || null,
+        negotiable: wizard.negotiable ? 1 : 0,
+        brand: wizard.brand || null,
+        attributes: wizard.attributes || {},
+        images: wizard.photos,
+        status: isFree ? 'pending' : 'active',
+        moderation_status: isFree ? 'pending' : 'approved',
+        is_featured: isFeatured,
+        view_count: 0,
+      };
+
+      const item = isEdit
+        ? await db.listings.update(editListingId, { ...listingData, updated_at: new Date().toISOString() })
+        : await db.listings.create(listingData);
+      if (!item) throw new Error('Listing could not be saved locally.');
+
+      if (!isEdit) {
+        await db.notifications.create({
+          user_id: user.user_id || user.id,
+          type: isFree ? 'moderation_pending' : 'listing_approved',
+          title: isFree ? 'Listing Pending Review' : 'Listing Published!',
+          description: isFree ? 'Your item is pending admin approval and will go live once approved.' : 'Your item is now live and visible to local buyers.',
+          website_url: `/listing/${item.listing_id}`,
+        });
+      }
+
+      clearDraft();
+      _toast(isEdit ? 'Listing updated successfully!' : 'Listing published successfully!');
+      setTimeout(async () => {
+        const mob = await getMobile();
+        mob.navigate(isEdit ? 'listing' : 'dashboard', isEdit ? { id: item.listing_id } : {});
+      }, 1200);
+      return;
+    }
 
     const listingData = {
       user_id: user.user_id || user.id,

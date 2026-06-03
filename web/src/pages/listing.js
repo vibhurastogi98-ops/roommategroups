@@ -1,12 +1,13 @@
 // ── Listing Details Page ──────────────────────────────────────
 
-import { db } from '../services/db.js';
+import { db, initDB } from '../services/db.js';
 import { renderFooter } from '../components/footer.js';
 import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { navigate } from '../router.js';
-import { setSEO } from '../seo.js'; // SEO Update
+import { buildListingProductSchema, setSEO } from '../seo.js'; // SEO Update
 import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
+import { api } from '../services/api.js';
 
 function escHtml(str) {
     if (!str) return '';
@@ -49,8 +50,167 @@ function parseJsonArray(value) {
     return [];
 }
 
+function parseJsonObject(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    if (typeof value === 'string') { try { const parsed = JSON.parse(value || '{}'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}; } catch (e) { return {}; } }
+    return {};
+}
+
+function resolveListingKind(listing) {
+    const explicitKind = String(listing?.kind || '').toLowerCase();
+    if (explicitKind === 'sale') return 'sale';
+    if (explicitKind === 'rental') {
+        const hasMarketplaceShape = listing?.category_id
+            || listing?.condition
+            || listing?.brand
+            || Object.keys(parseJsonObject(listing?.attributes)).length
+            || ((listing?.price !== undefined && listing?.price !== null && listing?.price !== '') && (listing?.rent === undefined || listing?.rent === null || listing?.rent === ''));
+        return hasMarketplaceShape ? 'sale' : 'rental';
+    }
+    const hasMarketplaceShape = listing?.category_id
+        || listing?.condition
+        || listing?.brand
+        || Object.keys(parseJsonObject(listing?.attributes)).length
+        || ((listing?.price !== undefined && listing?.price !== null && listing?.price !== '') && (listing?.rent === undefined || listing?.rent === null || listing?.rent === ''));
+    return hasMarketplaceShape ? 'sale' : 'rental';
+}
+
+function getUserId(user) {
+    return user?.user_id || user?.id || null;
+}
+
+function humanize(value, fallback = '') {
+    if (value === undefined || value === null || value === '') return fallback;
+    return String(value)
+        .replace(/^(cat|mp|nh|city)_/, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function isAffirmative(value) {
+    return value === true || value === 1 || value === '1' || value === 'true' || value === 'yes';
+}
+
+function formatAttributeValue(value) {
+    if (Array.isArray(value)) return value.join(', ');
+    if (value && typeof value === 'object') return JSON.stringify(value);
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return String(value);
+}
+
+function renderMarketplaceAttributes(attributes) {
+    const rows = Object.entries(attributes || {})
+        .filter(([, value]) => value !== undefined && value !== null && value !== '')
+        .map(([key, value]) => `
+            <div class="ld-attr-row">
+                <span>${escHtml(humanize(key))}</span>
+                <strong>${escHtml(formatAttributeValue(value))}</strong>
+            </div>
+        `);
+
+    if (!rows.length) return '';
+    return `
+        <div class="ld-attr-table" aria-label="Item attributes">
+            ${rows.join('')}
+        </div>
+    `;
+}
+
+function renderStars(rating) {
+    const score = Math.max(0, Math.min(5, Number(rating) || 0));
+    const rounded = Math.round(score);
+    return `
+        <span class="ld-stars" aria-label="${score.toFixed(1)} out of 5">
+            ${[1, 2, 3, 4, 5].map(i => `<i class="fa-${i <= rounded ? 'solid' : 'regular'} fa-star"></i>`).join('')}
+        </span>
+    `;
+}
+
+function formatResponseTime(minutes) {
+    const mins = Number(minutes);
+    if (!Number.isFinite(mins) || mins <= 0) return 'Usually responds soon';
+    if (mins < 60) return `${Math.round(mins)} min response`;
+    if (mins < 1440) return `${Math.round(mins / 60)} hr response`;
+    return `${Math.round(mins / 1440)} day response`;
+}
+
+function renderSellerCardContent(seller, fallbackName, listing, isOwner) {
+    const name = seller?.display_name || fallbackName || 'Seller';
+    const avatar = getAvatarUrl(seller?.profile_photo, name);
+    const verifiedIcon = seller ? getVerificationBadge(seller) : '';
+    const ratingAvg = Number(seller?.seller_rating_avg || 0);
+    const ratingCount = Number(seller?.seller_rating_count || 0);
+    const ratingText = ratingCount > 0 ? `${ratingAvg.toFixed(1)} (${ratingCount})` : 'No reviews yet';
+    const responseText = formatResponseTime(seller?.response_time_mins);
+
+    return `
+        <img src="${avatar}" class="ld-host-avatar" alt="Avatar for ${escHtml(name)}" loading="lazy">
+        <div class="ld-host-info ld-seller-info">
+            <h4>${escHtml(name)} ${verifiedIcon}</h4>
+            <div class="ld-rating-line">${renderStars(ratingAvg)} <span>${escHtml(ratingText)}</span></div>
+            <p>${escHtml(responseText)}${seller?.is_dealer ? ' • Dealer' : ''}</p>
+            <span style="font-size:0.85rem;color:#1a1a1a;font-weight:600;">${isOwner ? 'Your Storefront' : 'View Seller'} <i class="fa-solid fa-chevron-right" style="font-size:0.75rem;"></i></span>
+        </div>
+    `;
+}
+
+const SAFE_MEETUP_SPOTS = [
+    { icon: 'fa-building-shield', title: 'Police Station Lobby', text: 'Best for high-value items or first-time buyers.', query: 'police station' },
+    { icon: 'fa-book-open-reader', title: 'Public Library', text: 'Bright, staffed, and easy to leave from.', query: 'public library' },
+    { icon: 'fa-mug-saucer', title: 'Busy Coffee Shop', text: 'Good for small items and quick handoffs.', query: 'coffee shop' },
+    { icon: 'fa-store', title: 'Retail Pickup Area', text: 'Choose a visible entrance or staffed counter.', query: 'shopping center' },
+];
+
+function buildSafeSpotUrl(spot, lat, lng, locationLabel) {
+    const near = Number.isFinite(lat) && Number.isFinite(lng)
+        ? `${lat},${lng}`
+        : locationLabel || 'near me';
+    return `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${spot.query} near ${near}`)}`;
+}
+
+function renderSafeMeetupSpots(lat, lng, locationLabel) {
+    const hasMapCenter = Number.isFinite(lat) && Number.isFinite(lng);
+    return `
+        <div class="ld-section ld-safe-meetup" id="safe-meetup-spots">
+            <h2><i class="fa-solid fa-location-dot text-primary"></i> Safe Meetup Spots</h2>
+            <p class="ld-safe-copy">Keep contact inside RoommateGroups chat, agree on a public handoff point, inspect the item before paying, and avoid advance payments.</p>
+            <div class="ld-safe-grid">
+                ${SAFE_MEETUP_SPOTS.map(spot => `
+                    <a class="ld-safe-card" href="${buildSafeSpotUrl(spot, lat, lng, locationLabel)}" target="_blank" rel="noopener">
+                        <span class="ld-safe-icon"><i class="fa-solid ${spot.icon}"></i></span>
+                        <strong>${escHtml(spot.title)}</strong>
+                        <small>${escHtml(spot.text)}</small>
+                    </a>
+                `).join('')}
+            </div>
+            ${hasMapCenter ? `
+                <div class="ld-safe-map">
+                    <iframe class="ld-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                        src="https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.02}%2C${lat - 0.02}%2C${lng + 0.02}%2C${lat + 0.02}&amp;layer=mapnik&amp;marker=${lat}%2C${lng}">
+                    </iframe>
+                </div>
+            ` : ''}
+            <a class="ld-safe-help" href="/safety#safe-meetup">Read the safe-meetup guide <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+    `;
+}
+
 // Holds cleanup ref for keyboard listener so re-renders don't stack handlers.
 let _lbKeyCleanup = null;
+
+function renderListingNotFound(app) {
+    app.innerHTML = `
+        ${renderNavbar()}
+        <div style="max-width:800px;margin:100px auto;text-align:center;padding:40px;">
+            <div style="font-size:4rem;margin-bottom:20px;">🕵️</div>
+            <h1 style="font-size:2rem;font-weight:800;color:#1e293b;margin-bottom:16px;">Listing Not Found</h1>
+            <p style="color:#64748b;margin-bottom:32px;">The listing you're looking for may have been removed or rented.</p>
+            <a href="/search/rooms" style="background:#1a1a1a;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Back to Search</a>
+        </div>
+        ${renderFooter()}
+    `;
+    initNavbar?.();
+}
 
 export function renderListingDetailPage(app, params) {
     const listingId = params.id;
@@ -61,26 +221,58 @@ export function renderListingDetailPage(app, params) {
         app.innerHTML = `
             ${renderNavbar()}
             <div style="max-width:800px;margin:100px auto;text-align:center;padding:40px;">
-                <div style="font-size:4rem;margin-bottom:20px;">🕵️</div>
-                <h1 style="font-size:2rem;font-weight:800;color:#1e293b;margin-bottom:16px;">Listing Not Found</h1>
-                <p style="color:#64748b;margin-bottom:32px;">The listing you're looking for may have been removed or rented.</p>
-                <a href="/search/rooms" style="background:#1a1a1a;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Back to Search</a>
+                <div style="font-size:2.8rem;margin-bottom:20px;"><i class="fa-solid fa-spinner fa-spin"></i></div>
+                <h1 style="font-size:2rem;font-weight:800;color:#1e293b;margin-bottom:16px;">Loading Listing</h1>
+                <p style="color:#64748b;margin-bottom:32px;">Checking the latest listing data...</p>
             </div>
             ${renderFooter()}
         `;
+        initNavbar?.();
+        Promise.resolve()
+            .then(async () => {
+                const fresh = await api.getListing(listingId, true).catch(() => null);
+                if (fresh?.listing_id) db.listings.upsertLocal(fresh);
+                if (!db.listings.findById(listingId)) await initDB();
+                return db.listings.findById(listingId);
+            })
+            .then((freshListing) => {
+                if (freshListing) {
+                    renderListingDetailPage(app, params);
+                } else {
+                    renderListingNotFound(app);
+                }
+            })
+            .catch(() => renderListingNotFound(app));
         return;
     }
 
-    // SEO Update — dynamic per-listing meta, OG image, and RealEstateListing schema
+    const listingKind = resolveListingKind(listing);
+    const isMarketplace = listingKind === 'sale';
+    const listingStatus = String(listing.status || 'active').toLowerCase();
+    const inactiveRobots = ['sold', 'expired'].includes(listingStatus) ? 'noindex, follow' : 'index, follow';
+
+    // Poster Info
+    let user = listing.user_details;
+    if (!user && listing.user_id) user = db.users.findById(listing.user_id);
+
+    // SEO Update — dynamic per-listing meta, OG image, and marketplace Product/Offer schema
     const _listingPhotos = (() => { let p = listing.images || listing.photos || []; if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) { p = []; } } return p; })();
-    const _firstPhoto = (typeof _listingPhotos[0] === 'object' ? (_listingPhotos[0]?.medium || _listingPhotos[0]?.full) : _listingPhotos[0]) || 'https://roommategroups.com/logo.png';
+    const _firstPhotoRaw = (typeof _listingPhotos[0] === 'object' ? (_listingPhotos[0]?.medium || _listingPhotos[0]?.full || _listingPhotos[0]?.thumb) : _listingPhotos[0]) || 'https://roommategroups.com/logo.png';
+    const _firstPhoto = getAssetUrl(_firstPhotoRaw);
     const _cityName = db.cities.findById(listing.city)?.name || listing.city || '';
+    const listingPriceValue = isMarketplace ? (listing.price ?? listing.rent) : (listing.rent ?? listing.price);
     setSEO({
         title: `${listing.title} | RoommateGroups`.substring(0, 60),
-        description: (listing.description || `Room for rent in ${_cityName}. $${listing.rent ?? listing.price}/mo.`).slice(0, 150),
+        description: (listing.description || (isMarketplace ? `Local item for sale in ${_cityName}. $${listingPriceValue}.` : `Room for rent in ${_cityName}. $${listingPriceValue}/mo.`)).slice(0, 150),
         canonical: `https://roommategroups.com/listing/${listing.listing_id}`,
         ogImage: _firstPhoto,
-        schema: {
+        robots: inactiveRobots,
+        schema: isMarketplace ? buildListingProductSchema(listing, {
+            image: _firstPhoto,
+            url: `https://roommategroups.com/listing/${listing.listing_id}`,
+            seller: user,
+            priceCurrency: listing.price_currency || listing.currency || 'USD',
+        }) : {
             '@context': 'https://schema.org',
             '@type': 'RealEstateListing',
             name: listing.title,
@@ -89,7 +281,7 @@ export function renderListingDetailPage(app, params) {
             image: _firstPhoto,
             offers: {
                 '@type': 'Offer',
-                price: listing.rent ?? listing.price ?? 0,
+                price: listingPriceValue ?? 0,
                 priceCurrency: 'USD',
             },
         },
@@ -97,10 +289,14 @@ export function renderListingDetailPage(app, params) {
 
     // Increment view count (skip for listing owner)
     const viewingUser = getCurrentUser();
-    if (!viewingUser || viewingUser.id !== listing.user_id) {
+    if (!viewingUser || getUserId(viewingUser) !== listing.user_id) {
         db.listings.update(listingId, { views_count: (listing.views_count || 0) + 1 });
     }
 
+    const marketplaceAttributes = parseJsonObject(listing.attributes);
+    const conditionLabel = humanize(listing.condition);
+    const categoryLabel = humanize(listing.category_name || listing.category || listing.category_id || listingKind);
+    const isNegotiable = isAffirmative(listing.negotiable);
     const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
     // images can be a JSON string (from D1) or an array (from localStorage)
     let _imgs = listing.images || listing.photos || [];
@@ -113,9 +309,6 @@ export function renderListingDetailPage(app, params) {
     let _amenities = listing.amenities || [];
     if (typeof _amenities === 'string') { try { _amenities = JSON.parse(_amenities); } catch(e) { _amenities = []; } }
 
-    // Poster Info
-    let user = listing.user_details;
-    if (!user && listing.user_id) user = db.users.findById(listing.user_id);
     const posterName = user ? user.display_name : 'Unknown User';
     const avatar = getAvatarUrl(user?.profile_photo, posterName);
     const verifiedIcon = user ? getVerificationBadge(user) : '';
@@ -137,20 +330,26 @@ export function renderListingDetailPage(app, params) {
 
     // Check if saved & if current user owns this listing
     const currentUser = getCurrentUser();
-    const isOwner = !!(currentUser && listing.user_id && currentUser.id === listing.user_id);
+    const currentUserId = getUserId(currentUser);
+    const isOwner = !!(currentUserId && listing.user_id && currentUserId === listing.user_id);
     let isSaved = false;
     if (currentUser && !isOwner) {
-        const dbUser = db.users.findById(currentUser.id);
+        const dbUser = db.users.findById(currentUserId);
         const savedList = dbUser ? parseJsonArray(dbUser.saved_listings) : [];
         if (savedList.includes(listing.listing_id)) {
             isSaved = true;
         }
     }
 
-    const priceValue = listing.rent ?? listing.price;
+    const priceValue = listingPriceValue;
     const priceLabel = priceValue !== undefined && priceValue !== null && priceValue !== ''
         ? '$' + Number(priceValue).toLocaleString()
         : 'Price TBC';
+    const marketplaceSidebarMeta = [
+        conditionLabel,
+        listing.brand,
+        isNegotiable ? 'Negotiable' : 'Fixed price'
+    ].filter(Boolean).map(escHtml).join(' • ');
     const lat = Number(listing.latitude);
     const lng = Number(listing.longitude);
     const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
@@ -204,6 +403,23 @@ export function renderListingDetailPage(app, params) {
         .ld-fact-icon { width: 44px; height: 44px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #64748b; }
         .ld-fact-text strong { display: block; font-size: 0.9rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
         .ld-fact-text span { font-size: 1.05rem; font-weight: 600; color: #1e293b; }
+        .ld-attr-table { margin-top: 24px; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: white; }
+        .ld-attr-row { display: grid; grid-template-columns: 180px 1fr; gap: 18px; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; }
+        .ld-attr-row:last-child { border-bottom: none; }
+        .ld-attr-row span { color: #64748b; font-weight: 700; }
+        .ld-attr-row strong { color: #1e293b; font-weight: 700; word-break: break-word; }
+        .ld-safety-banner { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; padding: 16px 18px; border-radius: 14px; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; font-weight: 700; }
+        .ld-safety-banner i { font-size: 1.2rem; }
+        .ld-safe-meetup { background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 24px; }
+        .ld-safe-copy { color: #64748b; line-height: 1.65; margin: -8px 0 18px; }
+        .ld-safe-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        .ld-safe-card { color: inherit; text-decoration: none; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; background: #f8fafc; display: grid; gap: 8px; transition: transform .18s, box-shadow .18s, background .18s; }
+        .ld-safe-card:hover { transform: translateY(-2px); background: #fff; box-shadow: 0 10px 24px rgba(15,23,42,.08); }
+        .ld-safe-icon { width: 38px; height: 38px; border-radius: 12px; background: #111827; color: #fff; display: flex; align-items: center; justify-content: center; }
+        .ld-safe-card strong { color: #0f172a; font-size: .96rem; }
+        .ld-safe-card small { color: #64748b; line-height: 1.45; }
+        .ld-safe-map { margin-top: 16px; }
+        .ld-safe-help { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; color: #0f172a; font-weight: 800; text-decoration: none; }
         
         .ld-amenities { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
         .ld-amenity { display: flex; align-items: center; gap: 12px; color: #475569; font-size: 1rem; }
@@ -228,6 +444,9 @@ export function renderListingDetailPage(app, params) {
         .ld-host-avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
         .ld-host-info h4 { font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
         .ld-host-info p { font-size: 0.9rem; color: #64748b; margin-bottom: 4px; }
+        .ld-seller-info { min-width: 0; }
+        .ld-rating-line { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 0.85rem; margin-bottom: 4px; }
+        .ld-stars { color: #f59e0b; display: inline-flex; gap: 2px; font-size: 0.78rem; }
         
         /* Mobile logic */
         @media (max-width: 992px) {
@@ -240,6 +459,8 @@ export function renderListingDetailPage(app, params) {
             .ld-gallery-wrap { padding: 0; margin-top: 0; }
             .ld-view-all-btn { bottom: 12px; right: 12px; font-size: 0.8rem; padding: 7px 12px; }
             .ld-grid-2 { grid-template-columns: 1fr; }
+            .ld-attr-row { grid-template-columns: 1fr; gap: 4px; }
+            .ld-safe-grid { grid-template-columns: 1fr; }
         }
     </style>
     
@@ -270,12 +491,61 @@ export function renderListingDetailPage(app, params) {
                         ${escHtml(db.cities.findById(listing.city)?.name || (listing.city ? listing.city.replace('city_', '').replace(/_/g, ' ') : 'Unknown City'))}${(() => { const cId = listing.country || db.cities.findById(listing.city)?.country; return cId ? ', ' + escHtml(db.countries.findById(cId)?.name || cId) : ''; })()}
                     </div>
                     <div class="ld-badges">
+                        ${isMarketplace ? `
+                        <div class="ld-badge"><i class="fa-solid fa-tag"></i> ${escHtml(categoryLabel || 'Marketplace')}</div>
+                        ${conditionLabel ? `<div class="ld-badge"><i class="fa-solid fa-circle-check"></i> ${escHtml(conditionLabel)}</div>` : ''}
+                        ${isNegotiable ? `<div class="ld-badge" style="background:#ecfdf5;color:#047857;"><i class="fa-solid fa-handshake"></i> Negotiable</div>` : ''}
+                        ${listing.brand ? `<div class="ld-badge"><i class="fa-solid fa-bookmark"></i> ${escHtml(listing.brand)}</div>` : ''}
+                        ` : `
                         <div class="ld-badge"><i class="fa-solid fa-bed"></i> ${isRoommate ? 'Looking for Room' : (listing.room_type || 'Private Room')}</div>
                         ${listing.furnished === 'yes' ? `<div class="ld-badge" style="background:#f5f5f5;color:#333333;"><i class="fa-solid fa-couch"></i> Furnished</div>` : ''}
                         ${listing.private_bathroom ? `<div class="ld-badge" style="background:#f5f5f5;color:#1a1a1a;"><i class="fa-solid fa-bath"></i> Private Bath</div>` : ''}
+                        `}
                     </div>
                 </div>
 
+                ${isMarketplace ? `
+                <div class="ld-section">
+                    <h2><i class="fa-solid fa-circle-info text-primary"></i> Item Details</h2>
+                    <div class="ld-grid-2">
+                        <div class="ld-fact">
+                            <div class="ld-fact-icon"><i class="fa-solid fa-dollar-sign"></i></div>
+                            <div class="ld-fact-text">
+                                <strong>Price</strong>
+                                <span>${priceLabel}</span>
+                            </div>
+                        </div>
+                        <div class="ld-fact">
+                            <div class="ld-fact-icon"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="ld-fact-text">
+                                <strong>Condition</strong>
+                                <span>${escHtml(conditionLabel || 'Not specified')}</span>
+                            </div>
+                        </div>
+                        <div class="ld-fact">
+                            <div class="ld-fact-icon"><i class="fa-solid fa-bookmark"></i></div>
+                            <div class="ld-fact-text">
+                                <strong>Brand</strong>
+                                <span>${escHtml(listing.brand || 'Not specified')}</span>
+                            </div>
+                        </div>
+                        <div class="ld-fact">
+                            <div class="ld-fact-icon"><i class="fa-solid fa-handshake"></i></div>
+                            <div class="ld-fact-text">
+                                <strong>Negotiable</strong>
+                                <span>${isNegotiable ? 'Yes' : 'No'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${renderMarketplaceAttributes(marketplaceAttributes)}
+                </div>
+
+                <div class="ld-safety-banner">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>Meet in a public place, keep contact in chat, and inspect before you pay.</span>
+                </div>
+                ${renderSafeMeetupSpots(lat, lng, _cityName || listing.city || '')}
+                ` : `
                 <div class="ld-section">
                     <h2><i class="fa-solid fa-circle-info text-primary"></i> Listing Overview</h2>
                     <div class="ld-grid-2">
@@ -309,13 +579,14 @@ export function renderListingDetailPage(app, params) {
                         </div>
                     </div>
                 </div>
+                `}
 
                 <div class="ld-section">
                     <h2><i class="fa-solid fa-align-left text-primary"></i> Description</h2>
                     <div class="ld-desc">${escHtml(listing.description || 'No description provided.')}</div>
                 </div>
 
-                ${_amenities.length > 0 ? `
+                ${!isMarketplace && _amenities.length > 0 ? `
                 <div class="ld-section">
                     <h2><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Amenities Included</h2>
                     <div class="ld-amenities">
@@ -345,8 +616,8 @@ export function renderListingDetailPage(app, params) {
             <!-- Right Column: Stick Sidebar -->
             <div class="ld-sidebar">
                 <div class="ld-price-card">
-                    <div class="ld-price">${priceLabel} <span>${priceLabel === 'Price TBC' ? '' : '/ month'}</span></div>
-                    <div class="ld-deposit">Includes utilities: ${listing.utilities_included ? 'Yes' : 'No'} • Deposit: $${listing.deposit || 0}</div>
+                    <div class="ld-price">${priceLabel} <span>${!isMarketplace && priceLabel !== 'Price TBC' ? '/ month' : ''}</span></div>
+                    <div class="ld-deposit">${isMarketplace ? (marketplaceSidebarMeta || 'Marketplace listing') : `Includes utilities: ${listing.utilities_included ? 'Yes' : 'No'} • Deposit: $${listing.deposit || 0}`}</div>
                     
                     ${isOwner ? `
                     <a href="/post-listing/${listing.listing_id}" class="ld-btn-primary" style="text-decoration:none;">
@@ -355,6 +626,17 @@ export function renderListingDetailPage(app, params) {
                     <a href="/dashboard/listings" class="ld-btn-outline" style="text-decoration:none;color:#ef4444;border-color:#fecaca;">
                         <i class="fa-solid fa-eye"></i> Manage in Dashboard
                     </a>
+                    ` : isMarketplace ? `
+                    <button class="ld-btn-outline" id="active-save-btn" data-id="${listing.listing_id}">
+                        <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-heart" ${isSaved ? 'style="color:#1a1a1a;"' : ''}></i>
+                        <span class="save-text">${isSaved ? 'Saved' : 'Save'}</span>
+                    </button>
+                    <button class="ld-btn-outline" id="msg-host-btn">
+                        <i class="fa-solid fa-comments"></i> Chat with Seller
+                    </button>
+                    <button class="ld-btn-primary" id="make-offer-btn">
+                        <i class="fa-solid fa-hand-holding-dollar"></i> Make Offer
+                    </button>
                     ` : `
                     <button class="ld-btn-primary" id="msg-host-btn">
                         <i class="fa-solid fa-paper-plane"></i> Message ${posterName.split(' ')[0]}
@@ -370,13 +652,15 @@ export function renderListingDetailPage(app, params) {
                     </button>
                 </div>
 
-                <div class="ld-host-card" id="view-profile-card" data-uid="${user ? user.user_id : ''}">
+                <div class="ld-host-card" id="${isMarketplace ? 'seller-storefront-card' : 'view-profile-card'}" data-uid="${user ? user.user_id : ''}">
+                    ${isMarketplace ? renderSellerCardContent(user, posterName, listing, isOwner) : `
                     <img src="${avatar}" class="ld-host-avatar" alt="Avatar for ${escHtml(posterName)}" loading="lazy">
                     <div class="ld-host-info">
                         <h4>${escHtml(posterName)} ${verifiedIcon}</h4>
                         <p>Listed ${formatDate(listing.created_at)}</p>
                         <span style="font-size:0.85rem;color:#1a1a1a;font-weight:600;">${isOwner ? 'Your Listing' : 'View Profile'} <i class="fa-solid fa-chevron-right" style="font-size:0.75rem;"></i></span>
                     </div>
+                    `}
                 </div>
 
                 ${!isOwner ? `
@@ -412,11 +696,13 @@ export function renderListingDetailPage(app, params) {
                     return;
                 }
                 if (!user) return; // No host info
+                const senderId = getUserId(currentUser);
+                if (!senderId) return;
 
                 // Start thread logic
                 let thread = db.threads.findOne(t => {
                     const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
-                    return parts.includes(currentUser.id) && 
+                    return parts.includes(senderId) &&
                            parts.includes(user.user_id) &&
                            (listing.listing_id ? t.listing_id === listing.listing_id : true);
                 });
@@ -424,18 +710,18 @@ export function renderListingDetailPage(app, params) {
                 if (!thread) {
                     thread = await db.threads.create({
                         listing_id: listing.listing_id,
-                        participants: [currentUser.id, user.user_id],
+                        participants: [senderId, user.user_id],
                         last_message_at: new Date().toISOString(),
                         last_message_preview: 'Interested in this listing.',
                         ['unread_count_' + user.user_id]: 1,
-                        ['unread_count_' + currentUser.id]: 0,
+                        ['unread_count_' + senderId]: 0,
                         is_archived: false,
                         blocked_by: null
                     });
                     // Create first system message
                     await db.messages.create({
                         thread_id: thread.thread_id,
-                        sender_id: currentUser.id,
+                        sender_id: senderId,
                         content: 'Hi! I am interested in your listing: ' + listing.title,
                         is_read: false,
                         created_at: new Date().toISOString()
@@ -449,6 +735,41 @@ export function renderListingDetailPage(app, params) {
             });
         }
 
+        const offerBtn = app.querySelector('#make-offer-btn');
+        if (offerBtn) {
+            offerBtn.addEventListener('click', async () => {
+                const currentUser = getCurrentUser();
+                if (!currentUser) {
+                    sessionStorage.setItem('redirectAfterLogin', window.location.pathname + window.location.search);
+                    navigate('/auth/login');
+                    return;
+                }
+
+                const suggested = priceValue !== undefined && priceValue !== null && priceValue !== '' ? String(priceValue) : '';
+                const entered = prompt('Enter your offer amount', suggested);
+                if (entered === null) return;
+
+                const amount = Number(String(entered).replace(/[^\d.]/g, ''));
+                if (!Number.isFinite(amount) || amount <= 0) {
+                    showToast('Enter a valid offer amount.', 'error');
+                    return;
+                }
+
+                offerBtn.disabled = true;
+                try {
+                    const result = await api.makeOffer({ listing_id: listing.listing_id, amount });
+                    if (!result) return;
+                    const threadId = result.thread_id || result.offer?.thread_id;
+                    showToast('Offer sent.');
+                    if (threadId) navigate('/dashboard/messages?threadId=' + threadId);
+                } catch (err) {
+                    showToast(err.message || 'Could not send offer.', 'error');
+                } finally {
+                    offerBtn.disabled = false;
+                }
+            });
+        }
+
         // View Profile
         const profileCard = app.querySelector('#view-profile-card');
         if (profileCard) {
@@ -456,6 +777,21 @@ export function renderListingDetailPage(app, params) {
                 const uid = profileCard.dataset.uid;
                 if (uid) navigate('/profile/' + uid);
             });
+        }
+
+        const sellerCard = app.querySelector('#seller-storefront-card');
+        if (sellerCard) {
+            const uid = sellerCard.dataset.uid;
+            sellerCard.addEventListener('click', () => {
+                if (uid) navigate('/seller/' + uid);
+            });
+            if (uid) {
+                api.getSeller(uid, true).then(seller => {
+                    if (seller && sellerCard.isConnected) {
+                        sellerCard.innerHTML = renderSellerCardContent(seller, posterName, listing, isOwner);
+                    }
+                }).catch(() => {});
+            }
         }
 
         // Report Listing
@@ -468,7 +804,7 @@ export function renderListingDetailPage(app, params) {
                         type: 'listing',
                         target_id: listing.listing_id,
                         target_name: listing.title,
-                        reporter_id: getCurrentUser()?.id || 'anonymous',
+                        reporter_id: getUserId(getCurrentUser()) || 'anonymous',
                         reason: reason,
                         status: 'pending',
                         priority: 'medium'
@@ -491,7 +827,8 @@ export function renderListingDetailPage(app, params) {
                     return;
                 }
                 
-                const dbUser = db.users.findById(userObj.id);
+                const userId = getUserId(userObj);
+                const dbUser = db.users.findById(userId);
                 if (!dbUser) return;
                 dbUser.saved_listings = parseJsonArray(dbUser.saved_listings);
                 
@@ -500,14 +837,14 @@ export function renderListingDetailPage(app, params) {
                     dbUser.saved_listings.splice(idx, 1);
                     saveBtn.querySelector('i').className = 'fa-regular fa-heart';
                     saveBtn.querySelector('i').style.color = '';
-                    saveBtn.querySelector('.save-text').textContent = 'Save to Favorites';
+                    saveBtn.querySelector('.save-text').textContent = isMarketplace ? 'Save' : 'Save to Favorites';
                 } else {
                     dbUser.saved_listings.push(listingId);
                     saveBtn.querySelector('i').className = 'fa-solid fa-heart';
                     saveBtn.querySelector('i').style.color = '#1a1a1a';
-                    saveBtn.querySelector('.save-text').textContent = 'Saved to Favorites';
+                    saveBtn.querySelector('.save-text').textContent = isMarketplace ? 'Saved' : 'Saved to Favorites';
                 }
-                await db.users.update(userObj.id, { saved_listings: dbUser.saved_listings });
+                await db.users.update(userId, { saved_listings: dbUser.saved_listings });
             });
         }
 

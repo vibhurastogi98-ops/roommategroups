@@ -3,6 +3,8 @@ import { navigate } from '../router.js';
 import { db, syncMessagesAndThreads } from '../services/db.js';
 import { getTotalUnread, getUnreadCountForThread } from '../services/messaging.js';
 import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
+import { api } from '../services/api.js';
+import { uploadImage } from '../services/upload.js';
 
 // Module-level timers so they survive re-renders and can be cleared properly
 let _msgPollingTimer = null;
@@ -53,9 +55,13 @@ export function renderDashboardPage(app) {
 
     let viewName = 'overview';
     if (currentPath === '/dashboard/listings') viewName = 'listings';
-    if (currentPath === '/dashboard/messages' || currentPath === '/dashboard/archived-chats' || currentPath === '/archived-chats') viewName = 'messages';
+    if (currentPath === '/dashboard/messages') viewName = 'messages';
+    if (currentPath === '/dashboard/archived-chats' || currentPath === '/archived-chats') viewName = 'archived';
     if (currentPath === '/dashboard/saved') viewName = 'saved';
     if (currentPath === '/dashboard/searches') viewName = 'searches';
+    if (currentPath === '/profile' || currentPath === '/dashboard/profile') viewName = 'profile';
+    if (currentPath === '/dashboard/offers') viewName = 'offers';
+    if (currentPath === '/dashboard/reviews') viewName = 'reviews';
     if (currentPath === '/dashboard/verification') viewName = 'verification';
     if (currentPath === '/dashboard/subscription') viewName = 'subscription';
     if (currentPath === '/dashboard/settings' || currentPath === '/settings') viewName = 'settings';
@@ -101,7 +107,12 @@ export function renderDashboardPage(app) {
         navLink('/dashboard/notifications', 'fa-bell', 'Notifications', 'notifications', getUnreadNotifBadge(dbUser.user_id)),
         navLink('/dashboard/saved', 'fa-heart', 'Saved Listings', 'saved'),
         navLink('/dashboard/searches', 'fa-magnifying-glass', 'Saved Searches', 'searches'),
+        navLink('/dashboard/archived-chats', 'fa-box-archive', 'Archived Chats', 'archived'),
+        '<div class="sidebar-nav-section">Marketplace</div>',
+        navLink('/dashboard/offers', 'fa-tag', 'Offers', 'offers', getPendingOffersBadge()),
+        navLink('/dashboard/reviews', 'fa-star', 'Reviews', 'reviews'),
         '<div class="sidebar-nav-section">Account</div>',
+        navLink('/dashboard/profile', 'fa-user', 'Profile', 'profile'),
         navLink('/dashboard/verification', 'fa-shield-halved', 'Verification', 'verification', getVerificationStatusBadge(dbUser)),
         navLink('/dashboard/subscription', 'fa-credit-card', 'Subscription', 'subscription'),
         navLink('/dashboard/settings', 'fa-gear', 'Settings', 'settings'),
@@ -127,7 +138,7 @@ export function renderDashboardPage(app) {
         '<div class="topbar-user-pill"><img src="' + avatarSrc + '" class="topbar-avatar" alt="User Avatar" loading="lazy"><span>' + escapeHtml(dbUser.display_name.split(' ')[0]) + '</span></div>',
         '</div>',
         '</div>',
-        '<div class="dashboard-content fade-in' + (viewName === 'messages' ? ' msg-view-active' : '') + '" id="dashboard-content"></div>',
+        '<div class="dashboard-content fade-in' + (viewName === 'messages' || viewName === 'archived' ? ' msg-view-active' : '') + '" id="dashboard-content"></div>',
         '</main>',
         '</div>'
     ].join('');
@@ -138,14 +149,19 @@ export function renderDashboardPage(app) {
         case 'overview': renderOverview(contentArea, dbUser); break;
         case 'listings': renderMyListings(contentArea, dbUser); break;
         case 'messages': renderMessages(contentArea, dbUser, app); break;
+        case 'archived': renderArchivedChats(contentArea, dbUser, app); break;
         case 'saved': renderSaved(contentArea, dbUser); break;
         case 'searches': renderSavedSearches(contentArea, dbUser); break;
+        case 'profile': renderProfileDashboard(contentArea, dbUser); break;
+        case 'offers': renderOffersDashboard(contentArea, dbUser, app); break;
+        case 'reviews': renderReviewsDashboard(contentArea, dbUser); break;
         case 'verification': renderVerification(contentArea, dbUser); break;
         case 'subscription': renderSubscription(contentArea, dbUser); break;
         case 'settings': renderSettings(contentArea, dbUser); break;
         case 'notifications': renderNotifications(contentArea, dbUser); break;
         case 'blocked': renderBlockedUsers(contentArea, dbUser); break;
     }
+    hydrateSellerListingsForDashboard(dbUser, app, viewName);
 
     app.querySelector('#btn-signout').addEventListener('click', async () => {
         await logout();
@@ -163,6 +179,7 @@ export function renderDashboardPage(app) {
     if (backdrop)  backdrop.addEventListener('click', closeSidebar);
 
     const updateBadges = () => updateSidebarBadges(app, dbUser.user_id);
+    hydratePendingOffersBadge(app);
 
     window.addEventListener('db-synced', updateBadges);
     
@@ -234,6 +251,121 @@ function parseArray(value) {
     return [];
 }
 
+function getListingId(listing) {
+    return listing?.listing_id || listing?.id || '';
+}
+
+function getListingKind(listing) {
+    const kind = String(listing?.kind || 'rental').toLowerCase();
+    if (kind === 'sale') return 'sale';
+    const hasMarketplaceShape = listing?.category_id
+        || listing?.condition
+        || listing?.brand
+        || listing?.attributes
+        || ((listing?.price !== undefined && listing?.price !== null && listing?.price !== '') && (listing?.rent === undefined || listing?.rent === null || listing?.rent === ''));
+    return hasMarketplaceShape ? 'sale' : 'rental';
+}
+
+function isSaleListing(listing) {
+    return getListingKind(listing) === 'sale';
+}
+
+function isSoldListing(listing) {
+    return listing?.status === 'sold' || Boolean(listing?.sold_at);
+}
+
+function formatListingPrice(listing) {
+    const symbol = listing?.currency === 'INR' ? '₹' : listing?.currency === 'EUR' ? '€' : listing?.currency === 'GBP' ? '£' : '$';
+    const value = isSaleListing(listing) ? listing?.price : (listing?.rent ?? listing?.price);
+    if (value === undefined || value === null || value === '') return isSaleListing(listing) ? 'Ask seller' : 'Price TBC';
+    const formatted = symbol + Number(value).toLocaleString(listing?.currency === 'INR' ? 'en-IN' : 'en-US');
+    return isSaleListing(listing) ? formatted : formatted + '/mo';
+}
+
+function getListingThumb(listing, fallback = '') {
+    let imgs = listing?.images || listing?.photos || [];
+    if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs || '[]'); } catch (e) { imgs = []; } }
+    const first = Array.isArray(imgs) ? imgs[0] : imgs;
+    const raw = typeof first === 'object' && first ? (first.thumb || first.medium || first.full || '') : first;
+    return raw ? getAssetUrl(raw) : fallback;
+}
+
+async function refreshDashboardUser(user) {
+    const userId = user?.user_id || user?.id;
+    if (!userId) return user;
+    try {
+        const users = await api.getUsers(true);
+        const rows = Array.isArray(users) ? users : (users?.results || users?.users || []);
+        const fresh = rows.find(u => (u.user_id || u.id) === userId);
+        if (fresh) {
+            await db.users.update(userId, fresh).catch(() => {});
+            return { ...user, ...fresh, user_id: fresh.user_id || userId, id: fresh.user_id || fresh.id || userId };
+        }
+    } catch (_) {}
+    return db.users.findById(userId) || user;
+}
+
+function normalizeOffersPayload(payload) {
+    return {
+        sent: Array.isArray(payload?.sent) ? payload.sent : [],
+        received: Array.isArray(payload?.received) ? payload.received : []
+    };
+}
+
+async function loadDashboardOffers() {
+    try {
+        return normalizeOffersPayload(await api.getOffers(true));
+    } catch (_) {
+        return { sent: [], received: [] };
+    }
+}
+
+async function hydrateSellerListingsForDashboard(user, app, viewName) {
+    const userId = user?.user_id || user?.id;
+    if (!userId || app.dataset.sellerListingsHydrated === userId) return;
+    app.dataset.sellerListingsHydrated = userId;
+
+    try {
+        const seller = await api.getSeller(userId, true);
+        const listings = Array.isArray(seller?.listings) ? seller.listings : [];
+        let changed = false;
+
+        for (const listing of listings) {
+            if (!listing?.listing_id || db.listings.findById(listing.listing_id)) continue;
+            await db.listings.create({
+                ...listing,
+                user_id: listing.user_id || userId,
+                kind: listing.kind || (listing.category_id || listing.price !== undefined ? 'sale' : 'rental'),
+            });
+            changed = true;
+        }
+
+        if (changed && (viewName === 'overview' || viewName === 'listings')) {
+            renderDashboardPage(app);
+        }
+    } catch (_) {
+        // Recovery only: older direct-API sale items may not be in local SPA cache.
+    }
+}
+
+function getPendingOffersBadge() {
+    return '<span class="badge badge-primary badge-sm" id="dash-sidebar-offer-badge" style="margin-left:auto;background:#ef4444;display:none;">0</span>';
+}
+
+async function hydratePendingOffersBadge(app) {
+    const badge = app?.querySelector('#dash-sidebar-offer-badge');
+    if (!badge) return;
+    const offers = await loadDashboardOffers();
+    const count = offers.received.filter(o => String(o.status || 'pending').toLowerCase() === 'pending').length;
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'flex' : 'none';
+}
+
+function renderStars(value) {
+    const rating = Math.round(Math.max(0, Math.min(5, Number(value) || 0)));
+    return [1, 2, 3, 4, 5].map(i => '<i class="fa-' + (i <= rating ? 'solid' : 'regular') + ' fa-star"></i>').join('');
+}
+
 function showToast(message, type = 'success') {
     const existing = document.getElementById('rg-toast');
     if (existing) existing.remove();
@@ -246,13 +378,79 @@ function showToast(message, type = 'success') {
     setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 3500);
 }
 
+function showDashboardConfirm({
+    title = 'Confirm action',
+    message = 'Are you sure?',
+    confirmLabel = 'OK',
+    cancelLabel = 'Cancel',
+    danger = true,
+} = {}) {
+    return new Promise(resolve => {
+        document.getElementById('dashboard-confirm-overlay')?.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'dashboard-confirm-overlay';
+        overlay.style.cssText = [
+            'position:fixed',
+            'inset:0',
+            'z-index:99999',
+            'display:flex',
+            'align-items:center',
+            'justify-content:center',
+            'padding:20px',
+            'background:rgba(15,23,42,0.48)',
+            'backdrop-filter:blur(6px)',
+        ].join(';');
+
+        overlay.innerHTML = `
+            <div role="dialog" aria-modal="true" aria-labelledby="dashboard-confirm-title" style="width:min(420px,100%);background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:20px;box-shadow:0 24px 80px rgba(15,23,42,.28);padding:24px;">
+              <div style="display:flex;gap:14px;align-items:flex-start;">
+                <div style="width:42px;height:42px;border-radius:14px;background:${danger ? 'rgba(239,68,68,.1)' : 'rgba(15,23,42,.06)'};color:${danger ? '#ef4444' : 'var(--text-primary,#111827)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  <i class="fa-solid ${danger ? 'fa-trash-can' : 'fa-circle-question'}"></i>
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <h3 id="dashboard-confirm-title" style="margin:0 0 8px;font-size:1.08rem;line-height:1.25;color:var(--text-primary,#111827);font-weight:900;">${escapeHtml(title)}</h3>
+                  <p style="margin:0;color:var(--text-secondary,#64748b);font-size:.92rem;line-height:1.55;">${escapeHtml(message)}</p>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;flex-wrap:wrap;">
+                <button type="button" id="dashboard-confirm-cancel" class="btn btn-outline btn-sm">${escapeHtml(cancelLabel)}</button>
+                <button type="button" id="dashboard-confirm-ok" class="btn btn-sm" style="background:${danger ? '#1a1a1a' : 'var(--primary,#1a1a1a)'};color:#fff;border:1px solid ${danger ? '#1a1a1a' : 'var(--primary,#1a1a1a)'};">${escapeHtml(confirmLabel)}</button>
+              </div>
+            </div>
+        `;
+
+        const finish = value => {
+            overlay.remove();
+            document.removeEventListener('keydown', onKey);
+            resolve(value);
+        };
+        const onKey = event => {
+            if (event.key === 'Escape') finish(false);
+        };
+        document.addEventListener('keydown', onKey);
+        overlay.querySelector('#dashboard-confirm-cancel').addEventListener('click', () => finish(false));
+        overlay.querySelector('#dashboard-confirm-ok').addEventListener('click', () => finish(true));
+        overlay.addEventListener('click', event => {
+            if (event.target === overlay) finish(false);
+        });
+        setTimeout(() => overlay.querySelector('#dashboard-confirm-ok')?.focus(), 0);
+        document.body.appendChild(overlay);
+    });
+}
+
 // ── Overview ──────────────────────────────────────────────────
 
-function renderOverview(container, user) {
+async function renderOverview(container, user) {
     const userListings = db.listings.find(l => l.user_id === user.user_id);
     const activeListingsCount = userListings.filter(l => l.status === 'active' && l.is_active !== false).length;
+    const soldItemsCount = userListings.filter(l => isSaleListing(l) && isSoldListing(l)).length;
     const totalViews = userListings.reduce((sum, l) => sum + (l.view_count || l.views_count || 0), 0);
-    const savedCount = (user.saved_listings || []).length;
+    const savedCount = parseArray(user.saved_listings).length;
+    const offersData = await loadDashboardOffers();
+    const pendingOffers = offersData.received.filter(o => String(o.status || 'pending').toLowerCase() === 'pending');
+    const sellerRating = Number(user.seller_rating_avg || user.rating_avg || 0);
+    const sellerRatingCount = Number(user.seller_rating_count || user.rating_count || 0);
     const threads = db.threads.find(t => {
         const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
         return parts.includes(user.user_id);
@@ -305,6 +503,15 @@ function renderOverview(container, user) {
             time: 'Saved',
         });
     }
+
+    pendingOffers.slice(0, 3).forEach(o => {
+        activityItems.push({
+            icon: 'fa-tag',
+            color: 'activity-icon-amber',
+            text: 'New offer of <strong>$' + Number(o.amount || 0).toLocaleString() + '</strong> on <em>' + escapeHtml(o.listing_title || 'your item') + '</em>.',
+            time: formatRelativeTime(o.created_at),
+        });
+    });
 
     const activityHTML = activityItems.length === 0
         ? '<div class="activity-empty"><i class="fa-solid fa-inbox"></i><p>No activity yet. Post a listing or send a message to get started.</p></div>'
@@ -365,6 +572,21 @@ function renderOverview(container, user) {
         '<div class="stat-body"><div class="stat-value">' + savedCount + '</div><div class="stat-label">Saved Listings</div>',
         '<div class="stat-trend neutral"><i class="fa-solid fa-bookmark"></i> Wishlist</div>',
         '</div></div>',
+        '<div class="stat-card stat-card-green">',
+        '<div class="stat-icon stat-icon-green"><i class="fa-solid fa-circle-check"></i></div>',
+        '<div class="stat-body"><div class="stat-value">' + soldItemsCount + '</div><div class="stat-label">Items Sold</div>',
+        '<div class="stat-trend neutral"><i class="fa-solid fa-store"></i> Marketplace</div>',
+        '</div></div>',
+        '<div class="stat-card stat-card-amber">',
+        '<div class="stat-icon stat-icon-amber"><i class="fa-solid fa-tag"></i></div>',
+        '<div class="stat-body"><div class="stat-value">' + pendingOffers.length + '</div><div class="stat-label">Offers Received</div>',
+        '<div class="stat-trend ' + (pendingOffers.length ? 'up' : 'neutral') + '"><i class="fa-solid fa-handshake"></i> Pending</div>',
+        '</div></div>',
+        '<div class="stat-card stat-card-violet">',
+        '<div class="stat-icon stat-icon-violet"><i class="fa-solid fa-star"></i></div>',
+        '<div class="stat-body"><div class="stat-value">' + (sellerRating ? sellerRating.toFixed(1) : '—') + '</div><div class="stat-label">Seller Rating</div>',
+        '<div class="stat-trend neutral"><i class="fa-solid fa-comment"></i> ' + sellerRatingCount + ' reviews</div>',
+        '</div></div>',
         '</div>',
 
         // Bottom row
@@ -379,6 +601,7 @@ function renderOverview(container, user) {
         '<a href="/post-listing" class="qa-item"><span class="qa-item-icon qa-green"><i class="fa-solid fa-plus"></i></span>Post New Listing<i class="fa-solid fa-chevron-right qa-arrow"></i></a>',
         '<a href="/dashboard/messages" class="qa-item"><span class="qa-item-icon qa-blue"><i class="fa-solid fa-comments"></i></span>Check Messages' + (unreadMessages > 0 ? ' <span class="badge-sm" style="background:var(--primary);color:#fff;padding:1px 7px;border-radius:20px;font-size:0.68rem;font-weight:700;margin-left:4px;">' + unreadMessages + '</span>' : '') + '<i class="fa-solid fa-chevron-right qa-arrow"></i></a>',
         '<a href="/dashboard/listings" class="qa-item"><span class="qa-item-icon qa-amber"><i class="fa-solid fa-list-ul"></i></span>My Listings<i class="fa-solid fa-chevron-right qa-arrow"></i></a>',
+        '<a href="/dashboard/offers" class="qa-item"><span class="qa-item-icon qa-green"><i class="fa-solid fa-tag"></i></span>Offers' + (pendingOffers.length > 0 ? ' <span class="badge-sm" style="background:#ef4444;color:#fff;padding:1px 7px;border-radius:20px;font-size:0.68rem;font-weight:700;margin-left:4px;">' + pendingOffers.length + '</span>' : '') + '<i class="fa-solid fa-chevron-right qa-arrow"></i></a>',
         '<a href="/profile-setup" class="qa-item"><span class="qa-item-icon qa-violet"><i class="fa-solid fa-user-pen"></i></span>Edit Profile<i class="fa-solid fa-chevron-right qa-arrow"></i></a>',
         '<a href="/dashboard/verification" class="qa-item"><span class="qa-item-icon" style="background:#f5f5f5;color:#333333;"><i class="fa-solid fa-shield-halved"></i></span>Verify Account<i class="fa-solid fa-chevron-right qa-arrow"></i></a>',
         '</div>',
@@ -393,11 +616,11 @@ function renderMyListings(container, user) {
     const allListings = db.listings.find(l => l.user_id === user.user_id && l.status !== 'deleted')
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    let activeFilter = 'all'; // 'all' | 'active' | 'paused'
+    let activeFilter = 'all'; // 'all' | 'active' | 'paused' | 'sold'
 
     function buildRows(listings) {
         if (listings.length === 0) {
-            return '<div class="empty-state"><i class="fa-solid fa-house-circle-xmark"></i><h3>No listings here</h3><p>Post a room or apartment to find your ideal roommate.</p><a href="/post-listing" class="btn btn-primary">Post a Listing</a></div>';
+            return '<div class="empty-state"><i class="fa-solid fa-house-circle-xmark"></i><h3>No listings here</h3><p>Post a room or list an item to start connecting.</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="/post-listing?kind=sale" class="btn btn-primary"><i class="fa-solid fa-store"></i> List an Item</a><a href="/post-listing?kind=rental" class="btn btn-outline"><i class="fa-solid fa-house"></i> Post a Room</a></div></div>';
         }
         const rows = listings.map(l => {
             const cityObj = db.cities.findById(l.city);
@@ -407,21 +630,22 @@ function renderMyListings(container, user) {
                 return t.listing_id === l.listing_id && parts.includes(user.user_id);
             }).length;
             const isActive = l.status === 'active' && l.is_active !== false;
-            const isPaused = l.status === 'paused' || l.is_active === false;
+            const isSold = isSoldListing(l);
+            const isPaused = !isSold && (l.status === 'paused' || l.is_active === false);
             const _imgs = l.images || l.photos || [];
             const parsedImgs = typeof _imgs === 'string' ? JSON.parse(_imgs || '[]') : _imgs;
             const rawPhoto = parsedImgs && parsedImgs[0];
             const rawThumbSrc = !rawPhoto ? '' : (typeof rawPhoto === 'string' ? rawPhoto : (rawPhoto.thumb || rawPhoto.medium || rawPhoto.full || ''));
             const thumbSrc = rawThumbSrc ? getAssetUrl(rawThumbSrc) : '';
             const thumb = thumbSrc ? 'background-image:url(\'' + thumbSrc + '\')' : '';
-            const rentPrice = l.rent ?? l.price ?? '?';
+            const kindLabel = isSaleListing(l) ? 'Item' : 'Room';
             return [
                 '<tr data-lid="' + l.listing_id + '">',
                 '<td><div class="td-listing">',
-                '<div class="td-thumb" style="' + thumb + '">' + (!parsedImgs || !parsedImgs[0] ? '<i class="fa-solid fa-house"></i>' : '') + '</div>',
+                '<div class="td-thumb" style="' + thumb + '">' + (!parsedImgs || !parsedImgs[0] ? '<i class="fa-solid fa-' + (isSaleListing(l) ? 'store' : 'house') + '"></i>' : '') + '</div>',
                 '<div class="td-info">',
-                '<h4><a href="/listing/' + l.listing_id + '" style="color:inherit;text-decoration:none;">' + escapeHtml(l.title) + '</a></h4>',
-                '<p>' + escapeHtml(location) + (rentPrice !== '?' ? ' &bull; $' + rentPrice + '/mo' : '') + '</p>',
+                '<h4><a href="/listing/' + l.listing_id + '" style="color:inherit;text-decoration:none;">' + escapeHtml(l.title) + '</a> <span class="badge badge-gray" style="font-size:0.66rem;padding:2px 8px;border-radius:20px;margin-left:6px;">' + kindLabel + '</span></h4>',
+                '<p>' + escapeHtml(location) + ' &bull; ' + formatListingPrice(l) + '</p>',
                 '</div></div></td>',
                 '<td>' + (() => {
                     const modStatus = l.moderation_status || 'approved';
@@ -429,6 +653,7 @@ function renderMyListings(container, user) {
                     if (modStatus === 'rejected') return '<div class="status-reject-wrap"><span class="badge badge-danger" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-circle-xmark"></i> Rejected</span><div class="reject-reason-tip">' + escapeHtml(l.rejection_reason || 'Guidelines violation') + '</div></div>';
                     if (modStatus === 'flagged') return '<span class="badge badge-warning" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-flag"></i> Flagged</span>';
                     
+                    if (isSold) return '<span class="badge badge-success" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;"><i class="fa-solid fa-check"></i> Sold</span>';
                     if (isActive) return '<span class="badge badge-success" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">Active</span>';
                     if (isPaused) return '<span class="badge badge-warning" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">Paused</span>';
                     return '<span class="badge badge-gray" style="font-size:0.72rem;padding:3px 10px;border-radius:20px;">' + (l.status || 'Inactive').charAt(0).toUpperCase() + (l.status || 'Inactive').slice(1) + '</span>';
@@ -437,7 +662,9 @@ function renderMyListings(container, user) {
                 '<td><div class="td-actions">',
                 '<button class="btn-icon-sm action-view" data-id="' + l.listing_id + '" title="View listing"><i class="fa-solid fa-eye"></i></button>',
                 '<button class="btn-icon-sm action-edit" data-id="' + l.listing_id + '" title="Edit listing"><i class="fa-solid fa-pen"></i></button>',
-                '<button class="btn-icon-sm ' + (isActive ? '' : 'success') + ' action-toggle" data-id="' + l.listing_id + '" title="' + (isActive ? 'Pause' : 'Activate') + '"><i class="fa-solid fa-' + (isActive ? 'pause' : 'play') + '"></i></button>',
+                !isSold ? '<button class="btn-icon-sm ' + (isActive ? '' : 'success') + ' action-toggle" data-id="' + l.listing_id + '" title="' + (isActive ? 'Pause' : 'Activate') + '"><i class="fa-solid fa-' + (isActive ? 'pause' : 'play') + '"></i></button>' : '',
+                isSaleListing(l) && isActive && !isSold ? '<button class="btn-icon-sm action-promote" data-id="' + l.listing_id + '" title="Promote item"><i class="fa-solid fa-rocket"></i></button>' : '',
+                isSaleListing(l) && isActive && !isSold ? '<button class="btn-icon-sm success action-sold" data-id="' + l.listing_id + '" title="Mark as sold"><i class="fa-solid fa-circle-check"></i></button>' : '',
                 '<button class="btn-icon-sm danger action-delete" data-id="' + l.listing_id + '" title="Delete"><i class="fa-solid fa-trash"></i></button>',
                 '</div></td>',
                 '</tr>'
@@ -448,13 +675,15 @@ function renderMyListings(container, user) {
 
     function getFiltered() {
         if (activeFilter === 'active') return allListings.filter(l => l.status === 'active' && l.is_active !== false);
-        if (activeFilter === 'paused') return allListings.filter(l => l.status === 'paused' || l.is_active === false);
+        if (activeFilter === 'paused') return allListings.filter(l => !isSoldListing(l) && (l.status === 'paused' || l.is_active === false));
+        if (activeFilter === 'sold') return allListings.filter(l => isSoldListing(l));
         return allListings;
     }
 
     function rerender() {
         const activeCount = allListings.filter(l => l.status === 'active' && l.is_active !== false).length;
-        const pausedCount = allListings.filter(l => l.status === 'paused' || l.is_active === false).length;
+        const pausedCount = allListings.filter(l => !isSoldListing(l) && (l.status === 'paused' || l.is_active === false)).length;
+        const soldCount = allListings.filter(l => isSoldListing(l)).length;
 
         const tabs = container.querySelectorAll('.db-tab');
         tabs.forEach(t => {
@@ -463,6 +692,7 @@ function renderMyListings(container, user) {
             if (filter === 'all') t.textContent = 'All (' + allListings.length + ')';
             if (filter === 'active') t.textContent = 'Active (' + activeCount + ')';
             if (filter === 'paused') t.textContent = 'Paused (' + pausedCount + ')';
+            if (filter === 'sold') t.textContent = 'Sold (' + soldCount + ')';
         });
 
         const tableWrap = container.querySelector('.listings-table-container');
@@ -478,6 +708,7 @@ function renderMyListings(container, user) {
             btn.addEventListener('click', async () => {
                 const l = db.listings.findById(btn.dataset.id);
                 if (!l) return;
+                if (isSoldListing(l)) return;
                 const newStatus = l.status === 'active' ? 'paused' : 'active';
                 const updates = { status: newStatus, is_active: newStatus === 'active' };
                 await db.listings.update(btn.dataset.id, updates);
@@ -489,10 +720,15 @@ function renderMyListings(container, user) {
             });
         });
         container.querySelectorAll('.action-delete').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const l = db.listings.findById(btn.dataset.id);
                 if (!l) return;
-                if (!confirm('Delete "' + l.title + '"? This cannot be undone.')) return;
+                const ok = await showDashboardConfirm({
+                    title: 'Delete listing',
+                    message: 'Delete "' + (l.title || 'this listing') + '"? This cannot be undone.',
+                    confirmLabel: 'Delete',
+                });
+                if (!ok) return;
                 const updates = { status: 'deleted', is_active: false, deleted_at: new Date().toISOString() };
                 db.listings.update(btn.dataset.id, updates);
                 const idx = allListings.findIndex(x => x.listing_id === btn.dataset.id);
@@ -507,13 +743,46 @@ function renderMyListings(container, user) {
                 navigate('/post-listing/' + btn.dataset.id);
             });
         });
+        container.querySelectorAll('.action-promote').forEach(btn => {
+            btn.addEventListener('click', () => {
+                navigate('/post-listing/' + btn.dataset.id + '?promote=1');
+            });
+        });
+        container.querySelectorAll('.action-sold').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const l = db.listings.findById(btn.dataset.id);
+                if (!l) return;
+                const ok = await showDashboardConfirm({
+                    title: 'Mark as sold',
+                    message: 'Mark "' + (l.title || 'this listing') + '" as sold?',
+                    confirmLabel: 'Mark Sold',
+                    danger: false,
+                });
+                if (!ok) return;
+                try {
+                    const result = await api.markSold(btn.dataset.id, true);
+                    const updates = { status: 'sold', sold_at: result?.sold_at || new Date().toISOString(), is_active: false };
+                    await db.listings.update(btn.dataset.id, updates);
+                    const idx = allListings.findIndex(x => x.listing_id === btn.dataset.id);
+                    if (idx > -1) allListings[idx] = { ...allListings[idx], ...updates };
+                    showToast('Listing marked as sold.');
+                    activeFilter = 'sold';
+                    rerender();
+                } catch (err) {
+                    showToast(err.message || 'Could not mark listing sold.', 'error');
+                }
+            });
+        });
     }
 
     // ── Edit Modal Logic ──
     function openEditModal(l) {
         const overlay = container.querySelector('#edit-listing-overlay');
+        const isSale = isSaleListing(l);
         container.querySelector('#el-title').value = l.title || '';
-        container.querySelector('#el-price').value = l.rent ?? l.price ?? '';
+        container.querySelector('#el-price').value = isSale ? (l.price ?? l.rent ?? '') : (l.rent ?? l.price ?? '');
+        const priceLabel = container.querySelector('#el-price-label');
+        if (priceLabel) priceLabel.textContent = isSale ? 'Price ($) *' : 'Price ($/mo) *';
         container.querySelector('#el-deposit').value = l.deposit || '';
         container.querySelector('#el-room-type').value = l.room_type || 'private_room';
         container.querySelector('#el-available').value = l.available_from || l.move_in_date || '';
@@ -532,7 +801,8 @@ function renderMyListings(container, user) {
     }
 
     const activeCount = allListings.filter(l => l.status === 'active' && l.is_active !== false).length;
-    const pausedCount = allListings.filter(l => l.status === 'paused' || l.is_active === false).length;
+    const pausedCount = allListings.filter(l => !isSoldListing(l) && (l.status === 'paused' || l.is_active === false)).length;
+    const soldCount = allListings.filter(l => isSoldListing(l)).length;
 
     container.innerHTML = [
         '<div class="dashboard-header-bar"><h2>My Listings</h2><a href="/post-listing" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Post New</a></div>',
@@ -540,6 +810,7 @@ function renderMyListings(container, user) {
         '<button class="db-tab active" data-filter="all">All (' + allListings.length + ')</button>',
         '<button class="db-tab" data-filter="active">Active (' + activeCount + ')</button>',
         '<button class="db-tab" data-filter="paused">Paused (' + pausedCount + ')</button>',
+        '<button class="db-tab" data-filter="sold">Sold (' + soldCount + ')</button>',
         '</div>',
         '<div class="listings-table-container">' + buildRows(allListings) + '</div>',
 
@@ -554,7 +825,7 @@ function renderMyListings(container, user) {
         '<div><label style="display:block;font-weight:600;font-size:0.85rem;color:#475569;margin-bottom:6px;">Title *</label>',
         '<input id="el-title" class="adm-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. Cozy private room in downtown"></div>',
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">',
-        '<div><label style="display:block;font-weight:600;font-size:0.85rem;color:#475569;margin-bottom:6px;">Price ($/mo) *</label>',
+        '<div><label id="el-price-label" style="display:block;font-weight:600;font-size:0.85rem;color:#475569;margin-bottom:6px;">Price ($/mo) *</label>',
         '<input id="el-price" type="number" class="adm-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. 1200"></div>',
         '<div><label style="display:block;font-weight:600;font-size:0.85rem;color:#475569;margin-bottom:6px;">Deposit ($)</label>',
         '<input id="el-deposit" type="number" class="adm-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. 500"></div>',
@@ -610,11 +881,17 @@ function renderMyListings(container, user) {
     container.querySelector('#edit-modal-save').addEventListener('click', () => {
         const overlay = container.querySelector('#edit-listing-overlay');
         const id = overlay.dataset.editId;
+        const existingListing = db.listings.findById(id);
+        const isSale = isSaleListing(existingListing);
         const title = container.querySelector('#el-title').value.trim();
-        const price = parseInt(container.querySelector('#el-price').value) || 0;
+        const price = Number(container.querySelector('#el-price').value) || 0;
         if (!title) { showToast('Title is required.', 'error'); return; }
         if (!price) { showToast('Price is required.', 'error'); return; }
-        const updates = {
+        const updates = isSale ? {
+            title,
+            price,
+            description: container.querySelector('#el-description').value.trim(),
+        } : {
             title,
             rent: price,
             deposit: parseInt(container.querySelector('#el-deposit').value) || 0,
@@ -645,6 +922,80 @@ function renderMessages(container, user, app) {
     let searchQuery = '';
 
     // ── Helpers ──
+    function parseStructuredMessage(content) {
+        if (!content || typeof content !== 'string') return null;
+        const trimmed = content.trim();
+        if (!trimmed.startsWith('{')) return null;
+        try {
+            const parsed = JSON.parse(trimmed);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function renderOfferChip(payload, listing, messageId) {
+        const status = String(payload.status || 'pending').toLowerCase();
+        const amount = Number(payload.amount || 0);
+        const isSeller = listing?.user_id === user.user_id;
+        const canRespond = isSeller && status === 'pending';
+        const statusColor = status === 'accepted'
+            ? 'background:#dcfce7;color:#047857;'
+            : status === 'declined'
+                ? 'background:#fee2e2;color:#b91c1c;'
+                : 'background:#fff7ed;color:#9a3412;';
+
+        return [
+            '<div class="msg-offer-chip" data-mid="' + escapeHtml(messageId || '') + '" data-offer-id="' + escapeHtml(payload.offer_id || '') + '" style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px;box-shadow:0 4px 12px rgba(15,23,42,.06);min-width:240px;max-width:320px;">',
+            '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:8px;">',
+            '<strong style="color:#0f172a;font-size:.95rem;"><i class="fa-solid fa-hand-holding-dollar"></i> Offer</strong>',
+            '<span style="' + statusColor + 'border-radius:999px;padding:4px 9px;font-size:.72rem;font-weight:900;text-transform:capitalize;">' + escapeHtml(status) + '</span>',
+            '</div>',
+            '<div style="font-size:1.35rem;font-weight:900;color:#0f172a;margin-bottom:4px;">$' + amount.toLocaleString() + '</div>',
+            '<div style="font-size:.82rem;color:#64748b;line-height:1.4;">' + escapeHtml(payload.listing_title || listing?.title || 'Marketplace listing') + '</div>',
+            canRespond ? '<div style="display:flex;gap:8px;margin-top:12px;"><button class="msg-offer-action" data-status="accepted" style="flex:1;border:none;background:#0f172a;color:#fff;border-radius:10px;padding:8px 10px;font-weight:900;cursor:pointer;">Accept</button><button class="msg-offer-action" data-status="declined" style="flex:1;border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:10px;padding:8px 10px;font-weight:900;cursor:pointer;">Decline</button></div>' : '',
+            '</div>'
+        ].join('');
+    }
+
+    function renderSystemChip(payload) {
+        if (payload.event !== 'offer_status') return '';
+        const status = String(payload.status || '').toLowerCase();
+        return '<div class="msg-bubble" style="background:#f1f5f9;color:#475569;">Offer ' + escapeHtml(status) + '</div>';
+    }
+
+    function maybeShowMarketplaceChatSafety(listing) {
+        if (!listing || (listing.kind || 'rental') === 'rental') return;
+        const key = 'rg_marketplace_chat_safety_seen_' + user.user_id;
+        if (localStorage.getItem(key) === '1' || document.getElementById('mp-chat-safety-modal')) return;
+        localStorage.setItem(key, '1');
+
+        const overlay = document.createElement('div');
+        overlay.id = 'mp-chat-safety-modal';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.58);display:flex;align-items:center;justify-content:center;padding:24px;';
+        overlay.innerHTML = [
+            '<div role="dialog" aria-modal="true" aria-label="Marketplace safety tips" style="width:min(460px,100%);background:#fff;border-radius:18px;padding:24px;box-shadow:0 24px 80px rgba(15,23,42,.28);">',
+            '<div style="width:48px;height:48px;border-radius:14px;background:#111827;color:#fff;display:flex;align-items:center;justify-content:center;margin-bottom:14px;"><i class="fa-solid fa-shield-halved"></i></div>',
+            '<h3 style="margin:0 0 8px;color:#0f172a;font-size:1.3rem;font-weight:900;">Safety tips before you chat</h3>',
+            '<p style="margin:0 0 16px;color:#64748b;line-height:1.6;">Keep your contact details private and use RoommateGroups chat for all marketplace coordination.</p>',
+            '<ul style="margin:0 0 20px;padding:0;list-style:none;display:grid;gap:10px;color:#334155;font-weight:700;">',
+            '<li><i class="fa-solid fa-check-circle" style="color:#16a34a;margin-right:8px;"></i> Do not share phone numbers or personal payment details.</li>',
+            '<li><i class="fa-solid fa-check-circle" style="color:#16a34a;margin-right:8px;"></i> Meet in a public, well-lit location.</li>',
+            '<li><i class="fa-solid fa-check-circle" style="color:#16a34a;margin-right:8px;"></i> Inspect the item before paying.</li>',
+            '</ul>',
+            '<div style="display:flex;gap:10px;flex-wrap:wrap;">',
+            '<button id="mp-chat-safety-ok" class="btn btn-primary" style="flex:1;">I understand</button>',
+            '<button id="mp-chat-safety-guide" class="btn btn-outline" style="flex:1;">Safe meetup guide</button>',
+            '</div>',
+            '</div>'
+        ].join('');
+        document.body.appendChild(overlay);
+        overlay.querySelector('#mp-chat-safety-ok')?.addEventListener('click', () => overlay.remove());
+        overlay.querySelector('#mp-chat-safety-guide')?.addEventListener('click', () => {
+            overlay.remove();
+            navigate('/safety#safe-meetup');
+        });
+    }
 
     function getFilteredThreads() {
         const all = db.threads.find(t => {
@@ -732,10 +1083,7 @@ function renderMessages(container, user, app) {
         const ouId = thread.participants.find(id => id !== user.user_id);
         const ou = db.users.findById(ouId) || { display_name: 'User', profile_photo: '', verification_level: 'basic' };
         const li = db.listings.findById(thread.listing_id);
-        const listingPrice = li ? (li.rent ?? li.price) : null;
-        const listingPriceLabel = listingPrice !== undefined && listingPrice !== null && listingPrice !== ''
-            ? '$' + Number(listingPrice).toLocaleString() + '/mo'
-            : 'Price TBC';
+        const listingPriceLabel = li ? formatListingPrice(li) : 'Price TBC';
         const src = getAvatarUrl(ou.profile_photo, ou.display_name);
 
         // Mark unread messages as read
@@ -754,7 +1102,12 @@ function renderMessages(container, user, app) {
             const receipt = isMe ? '<span class="msg-receipt ' + (m.is_read ? 'read' : '') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
             const messagePhoto = m.photo_url ? getAssetUrl(m.photo_url) : '';
             const photo = messagePhoto ? '<div class="msg-photo-wrap"><img src="' + messagePhoto + '" class="msg-photo-thumb" alt="Message Attachment" loading="lazy" onclick="var lb=document.getElementById(\'msg-lb\');lb.style.display=\'flex\';document.getElementById(\'msg-lb-img\').src=\'' + messagePhoto + '\'"></div>' : '';
-            const text = m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '';
+            const payload = parseStructuredMessage(m.content);
+            const text = payload?.kind === 'offer'
+                ? renderOfferChip(payload, li, m.message_id)
+                : payload?.kind === 'system'
+                    ? renderSystemChip(payload)
+                    : (m.content ? '<div class="msg-bubble">' + escapeHtml(m.content) + '</div>' : '');
             return [
                 '<div class="msg-bubble-row ' + (isMe ? 'msg-out' : 'msg-in') + '" data-mid="' + m.message_id + '">',
                 !isMe ? '<a href="/profile/' + ouId + '" class="msg-bubble-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-bubble-avatar" alt="Sender Avatar" loading="lazy"></a>' : '',
@@ -832,6 +1185,7 @@ function renderMessages(container, user, app) {
 
         scrollToBottom();
         bindConvEvents(thread, ou, ouId);
+        maybeShowMarketplaceChatSafety(li);
     }
 
     function scrollToBottom() {
@@ -885,8 +1239,13 @@ function renderMessages(container, user, app) {
             refreshThreadList();
         });
 
-        panel.querySelector('#msg-delete-convo-btn')?.addEventListener('click', () => {
-            if (!confirm('Delete this entire conversation? This cannot be undone.')) { dropdown.style.display = 'none'; return; }
+        panel.querySelector('#msg-delete-convo-btn')?.addEventListener('click', async () => {
+            const ok = await showDashboardConfirm({
+                title: 'Delete conversation',
+                message: 'Delete this entire conversation? This cannot be undone.',
+                confirmLabel: 'Delete',
+            });
+            if (!ok) { dropdown.style.display = 'none'; return; }
             db.messages.find(x => x.thread_id === activeThreadId).forEach(m => db.messages.delete(m.message_id));
             db.threads.delete(activeThreadId);
             activeThreadId = null;
@@ -917,6 +1276,33 @@ function renderMessages(container, user, app) {
                 showToast('Report submitted. Thank you.');
             }
             dropdown.style.display = 'none';
+        });
+
+        panel.querySelectorAll('.msg-offer-action').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const chip = btn.closest('.msg-offer-chip');
+                const offerId = chip?.dataset.offerId;
+                const messageId = chip?.dataset.mid;
+                const status = btn.dataset.status;
+                if (!offerId || !status) return;
+
+                btn.disabled = true;
+                try {
+                    await api.respondOffer(offerId, status);
+                    const msg = messageId ? db.messages.findById(messageId) : null;
+                    const payload = parseStructuredMessage(msg?.content);
+                    if (msg && payload?.kind === 'offer') {
+                        payload.status = status;
+                        await db.messages.update(messageId, { content: JSON.stringify(payload) }).catch(() => {});
+                    }
+                    showToast('Offer ' + status + '.');
+                    renderConversation();
+                    refreshThreadList();
+                } catch (err) {
+                    showToast(err.message || 'Could not update offer.', 'error');
+                    btn.disabled = false;
+                }
+            });
         });
 
         // Quick replies
@@ -1112,8 +1498,10 @@ function renderMessages(container, user, app) {
 
 // ── Saved ─────────────────────────────────────────────────────
 
-function renderSaved(container, user) {
-    const savedIds = user.saved_listings || [];
+async function renderSaved(container, user) {
+    container.innerHTML = '<div class="dashboard-header-bar"><h2>Saved Listings</h2></div><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><h3>Loading saved listings...</h3></div>';
+    const freshUser = await refreshDashboardUser(user);
+    const savedIds = parseArray(freshUser.saved_listings);
     const savedListings = savedIds.map(id => db.listings.findById(id)).filter(Boolean);
 
     const FALLBACK = 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop';
@@ -1131,7 +1519,7 @@ function renderSaved(container, user) {
             '<button class="save-btn active" data-id="' + l.listing_id + '" title="Remove from saved"><i class="fa-solid fa-heart"></i></button>',
             '</div>',
             '<div class="saved-card-body">',
-            '<div class="saved-card-price">$' + (l.rent ?? l.price ?? '?') + '<span style="font-size:0.78rem;font-weight:500;color:var(--text-muted);">/mo</span></div>',
+            '<div class="saved-card-price">' + formatListingPrice(l) + '</div>',
             '<div class="saved-card-title">' + escapeHtml(l.title) + '</div>',
             '<div class="saved-card-location"><i class="fa-solid fa-location-dot"></i> ' + escapeHtml(city ? city.name : 'Unknown location') + '</div>',
             '<div class="saved-card-actions">',
@@ -1150,27 +1538,31 @@ function renderSaved(container, user) {
             : '<div class="saved-grid">' + cards + '</div>'
     ].join('');
 
-    container.addEventListener('click', async e => {
+    container.querySelectorAll('.save-btn').forEach(btn => btn.addEventListener('click', async e => {
         const saveBtn = e.target.closest('.save-btn');
         if (!saveBtn || !saveBtn.dataset.id) return;
         e.preventDefault();
         e.stopPropagation();
         const listingId = saveBtn.dataset.id;
-        const saved = user.saved_listings || [];
+        const saved = parseArray((await refreshDashboardUser(freshUser)).saved_listings);
         const idx = saved.indexOf(listingId);
         if (idx > -1) {
             saved.splice(idx, 1);
-            await db.users.update(user.user_id, { saved_listings: saved });
+            await db.users.update(freshUser.user_id, { saved_listings: saved });
+            await api.updateUser(freshUser.user_id, { saved_listings: saved }, true).catch(() => {});
             showToast('Removed from saved listings.');
-            renderSaved(container, user);
+            const updatedUser = await refreshDashboardUser(freshUser);
+            renderSaved(container, updatedUser);
         }
-    });
+    }));
 }
 
 // ── Saved Searches ───────────────────────────────────────────
 
-function renderSavedSearches(container, user) {
-    const searches = (user.saved_searches || []).slice();
+async function renderSavedSearches(container, user) {
+    container.innerHTML = '<div class="dashboard-header-bar"><h2>Saved Searches</h2></div><div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><h3>Loading saved searches...</h3></div>';
+    const freshUser = await refreshDashboardUser(user);
+    const searches = parseArray(freshUser.saved_searches).slice();
 
     function getCityName(cityId) {
         if (!cityId) return 'Any Location';
@@ -1233,35 +1625,200 @@ function renderSavedSearches(container, user) {
         const idx = parseInt(tog.dataset.idx);
         if (isNaN(idx)) return;
         searches[idx] = { ...searches[idx], notify: tog.checked };
-        db.users.update(user.user_id, { saved_searches: searches });
+        db.users.update(freshUser.user_id, { saved_searches: searches });
+        api.updateUser(freshUser.user_id, { saved_searches: searches }, true).catch(() => {});
         showToast(tog.checked ? 'Email alerts enabled.' : 'Email alerts disabled.');
     });
 
     // Delete
-    container.addEventListener('click', e => {
+    container.addEventListener('click', async e => {
         const del = e.target.closest('.ss-delete');
         if (!del) return;
         const idx = parseInt(del.dataset.idx);
         if (isNaN(idx)) return;
-        if (!confirm('Delete this saved search?')) return;
+        const ok = await showDashboardConfirm({
+            title: 'Delete saved search',
+            message: 'Delete this saved search?',
+            confirmLabel: 'Delete',
+        });
+        if (!ok) return;
         searches.splice(idx, 1);
-        db.users.update(user.user_id, { saved_searches: searches });
+        db.users.update(freshUser.user_id, { saved_searches: searches });
+        api.updateUser(freshUser.user_id, { saved_searches: searches }, true).catch(() => {});
         showToast('Search deleted.');
         container.querySelector('#ss-list').innerHTML = renderCards();
     });
+}
+
+function renderArchivedChats(container, user, app) {
+    renderMessages(container, user, app);
+}
+
+async function renderProfileDashboard(container, user) {
+    const freshUser = await refreshDashboardUser(user);
+    let seller = null;
+    try { seller = await api.getSeller(freshUser.user_id, true); } catch (_) {}
+    const rating = Number(seller?.seller_rating_avg || freshUser.seller_rating_avg || freshUser.rating_avg || 0);
+    const ratingCount = Number(seller?.seller_rating_count || freshUser.seller_rating_count || freshUser.rating_count || 0);
+    const responseTime = seller?.response_time || freshUser.response_time || freshUser.avg_response_time || 'Usually replies within a day';
+    const avatar = getAvatarUrl(freshUser.profile_photo, freshUser.display_name);
+    const memberSince = freshUser.created_at ? new Date(freshUser.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' }) : 'Recently';
+    const bio = freshUser.bio || freshUser.about || 'No bio added yet.';
+
+    container.innerHTML = [
+        '<div class="dashboard-header-bar"><h2>Profile</h2><a href="/profile-setup" class="btn btn-primary"><i class="fa-solid fa-user-pen"></i> Edit Profile</a></div>',
+        '<div class="db-panel" style="padding:28px;">',
+        '<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">',
+        '<img src="' + avatar + '" alt="Profile photo" style="width:112px;height:112px;border-radius:24px;object-fit:cover;border:1px solid var(--border);">',
+        '<div style="flex:1;min-width:240px;">',
+        '<h3 style="font-size:1.7rem;font-weight:900;margin:0 0 6px;color:var(--text-primary);">' + escapeHtml(freshUser.display_name || 'RoommateGroups member') + ' ' + getVerificationBadge(freshUser.verification_level || freshUser) + '</h3>',
+        '<p style="color:var(--text-muted);line-height:1.65;margin:0 0 16px;">' + escapeHtml(bio) + '</p>',
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">',
+        '<span class="badge badge-gray" style="padding:6px 12px;border-radius:999px;"><i class="fa-solid fa-calendar"></i> Member since ' + escapeHtml(memberSince) + '</span>',
+        '<span class="badge badge-gray" style="padding:6px 12px;border-radius:999px;"><i class="fa-solid fa-clock"></i> ' + escapeHtml(responseTime) + '</span>',
+        '</div>',
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;max-width:520px;">',
+        '<div class="stat-card" style="padding:16px;"><div style="color:#f59e0b;margin-bottom:6px;">' + renderStars(rating) + '</div><strong style="font-size:1.35rem;">' + (rating ? rating.toFixed(1) : '—') + '</strong><div style="color:var(--text-muted);font-size:.82rem;">Seller rating</div></div>',
+        '<div class="stat-card" style="padding:16px;"><strong style="font-size:1.35rem;">' + ratingCount + '</strong><div style="color:var(--text-muted);font-size:.82rem;">Review' + (ratingCount === 1 ? '' : 's') + '</div></div>',
+        '</div>',
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:22px;">',
+        '<a href="/seller/' + freshUser.user_id + '" class="btn btn-outline"><i class="fa-solid fa-store"></i> View public storefront</a>',
+        '<a href="/dashboard/settings#profile" class="btn btn-outline"><i class="fa-solid fa-gear"></i> Account settings</a>',
+        '</div>',
+        '</div></div></div>'
+    ].join('');
+}
+
+function offerPhoto(offer) {
+    return getListingThumb(offer, 'https://images.unsplash.com/photo-1517705008128-361805f42e86?w=600&h=450&fit=crop');
+}
+
+function offerStatusBadge(status) {
+    const s = String(status || 'pending').toLowerCase();
+    const cls = s === 'accepted' ? 'badge-success' : s === 'declined' ? 'badge-danger' : 'badge-warning';
+    return '<span class="badge ' + cls + '" style="font-size:.72rem;padding:4px 10px;border-radius:999px;text-transform:capitalize;">' + escapeHtml(s) + '</span>';
+}
+
+async function renderOffersDashboard(container, user, app) {
+    let activeTab = 'received';
+    let offers = await loadDashboardOffers();
+
+    function row(offer, mode) {
+        const otherName = mode === 'received' ? offer.buyer_name : offer.seller_name;
+        return [
+            '<div class="ss-card offer-row" data-offer-id="' + escapeHtml(offer.offer_id) + '">',
+            '<div class="td-listing" style="flex:1;">',
+            '<div class="td-thumb" style="background-image:url(\'' + offerPhoto(offer) + '\')"></div>',
+            '<div class="td-info">',
+            '<h4>' + escapeHtml(offer.listing_title || 'Listing') + '</h4>',
+            '<p>' + (mode === 'received' ? 'Buyer: ' : 'Seller: ') + escapeHtml(otherName || 'Member') + ' &bull; ' + formatRelativeTime(offer.created_at) + '</p>',
+            '</div></div>',
+            '<div style="font-size:1.05rem;font-weight:900;color:var(--text-primary);min-width:92px;">$' + Number(offer.amount || 0).toLocaleString() + '</div>',
+            '<div style="min-width:105px;">' + offerStatusBadge(offer.status) + '</div>',
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">',
+            mode === 'received' && String(offer.status || 'pending').toLowerCase() === 'pending'
+                ? '<button class="btn btn-primary btn-sm offer-action" data-status="accepted">Accept</button><button class="btn btn-outline btn-sm offer-action" data-status="declined">Decline</button>'
+                : '',
+            offer.thread_id ? '<button class="btn btn-outline btn-sm offer-chat" data-thread="' + escapeHtml(offer.thread_id) + '"><i class="fa-solid fa-message"></i></button>' : '',
+            '</div>',
+            '</div>'
+        ].join('');
+    }
+
+    function draw() {
+        const rows = offers[activeTab] || [];
+        container.innerHTML = [
+            '<div class="dashboard-header-bar"><h2>Offers</h2><a href="/marketplace" class="btn btn-outline"><i class="fa-solid fa-store"></i> Browse Marketplace</a></div>',
+            '<div class="dashboard-tabs">',
+            '<button class="db-tab ' + (activeTab === 'received' ? 'active' : '') + '" data-tab="received">Received (' + offers.received.length + ')</button>',
+            '<button class="db-tab ' + (activeTab === 'sent' ? 'active' : '') + '" data-tab="sent">Sent (' + offers.sent.length + ')</button>',
+            '</div>',
+            rows.length
+                ? '<div style="display:grid;gap:12px;">' + rows.map(o => row(o, activeTab)).join('') + '</div>'
+                : '<div class="empty-state"><i class="fa-solid fa-tag"></i><h3>No ' + activeTab + ' offers yet</h3><p>' + (activeTab === 'received' ? 'Offers on your marketplace items will appear here.' : 'Offers you make on marketplace items will appear here.') + '</p></div>'
+        ].join('');
+        bind();
+    }
+
+    function bind() {
+        container.querySelectorAll('.db-tab').forEach(btn => btn.addEventListener('click', () => {
+            activeTab = btn.dataset.tab;
+            draw();
+        }));
+        container.querySelectorAll('.offer-action').forEach(btn => btn.addEventListener('click', async () => {
+            const id = btn.closest('.offer-row')?.dataset.offerId;
+            if (!id) return;
+            btn.disabled = true;
+            try {
+                await api.respondOffer(id, btn.dataset.status);
+                offers = await loadDashboardOffers();
+                hydratePendingOffersBadge(app);
+                showToast('Offer ' + btn.dataset.status + '.');
+                draw();
+            } catch (err) {
+                showToast(err.message || 'Could not update offer.', 'error');
+                btn.disabled = false;
+            }
+        }));
+        container.querySelectorAll('.offer-chat').forEach(btn => btn.addEventListener('click', () => {
+            navigate('/dashboard/messages?threadId=' + encodeURIComponent(btn.dataset.thread));
+        }));
+    }
+
+    draw();
+}
+
+async function renderReviewsDashboard(container, user) {
+    let reviews = [];
+    try { reviews = await api.getReviews(user.user_id, true) || []; } catch (_) {}
+    const rating = reviews.length ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length : Number(user.seller_rating_avg || 0);
+    const count = reviews.length || Number(user.seller_rating_count || 0);
+    container.innerHTML = [
+        '<div class="dashboard-header-bar"><h2>Reviews</h2><a href="/seller/' + user.user_id + '" class="btn btn-outline"><i class="fa-solid fa-store"></i> Storefront</a></div>',
+        '<div class="db-panel" style="margin-bottom:18px;">',
+        '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">',
+        '<div style="font-size:2rem;font-weight:900;color:var(--text-primary);">' + (rating ? rating.toFixed(1) : '—') + '</div>',
+        '<div><div style="color:#f59e0b;">' + renderStars(rating) + '</div><div style="color:var(--text-muted);font-size:.86rem;">' + count + ' review' + (count === 1 ? '' : 's') + ' received</div></div>',
+        '</div></div>',
+        reviews.length
+            ? '<div style="display:grid;gap:12px;">' + reviews.map(r => [
+                '<div class="ss-card">',
+                '<div style="flex:1;">',
+                '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;"><strong>' + escapeHtml(r.reviewer_name || 'Member') + '</strong><span style="color:#f59e0b;">' + renderStars(r.rating) + '</span></div>',
+                '<p style="color:var(--text-secondary);line-height:1.55;margin:8px 0;">' + escapeHtml(r.comment || 'No comment provided.') + '</p>',
+                '<div style="color:var(--text-muted);font-size:.78rem;">' + (r.created_at ? new Date(r.created_at).toLocaleDateString() : '') + '</div>',
+                '</div></div>'
+            ].join('')).join('') + '</div>'
+            : '<div class="empty-state"><i class="fa-regular fa-star"></i><h3>No reviews yet</h3><p>Reviews from completed marketplace transactions will appear here.</p></div>'
+    ].join('');
 }
 
 // ── Settings ──────────────────────────────────────────────────
 
 function renderSettings(container, user) {
     const avatarSrc = getAvatarUrl(user.profile_photo, user.display_name);
-    const notifPrefs = user.notification_prefs || { messages: true, matches: true, price_drops: true, digest: false };
+    const notifPrefs = {
+        messages: true,
+        matches: true,
+        price_drops: true,
+        digest: false,
+        offers: true,
+        offer_updates: true,
+        reviews: true,
+        saved_search: true,
+        ...(user.notification_prefs || {}),
+    };
     const privacyVal = user.profile_visibility || 'everyone';
+    let stagedProfilePhotoUrl = '';
 
     container.innerHTML = [
         '<div class="dashboard-header-bar">',
         '<h2>Settings</h2>',
         '<button class="btn btn-primary" id="btn-save-settings"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>',
+        '</div>',
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px;">',
+        '<a href="/dashboard/verification" class="btn btn-outline btn-sm" style="text-decoration:none;"><i class="fa-solid fa-shield-halved"></i> Verification</a>',
+        '<a href="/dashboard/subscription" class="btn btn-outline btn-sm" style="text-decoration:none;"><i class="fa-solid fa-crown"></i> Subscription</a>',
         '</div>',
         '<div class="settings-grid">',
 
@@ -1303,6 +1860,7 @@ function renderSettings(container, user) {
               <div class="settings-avatar-row">
                 <div style="position:relative;flex-shrink:0;">
                   <img id="settings-avatar-img" src="${avatarSrc}" alt="Settings User Avatar" class="settings-avatar" loading="lazy">
+                  <span id="settings-avatar-spinner" style="display:none;position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,0.72);align-items:center;justify-content:center;color:var(--text-primary);"><i class="fa-solid fa-spinner fa-spin"></i></span>
                 </div>
                 <div style="flex:1;">
                   <div class="settings-avatar-name">${escapeHtml(user.display_name)}</div>
@@ -1371,7 +1929,11 @@ function renderSettings(container, user) {
               </div>
 
               <div class="form-group">
-                <label>Lifestyle &amp; Preferences</label>
+                <div style="margin:6px 0 14px;padding-top:6px;border-top:1px solid var(--border);">
+                  <h4 style="margin:0 0 4px;font-size:0.95rem;color:var(--text-primary);">Roommate Preferences</h4>
+                  <p style="margin:0;color:var(--text-secondary);font-size:0.82rem;">These help match you with compatible roommates and rooms.</p>
+                </div>
+                <label>Lifestyle Tags</label>
                 <p style="font-size:0.8rem;color:var(--text-secondary);margin:2px 0 10px;">Select all that apply</p>
                 <div class="lifestyle-tags" id="settings-lifestyle-tags">${tagPills}</div>
               </div>
@@ -1404,6 +1966,73 @@ function renderSettings(container, user) {
             </div>`;
         })(),
 
+        // ── Seller & Marketplace panel ──
+        (() => {
+            const countryOpts = db.countries.findAll()
+                .filter(c => c.is_active)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(c => `<option value="${c.country_id}"${user.seller_default_country === c.country_id ? ' selected' : ''}>${c.flag_emoji ? c.flag_emoji + ' ' : ''}${c.name}</option>`)
+                .join('');
+            return `
+            <div class="db-panel" style="grid-column:1 / -1;">
+              <h3 class="panel-title"><i class="fa-solid fa-store"></i> Seller &amp; Marketplace</h3>
+              <p style="color:var(--text-secondary);font-size:0.875rem;margin:0 0 20px;">Defaults and public seller details for items you list on RoommateGroups.</p>
+
+              <div class="form-row-2col">
+                <div class="form-group">
+                  <label>Default Item Country</label>
+                  <div class="input-wrapper">
+                    <i class="fas fa-globe"></i>
+                    <select class="form-control" id="seller-country">
+                      <option value="">Select country</option>
+                      ${countryOpts}
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Default Item City</label>
+                  <div class="input-wrapper">
+                    <i class="fas fa-location-dot"></i>
+                    <select class="form-control" id="seller-city" ${user.seller_default_country ? '' : 'disabled'}>
+                      <option value="">Select a country first</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Payment Preferences Note</label>
+                <input type="text" class="form-control" id="seller-payment-note" value="${escapeHtml(user.seller_payment_note || '')}" placeholder="Cash / UPI / Bank transfer">
+                <div class="form-control-hint">Shown to buyers as guidance. Payments and contact still route through in-app chat.</div>
+              </div>
+
+              <div class="toggle-row">
+                <div><div class="toggle-row-label">Show my phone number on listings</div><div class="toggle-row-sub">Default is off. In-app chat remains the recommended contact path.</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="seller-show-phone"${user.show_phone ? ' checked' : ''}><span class="slider"></span></label>
+              </div>
+              <div class="form-group" id="seller-phone-wrap" style="display:${user.show_phone ? '' : 'none'};margin-top:12px;">
+                <label>Phone Number</label>
+                <input type="tel" class="form-control" id="seller-phone" value="${escapeHtml(user.phone || '')}" placeholder="Contact number">
+              </div>
+
+              <div class="toggle-row" style="margin-top:12px;">
+                <div><div class="toggle-row-label">Dealer / Business Account</div><div class="toggle-row-sub">Use this if you sell as a shop, dealer, or business.</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="seller-is-dealer"${user.is_dealer ? ' checked' : ''}><span class="slider"></span></label>
+              </div>
+              <div id="seller-business-wrap" style="display:${user.is_dealer ? '' : 'none'};margin-top:12px;">
+                <div class="form-group">
+                  <label>Business Name</label>
+                  <input type="text" class="form-control" id="seller-business-name" value="${escapeHtml(user.business_name || '')}" placeholder="Business or storefront name">
+                </div>
+                <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">Dealer features and a verified storefront may require the <a href="/dashboard/subscription">Pro plan</a>.</p>
+              </div>
+
+              <div style="margin-top:18px;">
+                <a class="btn btn-outline btn-sm" href="/seller/${encodeURIComponent(user.user_id)}" style="text-decoration:none;"><i class="fa-solid fa-arrow-up-right-from-square"></i> View my public storefront</a>
+              </div>
+            </div>`;
+        })(),
+
         // ── Notifications panel ──
         '<div class="db-panel">',
         '<h3 class="panel-title"><i class="fa-solid fa-bell"></i> Notifications</h3>',
@@ -1411,6 +2040,10 @@ function renderSettings(container, user) {
         '<div class="toggle-row"><div><div class="toggle-row-label">Listing Matches</div><div class="toggle-row-sub">New matches for saved searches</div></div><label class="toggle-switch"><input type="checkbox" id="notif-matches"' + (notifPrefs.matches !== false ? ' checked' : '') + '><span class="slider"></span></label></div>',
         '<div class="toggle-row"><div><div class="toggle-row-label">Price Drops</div><div class="toggle-row-sub">On your saved listings</div></div><label class="toggle-switch"><input type="checkbox" id="notif-price"' + (notifPrefs.price_drops !== false ? ' checked' : '') + '><span class="slider"></span></label></div>',
         '<div class="toggle-row"><div><div class="toggle-row-label">Weekly Digest</div><div class="toggle-row-sub">Summary of activity &amp; new listings</div></div><label class="toggle-switch"><input type="checkbox" id="notif-digest"' + (notifPrefs.digest ? ' checked' : '') + '><span class="slider"></span></label></div>',
+        '<div class="toggle-row"><div><div class="toggle-row-label">New Offers</div><div class="toggle-row-sub">When someone offers on your item</div></div><label class="toggle-switch"><input type="checkbox" id="notif-offers"' + (notifPrefs.offers !== false ? ' checked' : '') + '><span class="slider"></span></label></div>',
+        '<div class="toggle-row"><div><div class="toggle-row-label">Offer Updates</div><div class="toggle-row-sub">When an offer is accepted or declined</div></div><label class="toggle-switch"><input type="checkbox" id="notif-offer-updates"' + (notifPrefs.offer_updates !== false ? ' checked' : '') + '><span class="slider"></span></label></div>',
+        '<div class="toggle-row"><div><div class="toggle-row-label">New Reviews</div><div class="toggle-row-sub">When you receive a seller review</div></div><label class="toggle-switch"><input type="checkbox" id="notif-reviews"' + (notifPrefs.reviews !== false ? ' checked' : '') + '><span class="slider"></span></label></div>',
+        '<div class="toggle-row"><div><div class="toggle-row-label">Saved Search Matches</div><div class="toggle-row-sub">New local items matching your saved searches</div></div><label class="toggle-switch"><input type="checkbox" id="notif-saved-search"' + (notifPrefs.saved_search !== false ? ' checked' : '') + '><span class="slider"></span></label></div>',
         '<h3 class="panel-title" style="margin-top:22px;"><i class="fa-solid fa-eye"></i> Privacy</h3>',
         '<div class="form-group"><label>Profile Visibility</label>',
         '<select class="form-control" id="settings-visibility">',
@@ -1460,23 +2093,36 @@ function renderSettings(container, user) {
                 matches:     container.querySelector('#notif-matches').checked,
                 price_drops: container.querySelector('#notif-price').checked,
                 digest:      container.querySelector('#notif-digest').checked,
+                offers:      container.querySelector('#notif-offers').checked,
+                offer_updates: container.querySelector('#notif-offer-updates').checked,
+                reviews:     container.querySelector('#notif-reviews').checked,
+                saved_search: container.querySelector('#notif-saved-search').checked,
             },
             country:         container.querySelector('#settings-country').value,
             city:            container.querySelector('#settings-city').value,
+            seller_default_country: container.querySelector('#seller-country')?.value || '',
+            seller_default_city: container.querySelector('#seller-city')?.value || '',
+            seller_payment_note: container.querySelector('#seller-payment-note')?.value.trim() || '',
+            show_phone: container.querySelector('#seller-show-phone')?.checked || false,
+            phone: container.querySelector('#seller-phone')?.value.trim() || '',
+            is_dealer: container.querySelector('#seller-is-dealer')?.checked || false,
+            business_name: container.querySelector('#seller-business-name')?.value.trim() || '',
             age_range:       container.querySelector('#settings-age-range').value,
             occupation:      container.querySelector('#settings-occupation').value.trim(),
             lifestyle_tags:  selectedTags,
             budgetMin:       parseInt(container.querySelector('#settings-bmin').value) || 0,
             budgetMax:       parseInt(container.querySelector('#settings-bmax').value) || 5000,
             moveInTimeline:  container.querySelector('#settings-timeline').value,
-            profileComplete: true,
+            profileComplete: Boolean(newName),
         };
 
         const avatarImg = container.querySelector('#settings-avatar-img');
-        if (avatarImg.dataset.newSrc) updates.profile_photo = avatarImg.dataset.newSrc;
+        if (stagedProfilePhotoUrl || avatarImg.dataset.newSrc) updates.profile_photo = stagedProfilePhotoUrl || avatarImg.dataset.newSrc;
 
         await db.users.update(user.user_id, updates);
         Object.assign(user, updates);
+        stagedProfilePhotoUrl = '';
+        delete avatarImg.dataset.newSrc;
 
         btn.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
         btn.style.background = '#333333';
@@ -1562,6 +2208,49 @@ function renderSettings(container, user) {
         }
     });
 
+    const sellerCountry = container.querySelector('#seller-country');
+    const sellerCity = container.querySelector('#seller-city');
+    function populateSellerCities(countryId, selectedCityId = '') {
+        if (!sellerCity) return;
+        sellerCity.innerHTML = '<option value="">Loading cities...</option>';
+        sellerCity.disabled = true;
+        const cities = db.cities.find(c => c.country === countryId && c.is_active !== false)
+            .sort((a, b) => a.name.localeCompare(b.name));
+        if (!cities.length) {
+            sellerCity.innerHTML = '<option value="">No cities available</option>';
+            return;
+        }
+        sellerCity.innerHTML = '<option value="">Select default city</option>';
+        cities.forEach(city => {
+            const opt = document.createElement('option');
+            opt.value = city.city_id;
+            opt.textContent = city.name;
+            if (city.city_id === selectedCityId) opt.selected = true;
+            sellerCity.appendChild(opt);
+        });
+        sellerCity.disabled = false;
+    }
+    if (sellerCountry?.value) populateSellerCities(sellerCountry.value, user.seller_default_city || '');
+    sellerCountry?.addEventListener('change', () => {
+        if (sellerCountry.value) {
+            populateSellerCities(sellerCountry.value);
+        } else if (sellerCity) {
+            sellerCity.innerHTML = '<option value="">Select a country first</option>';
+            sellerCity.disabled = true;
+        }
+    });
+
+    const showPhoneToggle = container.querySelector('#seller-show-phone');
+    const dealerToggle = container.querySelector('#seller-is-dealer');
+    showPhoneToggle?.addEventListener('change', () => {
+        const wrap = container.querySelector('#seller-phone-wrap');
+        if (wrap) wrap.style.display = showPhoneToggle.checked ? '' : 'none';
+    });
+    dealerToggle?.addEventListener('change', () => {
+        const wrap = container.querySelector('#seller-business-wrap');
+        if (wrap) wrap.style.display = dealerToggle.checked ? '' : 'none';
+    });
+
     // Profile — lifestyle tag pills
     container.querySelectorAll('#settings-lifestyle-tags .tag-pill').forEach(pill => {
         pill.querySelector('input').addEventListener('change', e => {
@@ -1569,32 +2258,59 @@ function renderSettings(container, user) {
         });
     });
 
-    // Photo file picker — auto-saves immediately on selection
-    container.querySelector('#settings-photo-input').addEventListener('change', e => {
+    // Photo file picker — uploads to R2 and stages the URL until Save Changes.
+    container.querySelector('#settings-photo-input').addEventListener('change', async e => {
         const file = e.target.files[0];
         if (!file) return;
         const allowed = ['image/jpeg', 'image/png', 'image/webp'];
         if (!allowed.includes(file.type)) { showToast('Profile photo must be JPG, PNG, or WebP.', 'error'); return; }
         if (file.size > 5 * 1024 * 1024) { showToast('Profile photo must be smaller than 5MB.', 'error'); return; }
-        const reader = new FileReader();
-        reader.onload = async ev => {
-            const img = container.querySelector('#settings-avatar-img');
-            img.src = ev.target.result;
-            await db.users.update(user.user_id, { profile_photo: ev.target.result });
-            showToast('Profile photo updated!', 'success');
-        };
-        reader.readAsDataURL(file);
+
+        const img = container.querySelector('#settings-avatar-img');
+        const spinner = container.querySelector('#settings-avatar-spinner');
+        const previousSrc = img.src;
+        const previewUrl = URL.createObjectURL(file);
+        img.src = previewUrl;
+        if (spinner) spinner.style.display = 'flex';
+        try {
+            const uploadedUrl = await uploadImage(file, 'profile.webp');
+            stagedProfilePhotoUrl = uploadedUrl;
+            img.dataset.newSrc = uploadedUrl;
+            showToast('Photo ready. Click Save Changes to apply.', 'info');
+        } catch (err) {
+            img.src = previousSrc;
+            stagedProfilePhotoUrl = '';
+            delete img.dataset.newSrc;
+            showToast(err.message || 'Profile photo upload failed.', 'error');
+        } finally {
+            if (spinner) spinner.style.display = 'none';
+            URL.revokeObjectURL(previewUrl);
+            e.target.value = '';
+        }
     });
 
     // Delete account
-    container.querySelector('#btn-delete-account').addEventListener('click', () => {
-        if (!confirm('Are you absolutely sure? This will permanently delete your account.')) return;
-        if (!confirm('Last warning — this is irreversible. Continue?')) return;
-        db.listings.find(l => l.user_id === user.user_id).forEach(l => db.listings.delete(l.listing_id));
-        db.users.delete(user.user_id);
-        logout();
-        showToast('Account deleted. Redirecting…');
-        setTimeout(() => { navigate('/'); }, 1500);
+    container.querySelector('#btn-delete-account').addEventListener('click', async () => {
+        const firstOk = await showDashboardConfirm({
+            title: 'Delete account',
+            message: 'This will permanently delete your account and associated data.',
+            confirmLabel: 'Continue',
+        });
+        if (!firstOk) return;
+        const finalOk = await showDashboardConfirm({
+            title: 'Final confirmation',
+            message: 'Last warning. This is irreversible. Continue deleting your account?',
+            confirmLabel: 'Delete Account',
+        });
+        if (!finalOk) return;
+        try {
+            await api.deleteUser(user.user_id);
+            logout();
+            showToast('Account deleted. Redirecting…');
+            setTimeout(() => { navigate('/'); }, 800);
+        } catch (err) {
+            showToast(err.message || 'Could not delete account.', 'error');
+        }
     });
 }
 

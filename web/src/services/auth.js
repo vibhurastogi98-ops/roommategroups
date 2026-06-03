@@ -128,6 +128,11 @@ function _isNetworkAuthError(err) {
     return err?.name === 'TypeError' || /failed to fetch|load failed|network/i.test(err?.message || '');
 }
 
+function _isLocalAuthFallbackAllowed(err) {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocalhost && err?.status === 401;
+}
+
 async function _authRequest(path, data, options = {}) {
     const headers = { 'Content-Type': 'application/json' };
     if (options.auth) {
@@ -175,6 +180,12 @@ async function _registerOffline({ fullName, email, password }) {
         passwordHash: pwHash, city: '', country: '',
         profile_photo: '', bio: '', age_range: '', occupation: '',
         lifestyle_tags: [], budgetMin: 500, budgetMax: 2500, moveInTimeline: '',
+        notification_prefs: {
+            messages: true, matches: true, price_drops: true, digest: false,
+            offers: true, offer_updates: true, reviews: true, saved_search: true
+        },
+        seller_default_country: '', seller_default_city: '', seller_payment_note: '',
+        phone: '', show_phone: false, is_dealer: false, business_name: '',
         verification_level: 'basic', subscription_tier: 'free',
         stripe_customer_id: generateStripeCustomerId(),
         role: 'user', saved_listings: [], saved_searches: [], blocked_users: [],
@@ -245,7 +256,7 @@ export async function login(email, password) {
         const result = await _authRequest('/auth/login', { email, password });
         return { success: true, user: _finishServerSession(result) };
     } catch (err) {
-        if (_isNetworkAuthError(err)) return _loginOffline(email, password);
+        if (_isNetworkAuthError(err) || _isLocalAuthFallbackAllowed(err)) return _loginOffline(email, password);
         return { success: false, error: err.message || 'Invalid email or password.' };
     }
 }
@@ -298,10 +309,11 @@ export async function updateProfile(userId, profileData) {
     }
 
     // Map UI keys to DB keys
-    const dbData = {
-        ...profileData,
-        profileComplete: true
-    };
+    const currentUser = db.users.findById(userId);
+    const dbData = { ...profileData };
+    if (profileData.profileComplete === undefined) {
+        dbData.profileComplete = Boolean(profileData.display_name || currentUser?.display_name);
+    }
 
     if (profileData.profilePhoto !== undefined) dbData.profile_photo = profileData.profilePhoto;
     if (profileData.ageRange !== undefined) dbData.age_range = profileData.ageRange;

@@ -8,17 +8,83 @@ import { db, initDB, getLiveListingCount } from '../../../web/src/services/db.js
 import { getCurrentUser } from '../../../web/src/services/auth.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 import { getAssetUrl, getAvatarUrl } from '../../../web/src/services/assets.js';
+import { api } from '../../../web/src/services/api.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
 const PAGE_SIZE = 10;
+const RENTAL_VIEW_KEY = 'rg_recent_rental_view';
+
+function _esc(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function _parseArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function _listingId(listing) {
+  return listing?.listing_id || listing?.id || '';
+}
+
+function _isRentalListing(listing) {
+  return !listing || String(listing.kind || 'rental').toLowerCase() === 'rental';
+}
+
+function _isActiveListing(listing) {
+  return listing?.is_active !== false && listing?.status === 'active';
+}
+
+function _findListingById(id, extras = []) {
+  if (!id) return null;
+  return db.listings.findById(id) || extras.find(l => _listingId(l) === id) || null;
+}
+
+function _markRentalViewed(id, extras = []) {
+  const listing = _findListingById(id, extras);
+  if (listing && _isRentalListing(listing)) {
+    localStorage.setItem(RENTAL_VIEW_KEY, JSON.stringify({ id, ts: Date.now() }));
+  }
+}
+
+function _shouldShowRentalCrossSell() {
+  if (localStorage.getItem(RENTAL_VIEW_KEY)) return true;
+  const savedIds = _parseArray(getCurrentUser()?.saved_listings);
+  return savedIds.some(id => {
+    const listing = db.listings.findById(id);
+    return listing && _isRentalListing(listing);
+  });
+}
+
+function _iconClass(icon) {
+  const raw = String(icon || 'fa-tag').trim();
+  if (raw.includes('fa-solid') || raw.includes('fa-regular') || raw.includes('fa-brands') || raw.includes('fab ')) {
+    return raw.replace(/\bfas\b/g, 'fa-solid').replace(/\bfab\b/g, 'fa-brands');
+  }
+  return raw.startsWith('fa-') ? `fa-solid ${raw}` : `fa-solid fa-${raw}`;
+}
 
 export async function init(container) {
   container.innerHTML = _skeletonHTML();
 
   await initDB().catch(() => { });
 
-  let allListings = db.listings?.findAll?.().filter(l => l.is_active !== false) || [];
+  let allListings = db.listings?.findAll?.().filter(_isActiveListing) || [];
   const cities = db.cities.findAll().filter(c => c.is_active !== false);
 
   const popularCities = (db.cities?.findAll?.() || [])
@@ -34,6 +100,15 @@ export async function init(container) {
   let selectedType = 'all';
   let pageIndex = 0;
   let filteredList = [...allListings];
+  let categoryTree = [];
+  let categoriesLoaded = false;
+  let nearListings = [];
+  let nearState = 'loading';
+  let nearMessage = 'Allow location to sort rooms and items by distance.';
+  let recentSaleListings = allListings
+    .filter(l => l.status === 'active' && String(l.kind || '').toLowerCase() === 'sale')
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 4);
 
   const render = () => {
     container.innerHTML = `
@@ -61,7 +136,7 @@ export async function init(container) {
             <span style="color:#94a3b8;font-size:0.88rem;font-weight:500;flex:1;">Search by city, area…</span>
           </button>
           <div style="display:flex;gap:8px;margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;">
-            ${['all', 'room', 'apartment', 'sublet', 'roommate_wanted', 'studio'].map(type => `
+            ${['all', 'marketplace', 'room', 'apartment', 'sublet', 'roommate_wanted', 'studio'].map(type => `
               <button class="type-chip" data-type="${type}" style="
                 flex-shrink:0;
                 height:34px;
@@ -75,8 +150,22 @@ export async function init(container) {
                 color:${selectedType === type ? '#fff' : '#475569'};
                 transition:all 0.2s ease;
                 white-space:nowrap;
-              ">${type === 'all' ? 'All' : type.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</button>
+              ">${type === 'all' ? 'All' : type === 'marketplace' ? 'Buy & Sell' : type.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</button>
             `).join('')}
+          </div>
+        </div>
+
+        <!-- NEAR YOU -->
+        <div style="padding:14px 0 8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:0 16px;">
+            <div>
+              <div style="font-size:1.18rem;font-weight:900;color:#0f172a;letter-spacing:-0.02em;">Near you</div>
+              <div style="font-size:0.72rem;color:#94a3b8;font-weight:650;margin-top:2px;">Sorted by distance when location is available</div>
+            </div>
+            <button id="home-near-search" style="background:#f1f5f9;border:none;color:#0f172a;font-size:0.76rem;font-weight:850;cursor:pointer;padding:7px 11px;border-radius:9px;">Open</button>
+          </div>
+          <div id="near-you-feed" class="listings-slider">
+            ${_renderNearStrip(nearListings, nearState, nearMessage)}
           </div>
         </div>
 
@@ -132,6 +221,8 @@ export async function init(container) {
           </div>
         </div>
 
+        ${_shouldShowRentalCrossSell() ? _renderCrossSellCard() : ''}
+
         <!-- POST CTA CARD -->
         <div style="padding:4px 16px 20px;">
           <div id="home-post-cta" style="background:linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); border-radius:20px; padding:22px; color:#fff; position:relative; overflow:hidden; cursor:pointer; box-shadow:0 8px 24px rgba(15,23,42,0.2);">
@@ -181,6 +272,8 @@ export async function init(container) {
             </div>
           </div>
         </div>
+
+        ${_renderMarketplaceSection(categoryTree, categoriesLoaded, recentSaleListings)}
 
         <!-- POPULAR FB GROUPS -->
         <div style="padding:16px 16px 24px;">
@@ -427,7 +520,8 @@ export async function init(container) {
             ${[
         { q: 'Is RoommateGroups free to use?', a: 'Our basic plan is completely free — you can browse listings, create a profile, and contact other members.' },
         { q: 'How does ID verification work?', a: 'Our 4-level verification system starts with email, then phone, then Government ID and Community Verification.' },
-        { q: 'Can I list my room or entire apartment?', a: 'Yes! You can list a private room in a shared home, an entire apartment, or a room in a coliving space.' }
+        { q: 'Can I list my room or entire apartment?', a: 'Yes! You can list a private room in a shared home, an entire apartment, or a room in a coliving space.' },
+        { q: 'Can I buy and sell items on RoommateGroups?', a: 'Yes. Alongside rooms and roommates, you can buy, sell and find local items like furniture, electronics and appliances from verified members in your city — free to list.' }
       ].map(item => `
               <div style="display:flex; gap:16px; padding:20px; background:#fff; border-radius:16px; border:1px solid #f1f5f9; margin-bottom:12px;">
                 <div style="width:40px; height:40px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; flex-shrink:0;">
@@ -461,12 +555,72 @@ export async function init(container) {
         }, 300);
       },
       getFiltered: () => filteredList,
+      getNearListings: () => nearListings,
       rerender: render,
       updateListings: () => {
-        allListings = db.listings?.findAll?.().filter(l => l.is_active !== false) || [];
+        allListings = db.listings?.findAll?.().filter(_isActiveListing) || [];
         filteredList = _filterListings(allListings, selectedCity, selectedType);
+        recentSaleListings = allListings
+          .filter(l => l.status === 'active' && String(l.kind || '').toLowerCase() === 'sale')
+          .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+          .slice(0, 4);
       }
     });
+  };
+
+  const loadMarketplaceHome = () => {
+    api.getCategoryTree(true)
+      .then(tree => {
+        categoryTree = Array.isArray(tree) ? tree : [];
+        categoriesLoaded = true;
+        render();
+      })
+      .catch(() => {
+        categoryTree = [];
+        categoriesLoaded = true;
+        render();
+      });
+
+    if (!navigator.geolocation) {
+      nearState = 'empty';
+      nearMessage = 'Location is not available on this device. Browse newest listings instead.';
+      render();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        nearState = 'loading';
+        nearMessage = 'Sorting nearby listings by distance.';
+        render();
+        try {
+          const payload = await api.searchListings({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            radius: 50,
+            sort: 'distance',
+            page: 1,
+            limit: 8
+          }, true);
+          nearListings = Array.isArray(payload) ? payload : payload?.results || [];
+          nearState = nearListings.length ? 'ready' : 'empty';
+          nearMessage = nearListings.length ? '' : 'No nearby listings yet. Browse newest listings while your local marketplace fills up.';
+          render();
+        } catch {
+          nearListings = [];
+          nearState = 'empty';
+          nearMessage = 'Could not load nearby listings right now. Browse newest listings instead.';
+          render();
+        }
+      },
+      () => {
+        nearListings = [];
+        nearState = 'empty';
+        nearMessage = 'Allow location access to see rooms, furniture, vehicles, and more sorted by distance.';
+        render();
+      },
+      { timeout: 7000, maximumAge: 300000 }
+    );
   };
 
   const { updateHeader, navigate } = await getMobile();
@@ -493,12 +647,13 @@ export async function init(container) {
 
   filteredList = _filterListings(allListings, selectedCity, selectedType);
   render();
+  loadMarketplaceHome();
 }
 
 export const renderMobileHome = init;
 
 function _filterListings(all, cityId, type) {
-  let filtered = [...all];
+  let filtered = all.filter(_isRentalListing);
   if (cityId && cityId !== 'all') filtered = filtered.filter(l => l.city === cityId || l.city_id === cityId);
 
   if (type && type !== 'all') {
@@ -529,13 +684,119 @@ function _renderCards(list) {
   return list.map(l => renderMobileCard(l)).join('');
 }
 
+function _renderMarketplaceSection(categories = [], loaded = false, saleListings = []) {
+  return `
+    <div style="padding:24px 16px 22px;background:#fff;border-top:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:1.25rem;font-weight:900;color:#0f172a;letter-spacing:-0.02em;">Buy &amp; Sell Locally</div>
+          <div style="font-size:0.78rem;color:#64748b;font-weight:650;margin-top:4px;line-height:1.45;">Furnish your new place or declutter your old one — trade safely with verified members near you.</div>
+        </div>
+        <button id="home-marketplace-all" style="background:#f1f5f9;border:none;color:#0f172a;font-size:0.76rem;font-weight:850;cursor:pointer;padding:7px 11px;border-radius:9px;white-space:nowrap;">Browse</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+        ${_renderCategoryGrid(categories, loaded)}
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:16px;">
+        <button id="home-marketplace-browse" style="height:42px;border:none;border-radius:12px;background:#0f172a;color:#fff;font-size:0.8rem;font-weight:900;padding:0 14px;">Browse the Marketplace</button>
+        <button id="home-sell-item" style="height:42px;border:none;background:transparent;color:#7c3aed;font-size:0.82rem;font-weight:900;padding:0;">Sell an item -&gt;</button>
+      </div>
+      ${saleListings.length ? `
+        <div style="margin-top:22px;">
+          <div style="font-size:0.95rem;font-weight:900;color:#0f172a;margin-bottom:10px;">Near you</div>
+          <div class="listings-slider home-market-sale-strip" style="margin:0 -16px;">
+            ${saleListings.map(l => renderMobileCard(l)).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function _renderCategoryGrid(categories = [], loaded = false) {
+  const topLevel = categories.filter(c => !c.parent_id && String(c.kind || '').toLowerCase() !== 'service').slice(0, 8);
+  if (!loaded) {
+    return Array(6).fill(0).map(() => `
+      <div style="height:92px;border-radius:14px;background:#f8fafc;border:1px solid #f1f5f9;overflow:hidden;">
+        <div class="mobile-skeleton-line" style="width:34px;height:34px;border-radius:10px;margin:12px 0 10px 12px;"></div>
+        <div class="mobile-skeleton-line medium" style="width:70%;margin-left:12px;"></div>
+      </div>
+    `).join('');
+  }
+
+  if (!topLevel.length) {
+    return `
+      <button class="market-category-chip" data-slug="furniture" style="grid-column:1/-1;text-align:left;background:#fff;border:1px dashed #cbd5e1;border-radius:14px;padding:14px;color:#475569;font-size:0.82rem;font-weight:700;line-height:1.45;">
+        Marketplace categories are loading. Tap to browse Furniture & Home.
+      </button>
+    `;
+  }
+
+  return topLevel.map(cat => `
+    <button class="market-category-chip" data-slug="${_esc(cat.slug || cat.category_id || '')}" style="min-height:96px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 9px;text-align:left;box-shadow:0 8px 20px rgba(15,23,42,0.04);cursor:pointer;display:flex;flex-direction:column;gap:9px;overflow:hidden;">
+      <span style="width:34px;height:34px;border-radius:10px;background:#f0fdfa;color:#0f766e;display:flex;align-items:center;justify-content:center;font-size:0.95rem;flex-shrink:0;">
+        <i class="${_iconClass(cat.icon)}"></i>
+      </span>
+      <span style="font-size:0.76rem;font-weight:900;color:#0f172a;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${_esc(cat.name)}</span>
+    </button>
+  `).join('');
+}
+
+function _renderNearStrip(listings = [], state = 'loading', message = '') {
+  if (state === 'loading') return _skeletonStrip(3);
+  if (listings.length) return listings.map(l => renderMobileCard(l)).join('');
+  return `
+    <div class="empty-state">
+      <div style="font-size:1.6rem;margin-bottom:9px;"><i class="fa-solid fa-location-crosshairs"></i></div>
+      <div style="font-weight:800;color:#0f172a;margin-bottom:5px;">Near you is waiting</div>
+      <p style="margin:0 0 14px;line-height:1.45;">${_esc(message || 'Enable location to sort nearby rooms and items by distance.')}</p>
+      <button id="near-you-open-search" style="height:38px;border:none;border-radius:10px;background:#0f172a;color:#fff;font-size:0.78rem;font-weight:900;padding:0 14px;">Browse newest</button>
+    </div>
+  `;
+}
+
+function _renderCrossSellCard() {
+  return `
+    <div style="padding:2px 16px 20px;">
+      <div id="home-cross-sell" style="background:linear-gradient(135deg,#ecfdf5 0%,#f8fafc 100%);border:1px solid #d1fae5;border-radius:18px;padding:18px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 22px rgba(15,118,110,0.08);cursor:pointer;">
+        <div style="width:46px;height:46px;border-radius:14px;background:#0f766e;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fa-solid fa-couch" style="font-size:1.05rem;"></i>
+        </div>
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:0.94rem;font-weight:950;color:#0f172a;line-height:1.3;">Just found a place? Furnish it -> Furniture &amp; Home</div>
+          <div style="font-size:0.74rem;color:#475569;font-weight:650;line-height:1.45;margin-top:4px;">Find couches, tables, decor, and essentials nearby.</div>
+        </div>
+        <i class="fa-solid fa-arrow-right" style="color:#0f766e;font-size:0.9rem;flex-shrink:0;"></i>
+      </div>
+    </div>
+  `;
+}
+
 async function _wireEvents(container, ctx) {
-  const { rerender, setSelectedType, getFiltered } = ctx;
+  const { rerender, setSelectedType, getFiltered, getNearListings } = ctx;
   const { navigate } = await getMobile();
 
   container.querySelector('#home-search-btn')?.addEventListener('click', () => { navigate('search'); });
   container.querySelector('#home-post-cta')?.addEventListener('click', () => { navigate('post'); });
-  container.querySelectorAll('.type-chip').forEach(c => c.addEventListener('click', () => setSelectedType(c.dataset.type)));
+  container.querySelector('#home-marketplace-all')?.addEventListener('click', () => { navigate('marketplace'); });
+  container.querySelector('#home-marketplace-browse')?.addEventListener('click', () => { navigate('marketplace'); });
+  container.querySelector('#home-sell-item')?.addEventListener('click', () => { navigate('post', { kind: 'sale' }); });
+  container.querySelector('#home-near-search')?.addEventListener('click', () => { navigate('search'); });
+  container.querySelector('#near-you-open-search')?.addEventListener('click', () => { navigate('search'); });
+  container.querySelector('#home-cross-sell')?.addEventListener('click', () => { navigate('category', { slug: 'furniture' }); });
+  container.querySelectorAll('.market-category-chip').forEach(el => {
+    el.addEventListener('click', () => {
+      const slug = el.dataset.slug || 'furniture';
+      navigate('search', { kind: 'sale', category: slug });
+    });
+  });
+  container.querySelectorAll('.type-chip').forEach(c => c.addEventListener('click', () => {
+    if (c.dataset.type === 'marketplace') {
+      navigate('search', { kind: 'sale' });
+      return;
+    }
+    setSelectedType(c.dataset.type);
+  }));
   container.querySelector('#home-refresh')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.classList.add('refreshing');
@@ -561,7 +822,21 @@ async function _wireEvents(container, ctx) {
   container.querySelectorAll('.home-faq-trigger, #home-view-all-faq').forEach(el => el.addEventListener('click', () => { navigate('faq'); }));
 
   const feed = container.querySelector('#home-feed');
-  if (feed) attachMobileCardEvents(feed, (id) => { navigate('listing', { id }); });
+  if (feed) attachMobileCardEvents(feed, (id) => {
+    _markRentalViewed(id, getFiltered());
+    navigate('listing', { id });
+  });
+
+  const nearFeed = container.querySelector('#near-you-feed');
+  if (nearFeed) attachMobileCardEvents(nearFeed, (id) => {
+    _markRentalViewed(id, getNearListings());
+    navigate('listing', { id });
+  }, (uid) => navigate('seller', { id: uid }));
+
+  const marketSaleStrip = container.querySelector('.home-market-sale-strip');
+  if (marketSaleStrip) attachMobileCardEvents(marketSaleStrip, (id) => {
+    navigate('listing', { id });
+  }, (uid) => navigate('seller', { id: uid }));
 
   // Scroll logic to hide/show search section (once per container)
   if (!container._scrollHandlerAttached) {

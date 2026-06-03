@@ -1,11 +1,12 @@
 /**
  * src/mobile/pages/MobileSettings.js
- * Fully functional settings page — profile editing, notification toggles,
- * photo upload, logout, subscription nav. All changes persist to DB.
+ * Fully functional settings page — staged profile editing, notification toggles,
+ * photo upload, logout, subscription nav. Main settings persist on Save Changes.
  */
 
 import { getCurrentUser, logout, updateProfile, changePassword } from '../../../web/src/services/auth.js';
 import { db } from '../../../web/src/services/db.js';
+import { api } from '../../../web/src/services/api.js';
 import { uploadImage } from '../../../web/src/services/upload.js';
 import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 import { getAvatarUrl } from '../../../web/src/services/assets.js';
@@ -29,8 +30,26 @@ export async function init(container) {
     return;
   }
 
-  // ── Notification prefs (in-memory mirror, persisted on toggle) ──
-  let notifPrefs = { ...(getDbUser().notification_prefs || { messages: true, matches: true, price_drops: true }) };
+  const defaultNotifPrefs = {
+    messages: true,
+    matches: true,
+    price_drops: true,
+    digest: false,
+    offers: true,
+    offer_updates: true,
+    reviews: true,
+    saved_search: true,
+  };
+  let draft = {
+    ...getDbUser(),
+    notification_prefs: { ...defaultNotifPrefs, ...(getDbUser().notification_prefs || {}) },
+  };
+  let notifPrefs = draft.notification_prefs;
+  let photoUploading = false;
+
+  function getWorkingUser() {
+    return { ...(getDbUser() || {}), ...draft, notification_prefs: notifPrefs };
+  }
 
   // ── Edit overlay helpers ──────────────────────────────────────
   function showEditOverlay({ title, value, multiline = false, onSave }) {
@@ -63,18 +82,48 @@ export async function init(container) {
     overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   }
 
-  // ── Save helper ───────────────────────────────────────────────
+  // ── Save helpers ──────────────────────────────────────────────
   async function saveField(field, value) {
+    draft[field] = field === 'budgetMin' || field === 'budgetMax' ? Number(value) || 0 : value;
+    _render();
+    _toast('Staged. Tap Save Changes.');
+  }
+
+  async function saveAllSettings() {
     const dbUser = getDbUser();
     if (!dbUser) return;
-    await updateProfile(dbUser.user_id, { [field]: value });
+    const displayName = String(draft.display_name || '').trim();
+    if (!displayName) { _toast('Display name cannot be empty', 'error'); return; }
+
+    const updates = {
+      display_name: displayName,
+      bio: draft.bio || '',
+      occupation: draft.occupation || '',
+      profile_photo: draft.profile_photo || '',
+      notification_prefs: { ...notifPrefs },
+      budgetMin: Number(draft.budgetMin || 0),
+      budgetMax: Number(draft.budgetMax || 5000),
+      moveInTimeline: draft.moveInTimeline || '',
+      seller_default_country: draft.seller_default_country || '',
+      seller_default_city: draft.seller_default_city || '',
+      seller_payment_note: draft.seller_payment_note || '',
+      show_phone: !!draft.show_phone,
+      phone: draft.phone || '',
+      is_dealer: !!draft.is_dealer,
+      business_name: draft.business_name || '',
+      profileComplete: Boolean(displayName),
+    };
+
+    await updateProfile(dbUser.user_id, updates);
+    draft = { ...getDbUser(), ...updates, notification_prefs: updates.notification_prefs };
+    notifPrefs = draft.notification_prefs;
     _render();
-    _toast('Saved!');
+    _toast('Settings saved!');
   }
 
   // ── Main render ───────────────────────────────────────────────
   function _render() {
-    const dbUser = getDbUser();
+    const dbUser = getWorkingUser();
     if (!dbUser) return;
 
     container.innerHTML = `
@@ -85,6 +134,7 @@ export async function init(container) {
           <div style="position:relative;flex-shrink:0;">
             <img id="profile-photo-img" src="${getAvatarUrl(dbUser.profile_photo, dbUser.display_name)}"
               style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid #f1f5f9;">
+            ${photoUploading ? '<div style="position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,0.72);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:900;color:#1a1a1a;">...</div>' : ''}
             <label for="photo-file-input" style="position:absolute;bottom:0;right:0;background:#1a1a1a;color:white;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;border:2px solid #fff;cursor:pointer;touch-action:manipulation;">
               📷
               <input type="file" id="photo-file-input" accept="image/*" style="display:none;">
@@ -95,6 +145,15 @@ export async function init(container) {
             <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">${_esc(dbUser.email || '')}</div>
             <div style="font-size:0.7rem;color:#1a1a1a;font-weight:700;text-transform:uppercase;margin-top:4px;letter-spacing:0.05em;">${_esc(dbUser.subscription_tier || 'Free')} Plan</div>
           </div>
+        </div>
+
+        <button id="save-settings-btn" style="width:100%;background:#1a1a1a;color:#fff;border:none;border-radius:16px;padding:15px;font-size:0.95rem;font-weight:800;margin-bottom:12px;cursor:pointer;touch-action:manipulation;">
+          Save Changes
+        </button>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;">
+          <button data-action="go-verification" style="background:#fff;border:1px solid #f1f5f9;border-radius:16px;padding:12px;font-weight:800;color:#334155;">Verification</button>
+          <button data-action="go-subscription" style="background:#fff;border:1px solid #f1f5f9;border-radius:16px;padding:12px;font-weight:800;color:#334155;">Subscription</button>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:24px;">
@@ -109,14 +168,30 @@ export async function init(container) {
             </div>
           </div>
 
-          <!-- Preferences -->
+          <!-- Roommate Preferences -->
           <div>
-            <h3 style="${SECTION_TITLE}">Preferences</h3>
+            <h3 style="${SECTION_TITLE}">Roommate Preferences</h3>
             <div style="${CARD}">
               ${_row('💰', 'Budget Min', `$${dbUser.budgetMin || 0}`, 'edit-budget-min')}
               ${_row('💰', 'Budget Max', `$${dbUser.budgetMax || 5000}`, 'edit-budget-max')}
               ${_row('📅', 'Move-in Timeline', dbUser.moveInTimeline || 'Flexible', 'edit-timeline')}
             </div>
+          </div>
+
+          <!-- Seller & Marketplace -->
+          <div>
+            <h3 style="${SECTION_TITLE}">Seller & Marketplace</h3>
+            <div style="${CARD}">
+              ${_row('🌎', 'Default Item Country', _countryName(dbUser.seller_default_country), 'edit-seller-country')}
+              ${_row('📍', 'Default Item City', _cityName(dbUser.seller_default_city), 'edit-seller-city')}
+              ${_row('💳', 'Payment Note', dbUser.seller_payment_note || 'Not set', 'edit-payment-note')}
+              ${_toggle('☎️', 'Show phone on listings', !!dbUser.show_phone, 'show_phone')}
+              ${dbUser.show_phone ? _row('📱', 'Phone', dbUser.phone || 'Not set', 'edit-phone') : ''}
+              ${_toggle('🏪', 'Dealer / Business Account', !!dbUser.is_dealer, 'is_dealer')}
+              ${dbUser.is_dealer ? _row('🏷️', 'Business Name', dbUser.business_name || 'Not set', 'edit-business-name') : ''}
+              ${_row('🛍️', 'Public Storefront', 'View profile', 'go-storefront')}
+            </div>
+            ${dbUser.is_dealer ? '<div style="font-size:0.76rem;color:#64748b;line-height:1.45;margin:10px 4px 0;">Dealer features and verified storefront may require the Pro plan.</div>' : ''}
           </div>
 
           <!-- Notifications -->
@@ -126,6 +201,10 @@ export async function init(container) {
               ${_toggle('🔔', 'Messages', notifPrefs.messages !== false, 'messages')}
               ${_toggle('✨', 'Listing Matches', notifPrefs.matches !== false, 'matches')}
               ${_toggle('📉', 'Price Drops', notifPrefs.price_drops !== false, 'price_drops')}
+              ${_toggle('💸', 'New Offers', notifPrefs.offers !== false, 'offers')}
+              ${_toggle('✅', 'Offer Updates', notifPrefs.offer_updates !== false, 'offer_updates')}
+              ${_toggle('⭐', 'New Reviews', notifPrefs.reviews !== false, 'reviews')}
+              ${_toggle('🔎', 'Saved Search Matches', notifPrefs.saved_search !== false, 'saved_search')}
             </div>
           </div>
 
@@ -162,15 +241,19 @@ export async function init(container) {
     container.querySelector('#photo-file-input')?.addEventListener('change', async e => {
       const file = e.target.files[0];
       if (!file) return;
+      photoUploading = true;
+      _render();
       _toast('Uploading photo…');
       try {
         const url = await uploadImage(file, 'profile.webp');
-        const cacheBustedUrl = `${url}?ts=${Date.now()}`;
-        await updateProfile(dbUser.user_id, { profile_photo: cacheBustedUrl, profilePhoto: cacheBustedUrl });
+        draft.profile_photo = url;
         _render();
-        _toast('Photo updated!');
+        _toast('Photo ready. Tap Save Changes.');
       } catch { _toast('Upload failed', 'error'); }
+      finally { photoUploading = false; _render(); }
     });
+
+    container.querySelector('#save-settings-btn')?.addEventListener('click', saveAllSettings);
 
     // Editable rows
     const edits = {
@@ -180,6 +263,9 @@ export async function init(container) {
       'edit-budget-min':    { label: 'Budget Min ($)', field: 'budgetMin', value: String(dbUser.budgetMin || 0) },
       'edit-budget-max':    { label: 'Budget Max ($)', field: 'budgetMax', value: String(dbUser.budgetMax || 5000) },
       'edit-timeline':      { label: 'Move-in Timeline', field: 'moveInTimeline', value: dbUser.moveInTimeline || '' },
+      'edit-payment-note':   { label: 'Payment Note', field: 'seller_payment_note', value: dbUser.seller_payment_note || '' },
+      'edit-phone':          { label: 'Phone', field: 'phone', value: dbUser.phone || '' },
+      'edit-business-name':  { label: 'Business Name', field: 'business_name', value: dbUser.business_name || '' },
     };
 
     Object.entries(edits).forEach(([id, cfg]) => {
@@ -193,13 +279,46 @@ export async function init(container) {
       });
     });
 
+    container.querySelector('[data-action="edit-seller-country"]')?.addEventListener('click', () => _showChoiceSheet({
+      title: 'Default Item Country',
+      items: db.countries.findAll().filter(c => c.is_active).sort((a, b) => a.name.localeCompare(b.name)),
+      getLabel: c => `${c.flag_emoji ? `${c.flag_emoji} ` : ''}${c.name}`,
+      onSelect: c => {
+        draft.seller_default_country = c.country_id;
+        draft.seller_default_city = '';
+        _render();
+        _toast('Staged. Tap Save Changes.');
+      },
+    }));
+
+    container.querySelector('[data-action="edit-seller-city"]')?.addEventListener('click', () => {
+      const countryId = draft.seller_default_country || dbUser.seller_default_country || dbUser.country;
+      const cities = db.cities.find(c => c.country === countryId && c.is_active !== false).sort((a, b) => a.name.localeCompare(b.name));
+      if (!countryId || !cities.length) { _toast('Choose a country first', 'error'); return; }
+      _showChoiceSheet({
+        title: 'Default Item City',
+        items: cities,
+        getLabel: c => c.name,
+        onSelect: c => {
+          draft.seller_default_city = c.city_id;
+          _render();
+          _toast('Staged. Tap Save Changes.');
+        },
+      });
+    });
+
     // Notification toggles
     container.querySelectorAll('[data-notif]').forEach(el => {
-      el.addEventListener('click', async () => {
+      el.addEventListener('click', () => {
         const key = el.dataset.notif;
-        notifPrefs[key] = !notifPrefs[key];
-        await db.users.update(dbUser.user_id, { notification_prefs: { ...notifPrefs } });
+        if (key === 'show_phone' || key === 'is_dealer') {
+          draft[key] = !draft[key];
+        } else {
+          notifPrefs[key] = !notifPrefs[key];
+          draft.notification_prefs = { ...notifPrefs };
+        }
         _render();
+        _toast('Staged. Tap Save Changes.');
       });
     });
 
@@ -209,6 +328,7 @@ export async function init(container) {
     container.querySelector('[data-action="go-verification"]')?.addEventListener('click', () => navigate('verification'));
     container.querySelector('[data-action="go-block-list"]')?.addEventListener('click', () => navigate('block-list'));
     container.querySelector('[data-action="go-archived-chats"]')?.addEventListener('click', () => navigate('archived-chats'));
+    container.querySelector('[data-action="go-storefront"]')?.addEventListener('click', () => { window.location.href = `/seller/${encodeURIComponent(dbUser.user_id)}`; });
     container.querySelector('[data-action="change-password"]')?.addEventListener('click', () => _showPasswordSheet(dbUser));
 
     // Log out
@@ -241,7 +361,7 @@ export async function init(container) {
           </div>
         `,
         actions: [
-          { label: 'Permanently Delete', variant: 'danger', onClick: async () => { await db.users.delete(dbUser.user_id); logout(); navigate('auth'); } },
+          { label: 'Permanently Delete', variant: 'danger', onClick: async () => { await api.deleteUser(dbUser.user_id); logout(); navigate('home'); } },
           { label: 'Cancel', variant: 'outline', onClick: () => {} }
         ]
       });
@@ -288,6 +408,41 @@ function _showPasswordSheet(user) {
       { label: 'Cancel', variant: 'outline', onClick: () => {} }
     ]
   });
+}
+
+function _showChoiceSheet({ title, items, getLabel, onSelect }) {
+  showBottomSheet({
+    title,
+    content: `
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto;">
+        ${items.map((item, idx) => `
+          <button data-choice="${idx}" style="width:100%;text-align:left;background:#fff;border:1px solid #f1f5f9;border-radius:14px;padding:13px 14px;font-weight:800;color:#334155;">
+            ${_esc(getLabel(item))}
+          </button>
+        `).join('')}
+      </div>
+    `,
+    actions: [{ label: 'Cancel', variant: 'outline', onClick: () => {} }]
+  });
+  setTimeout(() => {
+    document.querySelectorAll('[data-choice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = items[Number(btn.dataset.choice)];
+        hideBottomSheet();
+        onSelect(item);
+      });
+    });
+  }, 0);
+}
+
+function _countryName(id) {
+  if (!id) return 'Not set';
+  return db.countries.findById(id)?.name || id;
+}
+
+function _cityName(id) {
+  if (!id) return 'Not set';
+  return db.cities.findById(id)?.name || id;
 }
 
 // ── Row builders ──────────────────────────────────────────────

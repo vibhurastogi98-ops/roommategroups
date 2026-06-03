@@ -3,6 +3,7 @@ import { getCurrentUser } from '../../../web/src/services/auth.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
 import { getAssetUrl } from '../../../web/src/services/assets.js';
+import { api } from '../../../web/src/services/api.js';
 
 async function getMobile() { return await import('../mobile-main.js'); }
 
@@ -25,11 +26,27 @@ export async function init(container) {
     }
   });
 
-  let activeFilter = 'all'; // 'all' | 'active' | 'paused'
+  let activeFilter = 'all'; // 'all' | 'active' | 'paused' | 'sold'
   const _isActive = (l) => {
     if (!l) return false;
     // Match web dashboard logic: status must be 'active' and is_active must not be boolean false
     return l.status === 'active' && l.is_active !== false;
+  };
+  const _isSold = (l) => l?.status === 'sold' || Boolean(l?.sold_at);
+  const _isSale = (l) => {
+    if (String(l?.kind || '').toLowerCase() === 'sale') return true;
+    return Boolean(
+      l?.category_id
+      || l?.condition
+      || l?.brand
+      || l?.attributes
+      || ((l?.price !== undefined && l?.price !== null && l?.price !== '') && (l?.rent === undefined || l?.rent === null || l?.rent === ''))
+    );
+  };
+  const _formatPrice = (l) => {
+    const val = _isSale(l) ? l.price : (l.rent ?? l.price);
+    if (val === undefined || val === null || val === '') return _isSale(l) ? 'Ask seller' : 'Price TBC';
+    return '$' + Number(val).toLocaleString() + (_isSale(l) ? '' : '/mo');
   };
 
   async function _render() {
@@ -39,12 +56,14 @@ export async function init(container) {
 
     const filtered = allListings.filter(l => {
         if (activeFilter === 'active') return _isActive(l);
-        if (activeFilter === 'paused') return !_isActive(l);
+        if (activeFilter === 'paused') return !_isSold(l) && !_isActive(l);
+        if (activeFilter === 'sold') return _isSold(l);
         return true;
     });
 
     const activeCount = allListings.filter(l => _isActive(l)).length;
-    const pausedCount = allListings.filter(l => !_isActive(l)).length;
+    const pausedCount = allListings.filter(l => !_isSold(l) && !_isActive(l)).length;
+    const soldCount = allListings.filter(l => _isSold(l)).length;
 
     container.innerHTML = `
       <div style="padding: 16px; background: #f8fafc; min-height: 100%; padding-bottom: 40px;">
@@ -54,6 +73,7 @@ export async function init(container) {
             ${_renderTab('all', 'All', allListings.length, activeFilter === 'all')}
             ${_renderTab('active', 'Active', activeCount, activeFilter === 'active')}
             ${_renderTab('paused', 'Paused', pausedCount, activeFilter === 'paused')}
+            ${_renderTab('sold', 'Sold', soldCount, activeFilter === 'sold')}
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px;">
@@ -61,7 +81,11 @@ export async function init(container) {
                 <div style="padding: 60px 24px; text-align: center;">
                     <div style="font-size: 3rem; margin-bottom: 16px;">🏠</div>
                     <div style="font-size: 1rem; font-weight: 800; color: #1e293b;">No listings found</div>
-                    <div style="font-size: 0.85rem; color: #94a3b8; margin-top:8px;">${activeFilter === 'all' ? "You haven't posted any listings yet." : `No ${activeFilter} listings found.`}</div>
+                    <div style="font-size: 0.85rem; color: #94a3b8; margin-top:8px;">${activeFilter === 'all' ? 'Post a room or list an item.' : `No ${activeFilter} listings found.`}</div>
+                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
+                      <button id="empty-list-item" style="height:40px;border:none;border-radius:12px;background:#0f172a;color:#fff;font-size:0.78rem;font-weight:900;padding:0 14px;">List an Item</button>
+                      <button id="empty-post-room" style="height:40px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;color:#0f172a;font-size:0.78rem;font-weight:900;padding:0 14px;">Post a Room</button>
+                    </div>
                 </div>
             ` : filtered.map(l => _renderListingRow(l)).join('')}
         </div>
@@ -107,6 +131,7 @@ export async function init(container) {
   function _renderListingRow(l) {
     const id = l.listing_id || l.id;
     const isActive = _isActive(l);
+    const isSold = _isSold(l);
     const modStatus = l.moderation_status || 'approved';
     const msgCount = (db.threads?.find?.(t => t.listing_id === id) || []).length;
     
@@ -123,9 +148,10 @@ export async function init(container) {
             </div>
             <div style="flex:1; min-width:0;">
                 <div style="font-size:1rem; font-weight:800; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px;">${l.title || 'Untitled'}</div>
+                <div style="font-size:0.82rem;font-weight:900;color:#0f172a;margin-bottom:6px;">${_formatPrice(l)} <span style="font-size:0.64rem;color:#64748b;background:#f1f5f9;border-radius:20px;padding:2px 8px;text-transform:uppercase;">${_isSale(l) ? 'Item' : 'Room'}</span></div>
                 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
                     ${modStatus === 'approved' ? `
-                        <span style="font-size:0.65rem; font-weight:800; color:${isActive ? '#10b981' : '#64748b'}; background:${isActive ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)'}; padding:2px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;">${isActive ? 'Active' : 'Paused'}</span>
+                        <span style="font-size:0.65rem; font-weight:800; color:${isSold ? '#047857' : isActive ? '#10b981' : '#64748b'}; background:${isSold ? 'rgba(4,120,87,0.1)' : isActive ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)'}; padding:2px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;">${isSold ? 'Sold' : isActive ? 'Active' : 'Paused'}</span>
                     ` : `
                         <span style="font-size:0.65rem; font-weight:800; color:${modStatus === 'pending' ? '#f59e0b' : '#ef4444'}; background:${modStatus === 'pending' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)'}; padding:2px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;">${modStatus}</span>
                     `}
@@ -138,7 +164,9 @@ export async function init(container) {
         <div style="display:flex; border-top:1px solid #f1f5f9; background:#fafafa;">
             <button class="row-action action-view" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:#64748b; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-eye" style="font-size:0.75rem;"></i> View</button>
             <button class="row-action action-edit" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:#64748b; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-pen" style="font-size:0.75rem;"></i> Edit</button>
-            <button class="row-action action-toggle" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:${isActive ? '#64748b' : '#10b981'}; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-${isActive ? 'pause' : 'play'}" style="font-size:0.75rem;"></i> ${isActive ? 'Pause' : 'Live'}</button>
+            ${isSold ? '' : `<button class="row-action action-toggle" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:${isActive ? '#64748b' : '#10b981'}; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-${isActive ? 'pause' : 'play'}" style="font-size:0.75rem;"></i> ${isActive ? 'Pause' : 'Live'}</button>`}
+            ${_isSale(l) && isActive && !isSold ? `<button class="row-action action-promote" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:#7c3aed; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-rocket" style="font-size:0.75rem;"></i> Promote</button>` : ''}
+            ${_isSale(l) && isActive && !isSold ? `<button class="row-action action-sold" data-id="${id}" style="flex:1; height:48px; border:none; background:transparent; border-right:1px solid #f1f5f9; color:#047857; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;"><i class="fa-solid fa-check" style="font-size:0.75rem;"></i> Sold</button>` : ''}
             <button class="row-action action-delete" data-id="${id}" style="flex:0.6; height:48px; border:none; background:transparent; color:#ef4444; font-size:0.85rem; display:flex; align-items:center; justify-content:center; cursor:pointer;"><i class="fa-solid fa-trash" style="font-size:0.75rem;"></i></button>
         </div>
       </div>
@@ -163,14 +191,31 @@ export async function init(container) {
         btn.addEventListener('click', () => navigate('post', { listingId: btn.dataset.id }));
     });
 
+    container.querySelector('#empty-list-item')?.addEventListener('click', () => navigate('post', { kind: 'sale' }));
+    container.querySelector('#empty-post-room')?.addEventListener('click', () => navigate('post', { kind: 'rental' }));
+
     container.querySelectorAll('.action-toggle').forEach(btn => {
         btn.addEventListener('click', async () => {
             const l = db.listings.findById(btn.dataset.id);
             if (!l) return;
+            if (_isSold(l)) return;
             const currentlyActive = _isActive(l);
             const nextStatus = currentlyActive ? 'paused' : 'active';
             const nextIsActive = !currentlyActive;
             await db.listings.update(btn.dataset.id, { status: nextStatus, is_active: nextIsActive });
+            _render();
+        });
+    });
+
+    container.querySelectorAll('.action-promote').forEach(btn => {
+        btn.addEventListener('click', () => navigate('post', { listingId: btn.dataset.id, promote: true }));
+    });
+
+    container.querySelectorAll('.action-sold').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            await api.markSold(btn.dataset.id, true).catch(() => null);
+            await db.listings.update(btn.dataset.id, { status: 'sold', sold_at: new Date().toISOString(), is_active: false });
+            activeFilter = 'sold';
             _render();
         });
     });
@@ -205,6 +250,8 @@ export async function init(container) {
   function _showEditPopup(id) {
     const l = db.listings.findById(id);
     if (!l) return;
+    const isSale = _isSale(l);
+    const priceValue = isSale ? (l.price ?? l.rent ?? 0) : (l.rent ?? l.price ?? 0);
 
     const content = `
       <div style="padding: 0 4px;">
@@ -215,15 +262,36 @@ export async function init(container) {
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
           <div class="mobile-form-group">
-            <label class="mobile-form-label">Price ($/mo) *</label>
-            <input class="mobile-input" id="ep-price" type="number" value="${l.rent || l.price || 0}">
+            <label class="mobile-form-label">${isSale ? 'Price ($) *' : 'Price ($/mo) *'}</label>
+            <input class="mobile-input" id="ep-price" type="number" value="${priceValue}">
           </div>
+          ${isSale ? `
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">Condition</label>
+            <select class="mobile-input" id="ep-condition">
+              ${['new','like_new','good','fair'].map(c => `<option value="${c}" ${String(l.condition || 'good') === c ? 'selected' : ''}>${c.replace('_',' ')}</option>`).join('')}
+            </select>
+          </div>
+          ` : `
           <div class="mobile-form-group">
             <label class="mobile-form-label">Deposit ($)</label>
             <input class="mobile-input" id="ep-deposit" type="number" value="${l.deposit || 0}">
           </div>
+          `}
         </div>
 
+        ${isSale ? `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">Brand</label>
+            <input class="mobile-input" id="ep-brand" type="text" value="${_esc(l.brand || '')}">
+          </div>
+          <div class="mobile-form-group" style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:12px 16px; border-radius:12px; margin-bottom:20px;">
+            <span style="font-weight:700; font-size:0.9rem; color:#475569;">Negotiable</span>
+            <input type="checkbox" id="ep-negotiable" ${l.negotiable !== false ? 'checked' : ''} style="width:20px;height:20px;">
+          </div>
+        </div>
+        ` : `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
           <div class="mobile-form-group">
             <label class="mobile-form-label">Room Type</label>
@@ -253,6 +321,7 @@ export async function init(container) {
             </span>
           </label>
         </div>
+        `}
 
         <div class="mobile-form-group">
           <label class="mobile-form-label">Description</label>
@@ -272,7 +341,7 @@ export async function init(container) {
 
     // Wire internal events
     const sheet = document.querySelector('.mobile-sheet');
-    sheet.querySelector('#ep-utilities').addEventListener('change', (e) => {
+    sheet.querySelector('#ep-utilities')?.addEventListener('change', (e) => {
         const toggle = e.target.nextElementSibling;
         const knob = toggle.querySelector('span');
         toggle.style.backgroundColor = e.target.checked ? '#1a1a1a' : '#cbd5e1';
@@ -282,16 +351,29 @@ export async function init(container) {
 
   async function _handlePopupSave(id) {
     const sheet = document.querySelector('.mobile-sheet');
-    const updates = {
+    const existing = db.listings.findById(id);
+    const isSale = _isSale(existing);
+    const price = parseFloat(sheet.querySelector('#ep-price').value) || 0;
+    const base = {
       title: sheet.querySelector('#ep-title').value.trim(),
-      rent: parseInt(sheet.querySelector('#ep-price').value) || 0,
-      price: parseInt(sheet.querySelector('#ep-price').value) || 0,
+      description: sheet.querySelector('#ep-desc').value.trim()
+    };
+    const updates = isSale ? {
+      ...base,
+      kind: 'sale',
+      price,
+      condition: sheet.querySelector('#ep-condition')?.value || existing?.condition || 'good',
+      brand: sheet.querySelector('#ep-brand')?.value.trim() || '',
+      negotiable: !!sheet.querySelector('#ep-negotiable')?.checked,
+    } : {
+      ...base,
+      kind: 'rental',
+      rent: price,
       deposit: parseInt(sheet.querySelector('#ep-deposit').value) || 0,
       room_type: sheet.querySelector('#ep-roomtype').value,
       available_from: sheet.querySelector('#ep-date').value,
       min_stay: sheet.querySelector('#ep-minstay').value,
       utilities_included: sheet.querySelector('#ep-utilities').checked,
-      description: sheet.querySelector('#ep-desc').value.trim()
     };
 
     if (!updates.title) { alert('Title is required'); return false; }
