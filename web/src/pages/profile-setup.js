@@ -1,4 +1,4 @@
-import { getCurrentUser, updateProfile } from '../services/auth.js';
+import { getCurrentUser, updateProfile, canUseSocialLinks, normalizeSocialLinks, SOCIAL_LINK_FIELDS } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db } from '../services/db.js';
 import { uploadImage } from '../services/upload.js';
@@ -24,6 +24,29 @@ export function renderProfileSetupPage(app) {
         navigate('/auth/login');
         return;
     }
+    const socialEligible = canUseSocialLinks(user);
+    const socialValues = normalizeSocialLinks(user.social_links);
+    const escAttr = (value = '') => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const socialEditor = socialEligible
+        ? `<div class="form-row-2col">
+            ${SOCIAL_LINK_FIELDS.map(field => `
+              <div class="form-group">
+                <label for="profile-social-${field.key}">${field.label}</label>
+                <div class="input-wrapper">
+                  <i class="${field.icon}"></i>
+                  <input type="text" id="profile-social-${field.key}" class="form-input" value="${escAttr(socialValues[field.key] || '')}" placeholder="@handle or full URL" />
+                </div>
+              </div>
+            `).join('')}
+          </div>`
+        : `<div style="padding:16px;border:1px dashed #cbd5e1;border-radius:14px;background:#f8fafc;color:#64748b;font-size:0.9rem;">
+            <strong style="display:block;color:#1e293b;margin-bottom:6px;">Add social links</strong>
+            Add Instagram, Facebook, LinkedIn, and Twitter/X links when you upgrade to <a href="/pricing" style="color:#1a1a1a;font-weight:800;">Pro</a>.
+          </div>`;
 
     app.innerHTML = `
     <div class="auth-page profile-setup-page">
@@ -55,6 +78,12 @@ export function renderProfileSetupPage(app) {
             <div class="char-counter">
               <span id="bio-count">${(user.bio || '').length}</span>/500
             </div>
+          </div>
+
+          <div class="form-group">
+            <label>Social Links</label>
+            <p class="form-hint">Pro and Admin users can show social links on their profile.</p>
+            ${socialEditor}
           </div>
 
           <!-- Two-column row -->
@@ -392,6 +421,12 @@ export function renderProfileSetupPage(app) {
             country,
             city,
         };
+        if (socialEligible) {
+            profileData.social_links = normalizeSocialLinks(SOCIAL_LINK_FIELDS.reduce((acc, field) => {
+                acc[field.key] = document.getElementById(`profile-social-${field.key}`)?.value.trim() || '';
+                return acc;
+            }, {}));
+        }
 
         const btn = document.getElementById('save-profile-btn');
         btn.disabled = true;

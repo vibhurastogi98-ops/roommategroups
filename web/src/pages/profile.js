@@ -1,6 +1,6 @@
 import { db } from '../services/db.js';
 import { navigate } from '../router.js';
-import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
+import { getCurrentUser, getVerificationBadge, getTierBadge, renderSocialLinks } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 
@@ -31,6 +31,8 @@ export function renderProfilePage(app, params) {
 
     const avatar = getAvatarUrl(user.profile_photo, user.display_name);
     const verifiedIcon = getVerificationBadge(user);
+    const tierBadge = getTierBadge(user);
+    const socialLinks = renderSocialLinks(user);
     const currentUser = getCurrentUser();
 
     // Get user listings
@@ -78,8 +80,9 @@ export function renderProfilePage(app, params) {
             <div class="prof-sidebar">
                 <div class="prof-card">
                     <img src="${avatar}" class="prof-avatar" alt="${user.display_name}">
-                    <h1 class="prof-name">${user.display_name} ${verifiedIcon}</h1>
+                    <h1 class="prof-name">${user.display_name} ${verifiedIcon} ${tierBadge}</h1>
                     <div class="prof-location"><i class="fa-solid fa-location-dot"></i> ${user.city ? user.city.replace('city_', '').replace('_', ' ') : 'Global Citizen'}</div>
+                    ${socialLinks}
                     
                     ${currentUser && currentUser.id !== user.user_id ? `
                         <button class="btn btn-primary" style="width:100%;" id="prof-msg-btn">

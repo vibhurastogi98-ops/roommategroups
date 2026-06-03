@@ -185,7 +185,8 @@ async function _registerOffline({ fullName, email, password }) {
             offers: true, offer_updates: true, reviews: true, saved_search: true
         },
         seller_default_country: '', seller_default_city: '', seller_payment_note: '',
-        phone: '', show_phone: false, is_dealer: false, business_name: '',
+        phone: '', show_phone: false,
+        social_links: {},
         verification_level: 'basic', subscription_tier: 'free',
         stripe_customer_id: generateStripeCustomerId(),
         role: 'user', saved_listings: [], saved_searches: [], blocked_users: [],
@@ -415,4 +416,102 @@ export function getVerificationBadge(userOrLevel) {
     if (community) html += '<span class="verify-badge verify-community" title="Community Verified"><i class="fa-solid fa-star" style="color:#555555;"></i></span>';
     
     return html ? '<span class="verification-badges tooltip-badges" style="display:inline-flex;gap:4px;margin-left:6px;">' + html + '</span>' : '';
+}
+
+export function getTierBadge(user) {
+    const tier = String(user?.subscription_tier || '').toLowerCase();
+    if (tier === 'pro') {
+        return '<span class="tier-badge tier-gold" title="Pro Member"><i class="fa-solid fa-circle-check" style="color:#D4AF37;"></i> Gold Verified</span>';
+    }
+    if (tier === 'premium') {
+        return '<span class="tier-badge tier-verified" title="Premium Member"><i class="fa-solid fa-circle-check" style="color:#6366f1;"></i> Verified</span>';
+    }
+    return '';
+}
+
+export function canUseSocialLinks(user) {
+    const tier = String(user?.subscription_tier || '').toLowerCase();
+    return tier === 'pro' || tier === 'admin';
+}
+
+export const SOCIAL_LINK_FIELDS = [
+    { key: 'instagram', label: 'Instagram', icon: 'fa-brands fa-instagram' },
+    { key: 'facebook', label: 'Facebook', icon: 'fa-brands fa-facebook' },
+    { key: 'linkedin', label: 'LinkedIn', icon: 'fa-brands fa-linkedin' },
+    { key: 'twitter', label: 'Twitter/X', icon: 'fa-brands fa-x-twitter' },
+];
+
+function escapeAttr(value = '') {
+    return String(value).replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+    }[ch]));
+}
+
+function normalizeSocialUrl(key, value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    if (raw.startsWith('@')) {
+        const handle = raw.slice(1).replace(/^\/+/, '');
+        if (!handle) return '';
+        const bases = {
+            instagram: 'https://instagram.com/',
+            facebook: 'https://facebook.com/',
+            linkedin: 'https://linkedin.com/in/',
+            twitter: 'https://x.com/',
+        };
+        return bases[key] ? bases[key] + encodeURIComponent(handle) : '';
+    }
+
+    let url = raw;
+    if (!/^https?:\/\//i.test(url)) {
+        if (key === 'instagram' && !url.includes('/')) url = 'instagram.com/' + url.replace(/^@/, '');
+        if (key === 'facebook' && !url.includes('/')) url = 'facebook.com/' + url.replace(/^@/, '');
+        if (key === 'linkedin' && !url.includes('/')) url = 'linkedin.com/in/' + url.replace(/^@/, '');
+        if (key === 'twitter' && !url.includes('/')) url = 'x.com/' + url.replace(/^@/, '');
+        url = 'https://' + url.replace(/^\/+/, '');
+    }
+
+    try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+        return parsed.toString();
+    } catch {
+        return '';
+    }
+}
+
+export function parseSocialLinks(value) {
+    if (!value) return {};
+    if (typeof value === 'object' && !Array.isArray(value)) return value;
+    if (typeof value !== 'string') return {};
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+export function normalizeSocialLinks(value) {
+    const raw = parseSocialLinks(value);
+    return SOCIAL_LINK_FIELDS.reduce((acc, field) => {
+        const url = normalizeSocialUrl(field.key, raw[field.key]);
+        if (url) acc[field.key] = url;
+        return acc;
+    }, {});
+}
+
+export function renderSocialLinks(user, { className = '' } = {}) {
+    if (!canUseSocialLinks(user)) return '';
+    const links = normalizeSocialLinks(user?.social_links);
+    const items = SOCIAL_LINK_FIELDS
+        .filter(field => links[field.key])
+        .map(field => `<a class="social-link" href="${escapeAttr(links[field.key])}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(field.label)}" aria-label="${escapeAttr(field.label)}"><i class="${field.icon}"></i></a>`);
+    if (!items.length) return '';
+    return `<div class="social-links ${escapeAttr(className)}">${items.join('')}</div>`;
 }

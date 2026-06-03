@@ -64,7 +64,7 @@ export function buildProductOfferSchema({
             priceCurrency,
             availability,
             seller: {
-                '@type': seller?.is_dealer ? 'Organization' : 'Person',
+                '@type': 'Person',
                 name: sellerName,
             },
         },

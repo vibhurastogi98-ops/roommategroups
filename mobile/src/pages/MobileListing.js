@@ -5,7 +5,7 @@
  */
 
 import { db } from '../../../web/src/services/db.js';
-import { getCurrentUser, getVerificationBadge } from '../../../web/src/services/auth.js';
+import { getCurrentUser, getVerificationBadge, getTierBadge, renderSocialLinks } from '../../../web/src/services/auth.js';
 import { getAssetUrl, getAvatarUrl } from '../../../web/src/services/assets.js';
 import { api } from '../../../web/src/services/api.js';
 import { showBottomSheet, hideBottomSheet } from '../components/BottomSheet.js';
@@ -99,13 +99,14 @@ function _renderSellerCardContent(seller, fallbackName, ago, isOwner) {
     <div style="flex:1;min-width:0;">
       <div style="display:flex;align-items:center;gap:5px;min-width:0;">
         <span style="font-size:0.9rem;font-weight:800;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(name)}</span>
-        ${seller ? getVerificationBadge(seller) : ''}
+        ${seller ? getVerificationBadge(seller) : ''} ${seller ? getTierBadge(seller) : ''}
       </div>
       <div style="display:flex;align-items:center;gap:6px;color:#f59e0b;font-size:0.72rem;margin-top:3px;">
         <span>${_renderStars(ratingAvg)}</span>
         <span style="color:#64748b;font-weight:700;">${_esc(ratingText)}</span>
       </div>
-      <div style="font-size:0.72rem;color:#94a3b8;margin-top:3px;">${_esc(_formatResponseTime(seller?.response_time_mins))}${seller?.is_dealer ? ' • Dealer' : (ago ? ' • Listed ' + _esc(ago) : '')}</div>
+      <div style="font-size:0.72rem;color:#94a3b8;margin-top:3px;">${_esc(_formatResponseTime(seller?.response_time_mins))}${ago ? ' • Listed ' + _esc(ago) : ''}</div>
+      ${seller ? renderSocialLinks(seller) : ''}
     </div>
     <div style="font-size:0.72rem;font-weight:800;color:var(--mobile-accent);white-space:nowrap;">${isOwner ? 'Yours' : 'View'}</div>
   `;

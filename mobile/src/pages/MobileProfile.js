@@ -4,7 +4,7 @@
  * Exports: async init(container)
  */
 
-import { getCurrentUser, logout } from '../../../web/src/services/auth.js';
+import { getCurrentUser, logout, getVerificationBadge, getTierBadge, renderSocialLinks } from '../../../web/src/services/auth.js';
 import { db } from '../../../web/src/services/db.js';
 import { uploadImage } from '../../../web/src/services/upload.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
@@ -77,7 +77,7 @@ export async function init(container, params = {}) {
               <input type="file" id="avatar-upload" accept="image/*" style="display:none;">
             </label>` : ''}
           </div>
-          <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.02em;">${user.display_name || user.fullName || 'User'}</div>
+          <div style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.02em;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;">${user.display_name || user.fullName || 'User'} ${getVerificationBadge(user)} ${getTierBadge(user)}</div>
           ${(() => {
             const tier = (user.subscription_tier || 'free').toLowerCase();
             if (tier === 'free' && !isSelf) return '';
@@ -92,6 +92,7 @@ export async function init(container, params = {}) {
           })()}
           <div style="font-size:0.82rem;color:#94a3b8;margin-top:4px;">${isSelf ? (user.email || '') : ''}</div>
           ${user.bio ? `<div style="font-size:0.83rem;color:var(--text-secondary);margin-top:8px;line-height:1.5;max-width:280px;margin-inline:auto;">${user.bio}</div>` : ''}
+          ${renderSocialLinks(user)}
           <div style="margin-top:10px;">
             <div id="prof-verify-btn" style="background:none;border:none;cursor:pointer;padding:4px 0;">
               ${isVerified ? `<span style="padding:4px 12px;border-radius:20px;background:rgba(16,185,129,.12);color:#059669;font-size:0.72rem;font-weight:700;">✓ ${user.verification_level} verified</span>` : (isSelf ? `<span style="padding:4px 12px;border-radius:20px;background:rgba(124,58,237,.1);color:var(--mobile-accent);font-size:0.72rem;font-weight:700;">Get Verified →</span>` : '')}

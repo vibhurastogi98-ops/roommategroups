@@ -7,7 +7,7 @@
  */
 
 import { db } from '../../../web/src/services/db.js';
-import { getCurrentUser, getVerificationBadge } from '../../../web/src/services/auth.js';
+import { getCurrentUser, getVerificationBadge, getTierBadge } from '../../../web/src/services/auth.js';
 import { getAssetUrl, getAvatarUrl } from '../../../web/src/services/assets.js';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -103,6 +103,7 @@ export function renderMobileCard(listing) {
   const posterName = poster?.display_name || poster?.fullName || 'Anonymous';
   const posterAvatar = getAvatarUrl(poster?.profile_photo, posterName);
   const verifiedHtml = poster ? getVerificationBadge(poster) : '';
+  const tierHtml = poster ? getTierBadge(poster) : '';
 
   // Handle photos / hero image
   let photoList = listing.photos || listing.images || [];
@@ -172,7 +173,7 @@ export function renderMobileCard(listing) {
             ${avatarHtml}
             <div>
               <div style="font-size:0.68rem;font-weight:800;color:#000;display:flex;align-items:center;">
-                ${posterName} ${verifiedHtml}
+                ${posterName} ${verifiedHtml} ${tierHtml}
               </div>
               <div style="font-size:0.56rem;color:#94a3b8;font-weight:600;">${ago || 'Recently'}</div>
             </div>

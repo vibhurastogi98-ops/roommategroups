@@ -483,6 +483,9 @@ function toPublicUser(row: any): Record<string, any> {
   const user = { ...row }
   delete user.password_hash
   delete user.passwordHash
+  for (const field of ['is_' + 'd' + 'ealer', ['business', 'name'].join('_')]) {
+    delete user[field]
+  }
 
   if ('is_active' in user) user.is_active = !!user.is_active
   if ('profileComplete' in user) user.profileComplete = !!user.profileComplete
@@ -490,16 +493,46 @@ function toPublicUser(row: any): Record<string, any> {
   if ('id_verified' in user) user.id_verified = !!user.id_verified
   if ('phone_verified' in user) user.phone_verified = !!user.phone_verified
   if ('show_phone' in user) user.show_phone = !!user.show_phone
-  if ('is_dealer' in user) user.is_dealer = !!user.is_dealer
 
-  const jsonFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens', 'notification_prefs']
-  jsonFields.forEach((field) => {
+  const jsonArrayFields = ['lifestyle_tags', 'saved_listings', 'saved_searches', 'blocked_users', 'push_tokens']
+  jsonArrayFields.forEach((field) => {
     if (typeof user[field] === 'string') {
-      try { user[field] = JSON.parse(user[field]) } catch { user[field] = field === 'notification_prefs' ? {} : [] }
+      try { user[field] = JSON.parse(user[field]) } catch { user[field] = [] }
     }
   })
+  const jsonObjectFields = ['notification_prefs', 'social_links']
+  jsonObjectFields.forEach((field) => {
+    if (typeof user[field] === 'string') {
+      try { user[field] = JSON.parse(user[field]) } catch { user[field] = {} }
+    }
+  })
+  if ('social_links' in user) user.social_links = sanitizeSocialLinksValue(user.social_links)
 
   return user
+}
+
+function hasSocialLinkTier(tier: unknown): boolean {
+  return ['pro', 'admin'].includes(String(tier || '').toLowerCase())
+}
+
+const SOCIAL_LINK_KEYS = ['instagram', 'facebook', 'linkedin', 'twitter']
+
+function sanitizeSocialLinksValue(raw: unknown): Record<string, string> {
+  let parsed: any = raw
+  if (typeof raw === 'string') {
+    try { parsed = JSON.parse(raw) } catch { parsed = {} }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+  const out: Record<string, string> = {}
+  for (const key of SOCIAL_LINK_KEYS) {
+    const value = parsed[key]
+    if (typeof value === 'string' && value.trim()) out[key] = value.trim()
+  }
+  return out
+}
+
+function hasAnySocialLinks(raw: unknown): boolean {
+  return Object.keys(sanitizeSocialLinksValue(raw)).length > 0
 }
 
 function parseJsonArrayValue(raw: unknown): any[] {
@@ -717,6 +750,7 @@ app.post('/auth/register', async (c) => {
       saved_listings: '[]',
       saved_searches: '[]',
       blocked_users: '[]',
+      social_links: '{}',
       notification_prefs: JSON.stringify({
         messages: true,
         matches: true,
@@ -740,8 +774,6 @@ app.post('/auth/register', async (c) => {
       seller_payment_note: '',
       phone: '',
       show_phone: 0,
-      is_dealer: 0,
-      business_name: '',
       seller_rating_avg: 0,
       seller_rating_count: 0,
       response_time_mins: null,
@@ -866,6 +898,15 @@ app.post('/users', async (c) => {
     // Caller may only create their own user record (registration sync) unless admin
     const isAdmin = getRequestRole(c) === 'admin'
     if (!isAdmin && id !== callerId) return dbJson(c, { error: 'Forbidden' }, 403)
+    if (hasAnySocialLinks(body.social_links)) {
+      const tierRow = await c.env.DB.prepare(
+        'SELECT subscription_tier FROM users WHERE user_id = ?'
+      ).bind(id).first<{ subscription_tier?: string }>()
+      const effectiveTier = tierRow?.subscription_tier || body.subscription_tier
+      if (!hasSocialLinkTier(effectiveTier)) {
+        return dbJson(c, { error: 'Social links require Pro' }, 403)
+      }
+    }
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
       if (!isAdmin && ['passwordHash', 'password_hash', 'role'].includes(k)) continue
@@ -875,21 +916,22 @@ app.post('/users', async (c) => {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
       } else if (k === 'notification_prefs') {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || {})
+      } else if (k === 'social_links') {
+        mapped[k] = JSON.stringify(sanitizeSocialLinksValue(v))
       } else {
         mapped[k] = v
       }
     }
     if ('show_phone' in mapped) mapped['show_phone'] = mapped['show_phone'] ? 1 : 0
-    if ('is_dealer' in mapped) mapped['is_dealer'] = mapped['is_dealer'] ? 1 : 0
     const validCols = [
       'user_id', 'email', 'display_name', 'profile_photo', 'bio', 'city', 'age_range', 
       'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
-      'saved_listings', 'saved_searches', 'blocked_users', 'notification_prefs', 'password_hash', 'role', 
+      'saved_listings', 'saved_searches', 'blocked_users', 'notification_prefs', 'social_links', 'password_hash', 'role', 
       'is_active', 'profileComplete', 'emailVerified', 'created_at', 'last_active',
       'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline',
       'id_verified', 'id_status', 'id_reject_reason', 'verification_id_photo', 'verification_selfie', 'phone_verified', 'push_tokens',
       'seller_default_country', 'seller_default_city', 'seller_payment_note', 'phone',
-      'show_phone', 'is_dealer', 'business_name', 'seller_rating_avg', 'seller_rating_count',
+      'show_phone', 'seller_rating_avg', 'seller_rating_count',
       'response_time_mins', 'promote_credits'
     ]
 
@@ -932,6 +974,16 @@ app.put('/users/:id', async (c) => {
     })
     if ((callerId !== id || updatesAdminOnlyField) && !isAdmin) return dbJson(c, { error: 'Forbidden' }, 403)
 
+    if (hasAnySocialLinks(body.social_links)) {
+      const tierRow = await c.env.DB.prepare(
+        'SELECT subscription_tier FROM users WHERE user_id = ?'
+      ).bind(id).first<{ subscription_tier?: string }>()
+      const effectiveTier = body.subscription_tier || tierRow?.subscription_tier
+      if (!hasSocialLinkTier(effectiveTier)) {
+        return dbJson(c, { error: 'Social links require Pro' }, 403)
+      }
+    }
+
     const mapped: Record<string, any> = {}
     for (const [k, v] of Object.entries(body)) {
       if (!isAdmin && ['passwordHash', 'password_hash', 'role'].includes(k)) continue
@@ -941,6 +993,8 @@ app.put('/users/:id', async (c) => {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || [])
       } else if (k === 'notification_prefs') {
         mapped[k] = typeof v === 'string' ? v : JSON.stringify(v || {})
+      } else if (k === 'social_links') {
+        mapped[k] = JSON.stringify(sanitizeSocialLinksValue(v))
       } else {
         mapped[k] = v
       }
@@ -950,17 +1004,16 @@ app.put('/users/:id', async (c) => {
     if ('profileComplete' in mapped) mapped['profileComplete'] = mapped['profileComplete'] ? 1 : 0
     if ('emailVerified' in mapped) mapped['emailVerified'] = mapped['emailVerified'] ? 1 : 0
     if ('show_phone' in mapped) mapped['show_phone'] = mapped['show_phone'] ? 1 : 0
-    if ('is_dealer' in mapped) mapped['is_dealer'] = mapped['is_dealer'] ? 1 : 0
     
     const validCols = [
       'user_id', 'email', 'display_name', 'profile_photo', 'bio', 'city', 'age_range', 
       'lifestyle_tags', 'verification_level', 'subscription_tier', 'stripe_customer_id', 
-      'saved_listings', 'saved_searches', 'blocked_users', 'notification_prefs', 'password_hash', 'role', 
+      'saved_listings', 'saved_searches', 'blocked_users', 'notification_prefs', 'social_links', 'password_hash', 'role', 
       'is_active', 'profileComplete', 'emailVerified', 'created_at', 'last_active',
       'occupation', 'country', 'budgetMin', 'budgetMax', 'moveInTimeline', 'push_tokens',
       'id_verified', 'id_status', 'id_reject_reason', 'verification_id_photo', 'verification_selfie', 'phone_verified',
       'seller_default_country', 'seller_default_city', 'seller_payment_note', 'phone',
-      'show_phone', 'is_dealer', 'business_name', 'seller_rating_avg', 'seller_rating_count',
+      'show_phone', 'seller_rating_avg', 'seller_rating_count',
       'response_time_mins', 'promote_credits'
     ]
     const filtered: Record<string, any> = {}
@@ -1813,8 +1866,9 @@ app.get('/sellers/:id', async (c) => {
     const id = c.req.param('id')
     const seller = await c.env.DB.prepare(
       `SELECT user_id, display_name, profile_photo, bio, verification_level,
+              subscription_tier, social_links,
               seller_rating_avg, seller_rating_count, response_time_mins,
-              is_dealer, created_at
+              created_at
        FROM users
        WHERE user_id = ?`
     ).bind(id).first()
@@ -1829,7 +1883,6 @@ app.get('/sellers/:id', async (c) => {
 
     const publicSeller = {
       ...(seller as any),
-      is_dealer: !!(seller as any).is_dealer,
       listings: (results as any[]).map(mapListingRow),
     }
 

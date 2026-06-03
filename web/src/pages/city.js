@@ -1,6 +1,6 @@
 import { db } from '../services/db.js';
 import { navigate } from '../router.js';
-import { getVerificationBadge, getCurrentUser } from '../services/auth.js';
+import { getVerificationBadge, getTierBadge, getCurrentUser } from '../services/auth.js';
 import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { setSEO } from '../seo.js'; // SEO Update
@@ -648,7 +648,7 @@ function renderRoommateCard(r) {
                 <span class="roommate-budget">$${r.rent ?? r.budgetMax ?? '?'}/mo</span>
             </div>
             <div class="roommate-card-body">
-                <h3 class="roommate-name">${user.display_name || user.fullName || 'User'} ${getVerificationBadge(user)}</h3>
+                <h3 class="roommate-name">${user.display_name || user.fullName || 'User'} ${getVerificationBadge(user)} ${getTierBadge(user)}</h3>
                 <p class="roommate-title">${r.title}</p>
                 <div class="roommate-tags">
                     ${tags.slice(0, 3).map(t => `<span class="roommate-tag">${t.replace('tag_', '')}</span>`).join('')}

@@ -3,7 +3,7 @@
  * Onboarding page for new users to complete their profile.
  */
 
-import { getCurrentUser, updateProfile } from '../../../web/src/services/auth.js';
+import { getCurrentUser, updateProfile, canUseSocialLinks, normalizeSocialLinks, SOCIAL_LINK_FIELDS } from '../../../web/src/services/auth.js';
 import { db } from '../../../web/src/services/db.js';
 import { uploadImage } from '../../../web/src/services/upload.js';
 import { Camera, CameraResultType } from '@capacitor/camera';
@@ -29,6 +29,24 @@ export async function init(container) {
         navigate('auth');
         return;
     }
+    const socialEligible = canUseSocialLinks(user);
+    const socialValues = normalizeSocialLinks(user.social_links);
+    const escAttr = (value = '') => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const socialEditor = socialEligible
+        ? SOCIAL_LINK_FIELDS.map(field => `
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">${field.label}</label>
+                <input type="text" id="profile-social-${field.key}" class="mobile-input" placeholder="@handle or full URL" value="${escAttr(socialValues[field.key] || '')}">
+            </div>
+        `).join('')
+        : `<div style="padding:16px;border:1px dashed #cbd5e1;border-radius:16px;background:#f8fafc;color:#64748b;font-size:0.85rem;line-height:1.5;">
+            <strong style="display:block;color:#1e293b;margin-bottom:6px;">Add social links</strong>
+            Upgrade to Pro to add Instagram, Facebook, LinkedIn, and Twitter/X links to your profile.
+        </div>`;
 
     container.innerHTML = `
     <div style="min-height:100%; background:#fff; overflow-y:auto; padding:24px 20px 100px;">
@@ -63,6 +81,12 @@ export async function init(container) {
                         <span id="bio-count">${(user.bio || '').length}</span>/500
                     </div>
                 </div>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">Social Links</label>
+                <div style="font-size:0.76rem;color:#94a3b8;margin:0 0 10px;">Pro and Admin users can show social links on their profile.</div>
+                ${socialEditor}
             </div>
 
             <!-- Age & Occupation -->
@@ -301,6 +325,12 @@ export async function init(container) {
             country,
             city,
         };
+        if (socialEligible) {
+            data.social_links = normalizeSocialLinks(SOCIAL_LINK_FIELDS.reduce((acc, field) => {
+                acc[field.key] = container.querySelector(`#profile-social-${field.key}`)?.value.trim() || '';
+                return acc;
+            }, {}));
+        }
 
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving Profile...';

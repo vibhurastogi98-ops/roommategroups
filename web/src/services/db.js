@@ -36,14 +36,13 @@ const SEED_DATA = {
             saved_listings: [],
             saved_searches: [],
             blocked_users: [],
+            social_links: {},
             notification_prefs: { messages: true, matches: true, price_drops: true, digest: false, offers: true, offer_updates: true, reviews: true, saved_search: true },
             seller_default_country: '',
             seller_default_city: '',
             seller_payment_note: '',
             phone: '',
             show_phone: false,
-            is_dealer: false,
-            business_name: '',
             seller_rating_avg: 0,
             seller_rating_count: 0,
             response_time_mins: null,
@@ -69,14 +68,13 @@ const SEED_DATA = {
             saved_listings: [],
             saved_searches: [],
             blocked_users: [],
+            social_links: {},
             notification_prefs: { messages: true, matches: true, price_drops: true, digest: false, offers: true, offer_updates: true, reviews: true, saved_search: true },
             seller_default_country: '',
             seller_default_city: '',
             seller_payment_note: '',
             phone: '',
             show_phone: false,
-            is_dealer: false,
-            business_name: '',
             seller_rating_avg: 0,
             seller_rating_count: 0,
             response_time_mins: null,
@@ -408,6 +406,13 @@ export async function initDB() {
     if (!raw.categories)    { raw.categories   = SEED_DATA.categories;    updated = true; }
     if (!raw.posts)         { raw.posts        = SEED_DATA.posts;         updated = true; }
     if (!raw.fb_cities)     { raw.fb_cities    = SEED_DATA.fb_cities;     updated = true; }
+    if (Array.isArray(raw.users)) {
+        raw.users = raw.users.map(user => {
+            if (user.social_links !== undefined) return user;
+            updated = true;
+            return { ...user, social_links: {} };
+        });
+    }
     if (normalizeListingCollection(raw)) updated = true;
     if (updated) saveDB(raw);
 

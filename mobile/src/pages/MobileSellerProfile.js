@@ -1,6 +1,6 @@
 import { api } from '../../../web/src/services/api.js';
 import { getAvatarUrl } from '../../../web/src/services/assets.js';
-import { getVerificationBadge } from '../../../web/src/services/auth.js';
+import { getVerificationBadge, getTierBadge, renderSocialLinks } from '../../../web/src/services/auth.js';
 import { setSEO } from '../../../web/src/seo.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 
@@ -50,10 +50,10 @@ export default async function init(container, params = {}) {
       <div class="mobile-page-content" style="padding:16px 16px 24px;">
         <section style="background:#fff;border:1px solid #f1f5f9;border-radius:22px;padding:20px;text-align:center;margin-bottom:12px;">
           <img src="${getAvatarUrl(seller.profile_photo, name)}" alt="${escHtml(name)}" style="width:104px;height:104px;border-radius:50%;object-fit:cover;margin-bottom:12px;">
-          <div style="font-size:1.25rem;font-weight:900;color:#0f172a;display:flex;justify-content:center;align-items:center;gap:6px;">${escHtml(name)} ${getVerificationBadge(seller)}</div>
+          <div style="font-size:1.25rem;font-weight:900;color:#0f172a;display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;">${escHtml(name)} ${getVerificationBadge(seller)} ${getTierBadge(seller)}</div>
+          ${renderSocialLinks(seller)}
           <div style="color:#f59e0b;margin-top:8px;">${stars(seller.seller_rating_avg)}</div>
           <div style="font-size:0.78rem;color:#64748b;margin-top:4px;">${Number(seller.seller_rating_avg || 0).toFixed(1)} (${seller.seller_rating_count || 0}) • ${escHtml(responseTime(seller.response_time_mins))}</div>
-          ${seller.is_dealer ? '<div style="display:inline-flex;margin-top:10px;padding:5px 10px;border-radius:999px;background:#f1f5f9;font-size:0.72rem;font-weight:800;color:#475569;">Dealer</div>' : ''}
         </section>
 
         <section style="background:#fff;border:1px solid #f1f5f9;border-radius:18px;padding:16px;margin-bottom:12px;">

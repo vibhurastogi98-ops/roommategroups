@@ -2,7 +2,7 @@
 
 import { db, initDB } from '../services/db.js';
 import { renderFooter } from '../components/footer.js';
-import { getCurrentUser, getVerificationBadge } from '../services/auth.js';
+import { getCurrentUser, getVerificationBadge, getTierBadge, renderSocialLinks } from '../services/auth.js';
 import { renderNavbar, initNavbar } from '../components/navbar.js';
 import { navigate } from '../router.js';
 import { buildListingProductSchema, setSEO } from '../seo.js'; // SEO Update
@@ -138,6 +138,8 @@ function renderSellerCardContent(seller, fallbackName, listing, isOwner) {
     const name = seller?.display_name || fallbackName || 'Seller';
     const avatar = getAvatarUrl(seller?.profile_photo, name);
     const verifiedIcon = seller ? getVerificationBadge(seller) : '';
+    const tierBadge = seller ? getTierBadge(seller) : '';
+    const socialLinks = seller ? renderSocialLinks(seller, { className: 'ld-seller-socials' }) : '';
     const ratingAvg = Number(seller?.seller_rating_avg || 0);
     const ratingCount = Number(seller?.seller_rating_count || 0);
     const ratingText = ratingCount > 0 ? `${ratingAvg.toFixed(1)} (${ratingCount})` : 'No reviews yet';
@@ -146,9 +148,10 @@ function renderSellerCardContent(seller, fallbackName, listing, isOwner) {
     return `
         <img src="${avatar}" class="ld-host-avatar" alt="Avatar for ${escHtml(name)}" loading="lazy">
         <div class="ld-host-info ld-seller-info">
-            <h4>${escHtml(name)} ${verifiedIcon}</h4>
+            <h4>${escHtml(name)} ${verifiedIcon} ${tierBadge}</h4>
             <div class="ld-rating-line">${renderStars(ratingAvg)} <span>${escHtml(ratingText)}</span></div>
-            <p>${escHtml(responseText)}${seller?.is_dealer ? ' • Dealer' : ''}</p>
+            <p>${escHtml(responseText)}</p>
+            ${socialLinks}
             <span style="font-size:0.85rem;color:#1a1a1a;font-weight:600;">${isOwner ? 'Your Storefront' : 'View Seller'} <i class="fa-solid fa-chevron-right" style="font-size:0.75rem;"></i></span>
         </div>
     `;
@@ -312,6 +315,7 @@ export function renderListingDetailPage(app, params) {
     const posterName = user ? user.display_name : 'Unknown User';
     const avatar = getAvatarUrl(user?.profile_photo, posterName);
     const verifiedIcon = user ? getVerificationBadge(user) : '';
+    const posterTierBadge = user ? getTierBadge(user) : '';
 
     // Amenities Map
     const allAmenities = {
@@ -656,7 +660,7 @@ export function renderListingDetailPage(app, params) {
                     ${isMarketplace ? renderSellerCardContent(user, posterName, listing, isOwner) : `
                     <img src="${avatar}" class="ld-host-avatar" alt="Avatar for ${escHtml(posterName)}" loading="lazy">
                     <div class="ld-host-info">
-                        <h4>${escHtml(posterName)} ${verifiedIcon}</h4>
+                        <h4>${escHtml(posterName)} ${verifiedIcon} ${posterTierBadge}</h4>
                         <p>Listed ${formatDate(listing.created_at)}</p>
                         <span style="font-size:0.85rem;color:#1a1a1a;font-weight:600;">${isOwner ? 'Your Listing' : 'View Profile'} <i class="fa-solid fa-chevron-right" style="font-size:0.75rem;"></i></span>
                     </div>

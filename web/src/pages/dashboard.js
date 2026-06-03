@@ -1,4 +1,4 @@
-import { getCurrentUser, logout, getVerificationBadge, isAdmin, changePassword } from '../services/auth.js';
+import { getCurrentUser, logout, getVerificationBadge, getTierBadge, isAdmin, changePassword, canUseSocialLinks, normalizeSocialLinks, SOCIAL_LINK_FIELDS, renderSocialLinks } from '../services/auth.js';
 import { navigate } from '../router.js';
 import { db, syncMessagesAndThreads } from '../services/db.js';
 import { getTotalUnread, getUnreadCountForThread } from '../services/messaging.js';
@@ -94,7 +94,7 @@ export function renderDashboardPage(app) {
         '<div class="sidebar-user-wrap">',
         '<img src="' + avatarSrc + '" alt="User Avatar" class="sidebar-avatar" loading="lazy">',
         '<div>',
-        '<div class="sidebar-user-name">' + escapeHtml(dbUser.display_name) + '</div>',
+        '<div class="sidebar-user-name">' + escapeHtml(dbUser.display_name) + ' ' + getVerificationBadge(dbUser) + ' ' + getTierBadge(dbUser) + '</div>',
         '<div class="sidebar-user-tier tier-' + tierKey + '">' + (tierKey !== 'free' ? '<i class="fa-solid fa-bolt" style="font-size:0.6rem;"></i> ' : '') + tierLabels[tierKey] + ' Plan</div>',
         '</div>',
         '</div>',
@@ -1042,10 +1042,10 @@ function renderMessages(container, user, app) {
                 '<div class="msg-thread-card ' + (isActive ? 'active' : '') + ' ' + (unread > 0 ? 'has-unread' : '') + '" data-tid="' + t.thread_id + '">',
                 '<div class="msg-tc-avatar-wrap">',
                 '<a href="/profile/' + ouId + '" class="msg-tc-avatar-link" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-tc-avatar" alt="' + escapeHtml(ou.display_name) + ' Avatar" loading="lazy"></a>',
-                getVerificationBadge(ou.verification_level),
+                getVerificationBadge(ou),
                 '</div>',
                 '<div class="msg-tc-body">',
-                '<div class="msg-tc-top"><a href="/profile/' + ouId + '" class="msg-tc-name-link" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a><span class="msg-tc-time">' + formatRelativeTime(t.last_message_at) + '</span></div>',
+                '<div class="msg-tc-top"><a href="/profile/' + ouId + '" class="msg-tc-name-link" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou) + ' ' + getTierBadge(ou) + '<span class="msg-tc-time">' + formatRelativeTime(t.last_message_at) + '</span></div>',
                 li ? '<div class="msg-tc-listing"><a href="/listing/' + li.listing_id + '" onclick="event.preventDefault(); event.stopPropagation(); window.navigate(\'/listing/' + li.listing_id + '\')" style="color:inherit;text-decoration:none;"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + '</a></div>' : '',
                 '<div class="msg-tc-preview ' + (unread > 0 ? 'font-semibold' : '') + '">' + escapeHtml(t.last_message_preview || 'New conversation') + '</div>',
                 '</div>',
@@ -1125,7 +1125,7 @@ function renderMessages(container, user, app) {
             '<div class="msg-header-left">',
             '<a href="/profile/' + ouId + '" class="msg-hdr-avatar-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')"><img src="' + src + '" class="msg-hdr-avatar" alt="' + escapeHtml(ou.display_name) + ' Avatar" loading="lazy"></a>',
             '<div class="msg-header-info">',
-            '<div class="msg-header-name"><a href="/profile/' + ouId + '" class="msg-hdr-name-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou.verification_level) + '</div>',
+            '<div class="msg-header-name"><a href="/profile/' + ouId + '" class="msg-hdr-name-link" onclick="event.preventDefault(); window.navigate(\'/profile/' + ouId + '\')">' + escapeHtml(ou.display_name) + '</a> ' + getVerificationBadge(ou) + ' ' + getTierBadge(ou) + '</div>',
             li ? '<a href="/listing/' + li.listing_id + '" class="msg-header-listing" onclick="event.preventDefault(); window.navigate(\'/listing/' + li.listing_id + '\')"><i class="fa-solid fa-house-chimney"></i> ' + escapeHtml(li.title) + ' &middot; ' + listingPriceLabel + '</a>' : '',
             '</div>',
             '</div>',
@@ -1671,7 +1671,8 @@ async function renderProfileDashboard(container, user) {
         '<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">',
         '<img src="' + avatar + '" alt="Profile photo" style="width:112px;height:112px;border-radius:24px;object-fit:cover;border:1px solid var(--border);">',
         '<div style="flex:1;min-width:240px;">',
-        '<h3 style="font-size:1.7rem;font-weight:900;margin:0 0 6px;color:var(--text-primary);">' + escapeHtml(freshUser.display_name || 'RoommateGroups member') + ' ' + getVerificationBadge(freshUser.verification_level || freshUser) + '</h3>',
+        '<h3 style="font-size:1.7rem;font-weight:900;margin:0 0 6px;color:var(--text-primary);">' + escapeHtml(freshUser.display_name || 'RoommateGroups member') + ' ' + getVerificationBadge(freshUser.verification_level || freshUser) + ' ' + getTierBadge(freshUser) + '</h3>',
+        renderSocialLinks(freshUser, { className: 'dashboard-profile-socials' }),
         '<p style="color:var(--text-muted);line-height:1.65;margin:0 0 16px;">' + escapeHtml(bio) + '</p>',
         '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">',
         '<span class="badge badge-gray" style="padding:6px 12px;border-radius:999px;"><i class="fa-solid fa-calendar"></i> Member since ' + escapeHtml(memberSince) + '</span>',
@@ -1847,6 +1848,25 @@ function renderSettings(container, user) {
                 const on = savedTags.includes(t.id);
                 return `<label class="tag-pill${on ? ' active' : ''}"><input type="checkbox" value="${t.id}"${on ? ' checked' : ''}><i class="fas ${t.icon}"></i> ${t.label}</label>`;
             }).join('');
+            const socialEligible = canUseSocialLinks(user);
+            const socialValues = normalizeSocialLinks(user.social_links);
+            const socialEditor = socialEligible
+                ? `<div class="form-row-2col">
+                    ${SOCIAL_LINK_FIELDS.map(field => `
+                      <div class="form-group">
+                        <label>${field.label}</label>
+                        <div class="input-wrapper">
+                          <i class="${field.icon}"></i>
+                          <input type="text" class="form-control social-link-input" id="settings-social-${field.key}" value="${escapeHtml(socialValues[field.key] || '')}" placeholder="@handle or full URL">
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>`
+                : `<div class="db-empty-state" style="padding:18px;border:1px dashed var(--border);border-radius:14px;background:var(--bg-light);">
+                    <strong style="display:block;color:var(--text-primary);margin-bottom:6px;">Add social links</strong>
+                    <p style="margin:0 0 12px;color:var(--text-secondary);font-size:0.875rem;">Upgrade to Pro to add Instagram, Facebook, LinkedIn, and Twitter/X links to your profile.</p>
+                    <a href="/pricing" class="btn btn-outline btn-sm" style="text-decoration:none;">Upgrade to Pro</a>
+                  </div>`;
             const countryOpts = db.countries.findAll()
                 .filter(c => c.is_active)
                 .sort((a, b) => a.name.localeCompare(b.name))
@@ -1884,6 +1904,14 @@ function renderSettings(container, user) {
               <div class="form-group">
                 <label>Bio</label>
                 <textarea class="form-control" id="settings-bio" rows="4" placeholder="Tell potential roommates a bit about yourself...">${escapeHtml(user.bio || '')}</textarea>
+              </div>
+
+              <div class="form-group">
+                <div style="margin:6px 0 14px;padding-top:6px;border-top:1px solid var(--border);">
+                  <h4 style="margin:0 0 4px;font-size:0.95rem;color:var(--text-primary);">Social Links</h4>
+                  <p style="margin:0;color:var(--text-secondary);font-size:0.82rem;">Pro and Admin users can show social links on their profile.</p>
+                </div>
+                ${socialEditor}
               </div>
 
               <div class="form-row-2col">
@@ -2015,18 +2043,6 @@ function renderSettings(container, user) {
                 <input type="tel" class="form-control" id="seller-phone" value="${escapeHtml(user.phone || '')}" placeholder="Contact number">
               </div>
 
-              <div class="toggle-row" style="margin-top:12px;">
-                <div><div class="toggle-row-label">Dealer / Business Account</div><div class="toggle-row-sub">Use this if you sell as a shop, dealer, or business.</div></div>
-                <label class="toggle-switch"><input type="checkbox" id="seller-is-dealer"${user.is_dealer ? ' checked' : ''}><span class="slider"></span></label>
-              </div>
-              <div id="seller-business-wrap" style="display:${user.is_dealer ? '' : 'none'};margin-top:12px;">
-                <div class="form-group">
-                  <label>Business Name</label>
-                  <input type="text" class="form-control" id="seller-business-name" value="${escapeHtml(user.business_name || '')}" placeholder="Business or storefront name">
-                </div>
-                <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">Dealer features and a verified storefront may require the <a href="/dashboard/subscription">Pro plan</a>.</p>
-              </div>
-
               <div style="margin-top:18px;">
                 <a class="btn btn-outline btn-sm" href="/seller/${encodeURIComponent(user.user_id)}" style="text-decoration:none;"><i class="fa-solid fa-arrow-up-right-from-square"></i> View my public storefront</a>
               </div>
@@ -2105,8 +2121,6 @@ function renderSettings(container, user) {
             seller_payment_note: container.querySelector('#seller-payment-note')?.value.trim() || '',
             show_phone: container.querySelector('#seller-show-phone')?.checked || false,
             phone: container.querySelector('#seller-phone')?.value.trim() || '',
-            is_dealer: container.querySelector('#seller-is-dealer')?.checked || false,
-            business_name: container.querySelector('#seller-business-name')?.value.trim() || '',
             age_range:       container.querySelector('#settings-age-range').value,
             occupation:      container.querySelector('#settings-occupation').value.trim(),
             lifestyle_tags:  selectedTags,
@@ -2115,6 +2129,12 @@ function renderSettings(container, user) {
             moveInTimeline:  container.querySelector('#settings-timeline').value,
             profileComplete: Boolean(newName),
         };
+        if (canUseSocialLinks(user)) {
+            updates.social_links = normalizeSocialLinks(SOCIAL_LINK_FIELDS.reduce((acc, field) => {
+                acc[field.key] = container.querySelector(`#settings-social-${field.key}`)?.value.trim() || '';
+                return acc;
+            }, {}));
+        }
 
         const avatarImg = container.querySelector('#settings-avatar-img');
         if (stagedProfilePhotoUrl || avatarImg.dataset.newSrc) updates.profile_photo = stagedProfilePhotoUrl || avatarImg.dataset.newSrc;
@@ -2241,14 +2261,9 @@ function renderSettings(container, user) {
     });
 
     const showPhoneToggle = container.querySelector('#seller-show-phone');
-    const dealerToggle = container.querySelector('#seller-is-dealer');
     showPhoneToggle?.addEventListener('change', () => {
         const wrap = container.querySelector('#seller-phone-wrap');
         if (wrap) wrap.style.display = showPhoneToggle.checked ? '' : 'none';
-    });
-    dealerToggle?.addEventListener('change', () => {
-        const wrap = container.querySelector('#seller-business-wrap');
-        if (wrap) wrap.style.display = dealerToggle.checked ? '' : 'none';
     });
 
     // Profile — lifestyle tag pills

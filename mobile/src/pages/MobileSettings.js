@@ -4,7 +4,7 @@
  * photo upload, logout, subscription nav. Main settings persist on Save Changes.
  */
 
-import { getCurrentUser, logout, updateProfile, changePassword } from '../../../web/src/services/auth.js';
+import { getCurrentUser, logout, updateProfile, changePassword, canUseSocialLinks, normalizeSocialLinks, parseSocialLinks, SOCIAL_LINK_FIELDS } from '../../../web/src/services/auth.js';
 import { db } from '../../../web/src/services/db.js';
 import { api } from '../../../web/src/services/api.js';
 import { uploadImage } from '../../../web/src/services/upload.js';
@@ -84,6 +84,13 @@ export async function init(container) {
 
   // ── Save helpers ──────────────────────────────────────────────
   async function saveField(field, value) {
+    if (String(field).startsWith('social_links.')) {
+      const key = field.split('.')[1];
+      draft.social_links = normalizeSocialLinks({ ...parseSocialLinks(draft.social_links), [key]: value });
+      _render();
+      _toast('Staged. Tap Save Changes.');
+      return;
+    }
     draft[field] = field === 'budgetMin' || field === 'budgetMax' ? Number(value) || 0 : value;
     _render();
     _toast('Staged. Tap Save Changes.');
@@ -109,10 +116,11 @@ export async function init(container) {
       seller_payment_note: draft.seller_payment_note || '',
       show_phone: !!draft.show_phone,
       phone: draft.phone || '',
-      is_dealer: !!draft.is_dealer,
-      business_name: draft.business_name || '',
       profileComplete: Boolean(displayName),
     };
+    if (canUseSocialLinks(draft)) {
+      updates.social_links = normalizeSocialLinks(draft.social_links);
+    }
 
     await updateProfile(dbUser.user_id, updates);
     draft = { ...getDbUser(), ...updates, notification_prefs: updates.notification_prefs };
@@ -125,6 +133,8 @@ export async function init(container) {
   function _render() {
     const dbUser = getWorkingUser();
     if (!dbUser) return;
+    const socialEligible = canUseSocialLinks(dbUser);
+    const socialValues = normalizeSocialLinks(dbUser.social_links);
 
     container.innerHTML = `
       <div style="padding:20px;background:#f8fafc;min-height:100%;padding-bottom:60px;">
@@ -168,6 +178,19 @@ export async function init(container) {
             </div>
           </div>
 
+          <div>
+            <h3 style="${SECTION_TITLE}">Social Links</h3>
+            <div style="${CARD}">
+              ${socialEligible
+                ? SOCIAL_LINK_FIELDS.map(field => _row('🔗', field.label, socialValues[field.key] || 'Not set', `edit-social-${field.key}`)).join('')
+                : `<div style="padding:6px 0;">
+                    <div style="font-size:0.92rem;font-weight:800;color:#1e293b;margin-bottom:6px;">Add social links</div>
+                    <div style="font-size:0.8rem;color:#64748b;line-height:1.45;margin-bottom:12px;">Upgrade to Pro to add Instagram, Facebook, LinkedIn, and Twitter/X links to your profile.</div>
+                    <button data-action="go-subscription" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;font-weight:800;color:#334155;">Upgrade to Pro</button>
+                  </div>`}
+            </div>
+          </div>
+
           <!-- Roommate Preferences -->
           <div>
             <h3 style="${SECTION_TITLE}">Roommate Preferences</h3>
@@ -187,11 +210,8 @@ export async function init(container) {
               ${_row('💳', 'Payment Note', dbUser.seller_payment_note || 'Not set', 'edit-payment-note')}
               ${_toggle('☎️', 'Show phone on listings', !!dbUser.show_phone, 'show_phone')}
               ${dbUser.show_phone ? _row('📱', 'Phone', dbUser.phone || 'Not set', 'edit-phone') : ''}
-              ${_toggle('🏪', 'Dealer / Business Account', !!dbUser.is_dealer, 'is_dealer')}
-              ${dbUser.is_dealer ? _row('🏷️', 'Business Name', dbUser.business_name || 'Not set', 'edit-business-name') : ''}
               ${_row('🛍️', 'Public Storefront', 'View profile', 'go-storefront')}
             </div>
-            ${dbUser.is_dealer ? '<div style="font-size:0.76rem;color:#64748b;line-height:1.45;margin:10px 4px 0;">Dealer features and verified storefront may require the Pro plan.</div>' : ''}
           </div>
 
           <!-- Notifications -->
@@ -236,6 +256,7 @@ export async function init(container) {
   // ── Wire all interactions ─────────────────────────────────────
   async function _wire(dbUser) {
     const { navigate } = await getMobile();
+    const socialValues = normalizeSocialLinks(dbUser.social_links);
 
     // Profile photo upload
     container.querySelector('#photo-file-input')?.addEventListener('change', async e => {
@@ -265,7 +286,10 @@ export async function init(container) {
       'edit-timeline':      { label: 'Move-in Timeline', field: 'moveInTimeline', value: dbUser.moveInTimeline || '' },
       'edit-payment-note':   { label: 'Payment Note', field: 'seller_payment_note', value: dbUser.seller_payment_note || '' },
       'edit-phone':          { label: 'Phone', field: 'phone', value: dbUser.phone || '' },
-      'edit-business-name':  { label: 'Business Name', field: 'business_name', value: dbUser.business_name || '' },
+      ...Object.fromEntries(SOCIAL_LINK_FIELDS.map(field => [
+        `edit-social-${field.key}`,
+        { label: field.label, field: `social_links.${field.key}`, value: socialValues[field.key] || '' },
+      ])),
     };
 
     Object.entries(edits).forEach(([id, cfg]) => {
@@ -311,7 +335,7 @@ export async function init(container) {
     container.querySelectorAll('[data-notif]').forEach(el => {
       el.addEventListener('click', () => {
         const key = el.dataset.notif;
-        if (key === 'show_phone' || key === 'is_dealer') {
+        if (key === 'show_phone') {
           draft[key] = !draft[key];
         } else {
           notifPrefs[key] = !notifPrefs[key];

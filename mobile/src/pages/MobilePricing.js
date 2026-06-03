@@ -21,13 +21,27 @@ export async function init(container) {
       priceMonthly: 0,
       priceAnnual: 0,
       ctaText: 'Get Started Free',
+      highlights: [
+        '1 room listing + 1 item',
+        'Browse & message (5/day)',
+        'Sell items free',
+        'Make & receive offers',
+        'Standard support'
+      ],
       features: [
         { name: 'Active Listings', value: '1 Listing' },
         { name: 'Messaging', value: '5 msgs/day' },
         { name: 'Verified Badge', included: false },
         { name: 'Listing Visibility', value: 'Standard' },
         { name: 'Social Community', value: 'View only' },
-        { name: 'Priority Support', value: 'Standard (48h)' }
+        { name: 'Priority Support', value: 'Standard (48h)' },
+        { name: 'Sell Items Locally', value: 'Free', included: true },
+        { name: 'Active Item Listings', value: '1 item' },
+        { name: 'Buyer↔Seller Chat', value: 'Included', included: true },
+        { name: 'Make & Receive Offers', value: 'Yes', included: true },
+        { name: 'Promote / Boost an Item', included: false },
+        { name: 'Seller Badge', included: false },
+        { name: 'Seller Analytics', included: false }
       ]
     },
     premium: {
@@ -39,13 +53,28 @@ export async function init(container) {
       ctaText: 'Subscribe to Premium',
       monthlyUrl: 'https://buy.stripe.com/14AeVecQq2PL4JaeOj3ZK1B',
       annualUrl:  'https://buy.stripe.com/bJefZi2bM3TPgrS35B3ZK1C',
+      highlights: [
+        '3 room listings + 3 items',
+        'Unlimited messaging',
+        'Verified badge + 2x visibility',
+        '2 promote credits / mo',
+        'Basic seller analytics',
+        'Priority support (24hr)'
+      ],
       features: [
         { name: 'Active Listings', value: '3 Listings' },
         { name: 'Messaging', value: 'Unlimited Messaging' },
         { name: 'Verified Badge', included: true },
         { name: 'Listing Visibility', value: '2x Boosted' },
         { name: 'Social Community', value: 'Post & Comment' },
-        { name: 'Priority Support', value: 'Priority (24h)' }
+        { name: 'Priority Support', value: 'Priority (24h)' },
+        { name: 'Sell Items Locally', value: 'Free', included: true },
+        { name: 'Active Item Listings', value: '3 items' },
+        { name: 'Buyer↔Seller Chat', value: 'Included', included: true },
+        { name: 'Make & Receive Offers', value: 'Yes', included: true },
+        { name: 'Promote / Boost an Item', value: '2 promote credits/mo', included: true },
+        { name: 'Seller Badge', value: 'Verified Seller', included: true },
+        { name: 'Seller Analytics', value: 'Basic (views & offers)', included: true }
       ]
     },
     pro: {
@@ -57,16 +86,53 @@ export async function init(container) {
       ctaText: 'Go Pro Today',
       monthlyUrl: 'https://buy.stripe.com/28E14ocQq7611wY49F3ZK1D',
       annualUrl:  'https://buy.stripe.com/00w8wQg2C4XT3F6fSn3ZK1E',
+      highlights: [
+        '5 room listings + 5 items',
+        'Gold Verified Badge',
+        '5x top placement',
+        '8 promote credits / mo',
+        'Full seller dashboard + AI match',
+        'VIP support (4hr + live chat)'
+      ],
       features: [
         { name: 'Active Listings', value: '5 Listings' },
         { name: 'Messaging', value: 'Unlimited + Read Receipts' },
-        { name: 'Verified Badge', value: 'Gold Badge', included: true },
+        { name: 'Verified Badge', value: 'Gold Verified Badge', included: true },
         { name: 'Listing Visibility', value: '5x Top Ranking' },
         { name: 'Social Community', value: 'Full Access' },
-        { name: 'Priority Support', value: 'VIP (4h)' }
+        { name: 'Priority Support', value: 'VIP (4h)' },
+        { name: 'Sell Items Locally', value: 'Free', included: true },
+        { name: 'Active Item Listings', value: '5 items' },
+        { name: 'Buyer↔Seller Chat', value: 'Included', included: true },
+        { name: 'Make & Receive Offers', value: 'Yes', included: true },
+        { name: 'Promote / Boost an Item', value: '8 promote credits/mo', included: true },
+        { name: 'Seller Badge', value: 'Gold Verified Badge', included: true },
+        { name: 'Seller Analytics', value: 'Full storefront dashboard', included: true }
       ]
     }
   };
+  const allFeatures = plans.free.features.map(f => f.name);
+  const marketplaceStartIndex = allFeatures.indexOf('Sell Items Locally');
+
+  function renderMobileValue(featureObj) {
+    if (featureObj.value) return featureObj.value;
+    if (featureObj.included === true) return '✓';
+    if (featureObj.included === false) return '×';
+    return '';
+  }
+
+  function renderMobileCompareRows() {
+    return allFeatures.map((featName, i) => `
+      ${i === 0 ? '<tr><td colspan="4" style="padding:12px 14px; background:#eef2ff; color:#1e293b; font-size:0.7rem; font-weight:900; letter-spacing:0.08em; text-transform:uppercase;">Roommates & Rentals</td></tr>' : ''}
+      ${i === marketplaceStartIndex ? '<tr><td colspan="4" style="padding:12px 14px; background:#eef2ff; color:#1e293b; font-size:0.7rem; font-weight:900; letter-spacing:0.08em; text-transform:uppercase;">Marketplace</td></tr>' : ''}
+      <tr>
+        <td style="padding:12px 14px; border-bottom:1px solid #e2e8f0; text-align:left; font-weight:700; color:#334155; background:#fff; position:sticky; left:0;">${featName}</td>
+        <td style="padding:12px 14px; border-bottom:1px solid #e2e8f0; text-align:center; color:#475569;">${renderMobileValue(plans.free.features[i])}</td>
+        <td style="padding:12px 14px; border-bottom:1px solid #e2e8f0; text-align:center; color:#475569;">${renderMobileValue(plans.premium.features[i])}</td>
+        <td style="padding:12px 14px; border-bottom:1px solid #e2e8f0; text-align:center; color:#475569;">${renderMobileValue(plans.pro.features[i])}</td>
+      </tr>
+    `).join('');
+  }
 
   function _render() {
     container.innerHTML = `
@@ -75,7 +141,7 @@ export async function init(container) {
         <!-- Hero Section -->
         <div style="text-align: center; padding: 40px 20px 30px;">
           <h2 style="font-size: 1.8rem; font-weight: 900; color: #1e293b; margin-bottom: 12px; letter-spacing: -0.02em;">Simple, Transparent Pricing</h2>
-          <p style="font-size: 0.95rem; color: #64748b; line-height: 1.5; max-width: 280px; margin: 0 auto 24px;">Find your perfect roommate. Upgrade or cancel anytime.</p>
+          <p style="font-size: 0.95rem; color: #64748b; line-height: 1.5; max-width: 320px; margin: 0 auto 24px;">Find roommates AND buy & sell locally. Listing items is always free — upgrade for more listings, promote credits, and a verified seller badge.</p>
           
           <!-- Billing Toggle -->
           <div style="display: inline-flex; align-items: center; background: #f1f5f9; border-radius: 30px; padding: 4px; position: relative; cursor: pointer;" id="mobile-billing-toggle">
@@ -86,6 +152,10 @@ export async function init(container) {
             </div>
           </div>
         </div>
+
+        <p style="margin: -8px 20px 24px; text-align: center; color: #64748b; font-size: 0.88rem; line-height: 1.55;">
+          <strong style="color:#1e293b;">Buying and selling basic items is 100% free</strong> — no listing fees, no commission. Paid plans just add more listings, promotion, and seller tools.
+        </p>
 
         <!-- Plans Grid (Vertical for Mobile) -->
         <div id="pricing-list" style="display: flex; flex-direction: column; gap: 24px; padding: 0 20px;">
@@ -108,19 +178,14 @@ export async function init(container) {
 
                 <div style="padding: 24px; flex: 1;">
                     <ul style="list-style: none; padding: 0; margin: 0 0 24px; display: flex; flex-direction: column; gap: 12px;">
-                      ${p.features.map(f => {
-                        const isIncluded = f.included !== false;
-                        return `
-                            <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; color: ${isIncluded ? '#475569' : '#94a3b8'}; font-weight: 500;">
-                                <span style="color: ${isIncluded ? '#22c55e' : '#ef4444'}; font-weight: 900; margin-top: 2px;">${isIncluded ? '✓' : '×'}</span>
-                                <div>
-                                    <span style="font-weight: 700; display: block; color: #1e293b;">${f.name}</span>
-                                    <span style="font-size: 0.75rem;">${f.value || (isIncluded ? 'Included' : 'Not included')}</span>
-                                </div>
+                      ${p.highlights.map(text => `
+                            <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.9rem; color: #475569; font-weight: 600;">
+                                <span style="color: #22c55e; font-weight: 900; margin-top: 1px;">✓</span>
+                                <span>${text}</span>
                             </li>
-                        `;
-                      }).join('')}
+                        `).join('')}
                     </ul>
+                    <a href="#mobile-compare-plans" style="display:inline-flex; margin: -8px 0 18px; color:#64748b; font-size:0.82rem; font-weight:700; text-decoration:none;">See full comparison ↓</a>
                     <button class="mobile-btn pricing-cta" data-plan="${key}" style="
                         background: ${key === 'free' ? '#f1f5f9' : (key === 'premium' ? '#334155' : '#1e293b')}; 
                         color: ${key === 'free' ? '#1e293b' : '#fff'}; 
@@ -133,6 +198,25 @@ export async function init(container) {
           }).join('')}
         </div>
 
+        <section id="mobile-compare-plans" style="padding: 48px 20px 8px;">
+          <h3 style="text-align:center; font-size:1.35rem; font-weight:900; color:#1e293b; margin:0 0 20px;">Compare Plans</h3>
+          <div style="overflow-x:auto; background:#fff; border:1px solid #e2e8f0; border-radius:16px; box-shadow:0 4px 18px rgba(15,23,42,0.04);">
+            <table style="width:100%; min-width:620px; border-collapse:collapse; font-size:0.78rem;">
+              <thead>
+                <tr>
+                  <th style="text-align:left; padding:13px; background:#f8fafc; color:#1e293b;">Feature</th>
+                  <th style="padding:13px; background:#f8fafc; color:#1e293b;">Free</th>
+                  <th style="padding:13px; background:#f8fafc; color:#334155;">Premium</th>
+                  <th style="padding:13px; background:#f8fafc; color:#1e293b;">Pro</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${renderMobileCompareRows()}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <!-- FAQ Section -->
         <div style="padding: 60px 20px 40px;">
             <h3 style="text-align: center; font-size: 1.4rem; font-weight: 900; color: #1e293b; margin-bottom: 24px;">Frequently Asked Questions</h3>
@@ -140,7 +224,10 @@ export async function init(container) {
                 ${[
                     { q: 'Can I switch plans anytime?', a: 'Yes! Upgrade, downgrade, or cancel anytime from your settings. Upgrades are prorated.' },
                     { q: 'Is there a money-back guarantee?', a: 'We offer a 7-day money-back guarantee if you are not completely satisfied.' },
-                    { q: 'What happens if I downgrade?', a: 'Your most recent listings remain active up to the new limit; others are paused.' }
+                    { q: 'What happens if I downgrade?', a: 'Your most recent listings remain active up to the new limit; others are paused.' },
+                    { q: 'Is it free to sell items on RoommateGroups?', a: 'Yes. Listing and selling items is completely free on every plan, with no listing fees or commission. Paid plans add more active listings, promote credits, and a verified seller badge.' },
+                    { q: 'What are promote credits?', a: 'Promote credits let you boost an item to the top of search and category results for more visibility. Premium and Pro include monthly credits; anyone can also buy a one-off boost.' },
+                    { q: 'Do I need a paid plan to buy things?', a: 'No. Browsing, chatting with sellers, and making offers are free for everyone.' }
                 ].map(faq => `
                     <div style="background: #fff; padding: 20px; border-radius: 16px; border: 1px solid #f1f5f9;">
                         <div style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">${faq.q}</div>

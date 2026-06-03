@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   saved_searches   TEXT,           -- JSON array
   blocked_users    TEXT,           -- JSON array
   notification_prefs TEXT,          -- JSON object
+  social_links     TEXT,            -- JSON object
   password_hash    TEXT,
   role             TEXT DEFAULT 'user',
   is_active        INTEGER DEFAULT 1,

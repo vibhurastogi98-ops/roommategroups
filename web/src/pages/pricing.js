@@ -8,7 +8,7 @@ export function renderPricingPage(app) {
     // SEO Update
     setSEO({
         title: 'Pricing Plans — Free, Premium & Pro | RoommateGroups',
-        description: 'Choose the plan that fits your roommate search. Start free and upgrade to Premium ($4.99/mo) or Pro ($8.99/mo) for boosted listings, AI matching, and unlimited messaging.',
+        description: 'Choose the plan that fits your roommate search and local marketplace selling. Basic item listings are free; upgrade for more listings, promote credits, seller tools, AI matching, and unlimited messaging.',
         canonical: 'https://roommategroups.com/pricing',
     });
     let isAnnual = false; // Toggle state
@@ -22,6 +22,13 @@ export function renderPricingPage(app) {
                 priceAnnual: 0,
                 ctaOutline: true,
                 ctaText: 'Get Started Free',
+                highlights: [
+                    '1 room listing + 1 item',
+                    'Browse & message (5/day)',
+                    'Sell items free',
+                    'Make & receive offers',
+                    'Standard support'
+                ],
                 features: [
                     { name: 'Active Listings', value: '1 Listing' },
                     { name: 'Profile Setup', value: 'Basic Profile' },
@@ -34,7 +41,14 @@ export function renderPricingPage(app) {
                     { name: 'Safety & Background Check', included: false },
                     { name: 'Listing Analytics', included: false },
                     { name: 'Early Access to Deals', included: false },
-                    { name: 'Priority Support', value: 'Standard (48hr)' }
+                    { name: 'Priority Support', value: 'Standard (48hr)' },
+                    { name: 'Sell Items Locally', value: 'Free', included: true },
+                    { name: 'Active Item Listings', value: '1 item' },
+                    { name: 'Buyer↔Seller Chat', value: 'Included', included: true },
+                    { name: 'Make & Receive Offers', value: 'Yes', included: true },
+                    { name: 'Promote / Boost an Item', included: false },
+                    { name: 'Seller Badge', included: false },
+                    { name: 'Seller Analytics', included: false }
                 ]
             },
             premium: {
@@ -46,6 +60,14 @@ export function renderPricingPage(app) {
                 ctaText: 'Subscribe to Premium',
                 monthlyUrl: 'https://buy.stripe.com/14AeVecQq2PL4JaeOj3ZK1B',
                 annualUrl:  'https://buy.stripe.com/bJefZi2bM3TPgrS35B3ZK1C',
+                highlights: [
+                    '3 room listings + 3 items',
+                    'Unlimited messaging',
+                    'Verified badge + 2x visibility',
+                    '2 promote credits / mo',
+                    'Basic seller analytics',
+                    'Priority support (24hr)'
+                ],
                 features: [
                     { name: 'Active Listings', value: '3 Listings' },
                     { name: 'Profile Setup', value: 'Enhanced + Photo Verification' },
@@ -58,7 +80,14 @@ export function renderPricingPage(app) {
                     { name: 'Safety & Background Check', included: false },
                     { name: 'Listing Analytics', value: 'Basic Views Count', included: true },
                     { name: 'Early Access to Deals', included: false },
-                    { name: 'Priority Support', value: 'Priority (24hr)' }
+                    { name: 'Priority Support', value: 'Priority (24hr)' },
+                    { name: 'Sell Items Locally', value: 'Free', included: true },
+                    { name: 'Active Item Listings', value: '3 items' },
+                    { name: 'Buyer↔Seller Chat', value: 'Included', included: true },
+                    { name: 'Make & Receive Offers', value: 'Yes', included: true },
+                    { name: 'Promote / Boost an Item', value: '2 promote credits/mo', included: true },
+                    { name: 'Seller Badge', value: 'Verified Seller', included: true },
+                    { name: 'Seller Analytics', value: 'Basic (views & offers)', included: true }
                 ]
             },
             pro: {
@@ -72,6 +101,14 @@ export function renderPricingPage(app) {
                 ctaText: 'Go Pro Today',
                 monthlyUrl: 'https://buy.stripe.com/28E14ocQq7611wY49F3ZK1D',
                 annualUrl:  'https://buy.stripe.com/00w8wQg2C4XT3F6fSn3ZK1E',
+                highlights: [
+                    '5 room listings + 5 items',
+                    'Gold Verified Badge',
+                    '5x top placement',
+                    '8 promote credits / mo',
+                    'Full seller dashboard + AI match',
+                    'VIP support (4hr + live chat)'
+                ],
                 features: [
                     { name: 'Active Listings', value: '5 Listings' },
                     { name: 'Profile Setup', value: 'Premium + Social link' },
@@ -84,7 +121,14 @@ export function renderPricingPage(app) {
                     { name: 'Safety & Background Check', value: '1 Free Check/mo', included: true },
                     { name: 'Listing Analytics', value: 'Full Dashboard', included: true },
                     { name: 'Early Access to Deals', value: 'See listings 24hrs early', included: true },
-                    { name: 'Priority Support', value: 'VIP (4hr + Live Chat)' }
+                    { name: 'Priority Support', value: 'VIP (4hr + Live Chat)' },
+                    { name: 'Sell Items Locally', value: 'Free', included: true },
+                    { name: 'Active Item Listings', value: '5 items' },
+                    { name: 'Buyer↔Seller Chat', value: 'Included', included: true },
+                    { name: 'Make & Receive Offers', value: 'Yes', included: true },
+                    { name: 'Promote / Boost an Item', value: '8 promote credits/mo', included: true },
+                    { name: 'Seller Badge', value: 'Gold Verified Badge', included: true },
+                    { name: 'Seller Analytics', value: 'Full storefront dashboard', included: true }
                 ]
             }
         };
@@ -94,12 +138,26 @@ export function renderPricingPage(app) {
 
     // ── Table features ──
     const allFeatures = plans.free.features.map(f => f.name);
+    const marketplaceStartIndex = allFeatures.indexOf('Sell Items Locally');
 
     function renderValue(featureObj) {
         if (featureObj.value) return featureObj.value;
         if (featureObj.included === true) return '<i class="fa-solid fa-check text-success"></i>';
         if (featureObj.included === false) return '<i class="fa-solid fa-xmark text-danger"></i>';
         return '';
+    }
+
+    function renderCompareRows() {
+        return allFeatures.map((featName, i) => `
+            ${i === 0 ? '<tr class="compare-section-row"><td colspan="4">Roommates & Rentals</td></tr>' : ''}
+            ${i === marketplaceStartIndex ? '<tr class="compare-section-row"><td colspan="4">Marketplace</td></tr>' : ''}
+            <tr>
+                <td>${featName}</td>
+                <td>${renderValue(plans.free.features[i])}</td>
+                <td>${renderValue(plans.premium.features[i])}</td>
+                <td>${renderValue(plans.pro.features[i])}</td>
+            </tr>
+        `).join('');
     }
 
     function build() {
@@ -274,6 +332,16 @@ export function renderPricingPage(app) {
             }
             .plan-features li i.fa-check { color: #22c55e; margin-top: 3px; }
             .plan-features li i.fa-xmark { color: #ef4444; margin-top: 3px; }
+            .plan-compare-link {
+                display: inline-flex;
+                align-self: flex-start;
+                margin: -6px 0 18px;
+                color: #64748b;
+                font-size: 0.88rem;
+                font-weight: 700;
+                text-decoration: none;
+            }
+            .plan-compare-link:hover { color: #1e293b; }
             
             .pricing-table-section {
                 max-width: 1100px;
@@ -322,6 +390,25 @@ export function renderPricingPage(app) {
             }
             .pricing-table tr:nth-child(even) { background: #f8fafc; }
             .pricing-table tr:nth-child(odd) { background: white; }
+            .pricing-table .compare-section-row td {
+                background: #eef2ff !important;
+                color: #1e293b;
+                font-size: 0.78rem;
+                font-weight: 800;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                border-right: 0;
+            }
+            .marketplace-free-note {
+                max-width: 980px;
+                margin: -34px auto 54px;
+                padding: 0 24px;
+                text-align: center;
+                color: #64748b;
+                font-size: 0.98rem;
+                line-height: 1.6;
+            }
+            .marketplace-free-note strong { color: #1e293b; }
             
             /* FAQ Section updated to match other pages */
             .pricing-page .section-header {
@@ -356,7 +443,7 @@ export function renderPricingPage(app) {
         <div class="pricing-page">
             <div class="pricing-hero">
                 <h1>Simple, Transparent Pricing</h1>
-                <p>Find your perfect roommate. No hidden fees. Upgrade, downgrade, or cancel anytime.</p>
+                <p>Find roommates AND buy & sell locally. Listing items is always free — upgrade for more listings, promote credits, and a verified seller badge.</p>
                 
                 <div class="billing-toggle" id="billing-toggle">
                     <div class="billing-indicator" id="billing-indicator"></div>
@@ -370,8 +457,12 @@ export function renderPricingPage(app) {
             <div class="pricing-grid" id="pricing-cards">
                 <!-- Cards injected here -->
             </div>
+
+            <p class="marketplace-free-note">
+                <strong>Buying and selling basic items is 100% free</strong> — no listing fees, no commission. Paid plans just add more listings, promotion, and seller tools.
+            </p>
             
-            <div class="pricing-table-section">
+            <div class="pricing-table-section" id="compare-plans">
                 <h2>Compare Plans</h2>
                 <div class="table-wrap">
                     <table class="pricing-table">
@@ -384,14 +475,7 @@ export function renderPricingPage(app) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${allFeatures.map((featName, i) => `
-                                <tr>
-                                    <td>${featName}</td>
-                                    <td>${renderValue(plans.free.features[i])}</td>
-                                    <td>${renderValue(plans.premium.features[i])}</td>
-                                    <td>${renderValue(plans.pro.features[i])}</td>
-                                </tr>
-                            `).join('')}
+                            ${renderCompareRows()}
                         </tbody>
                     </table>
                 </div>
@@ -410,6 +494,9 @@ export function renderPricingPage(app) {
                 { q: 'What payment methods do you accept?', a: 'We accept all major credit cards (Visa, MasterCard, American Express) as well as PayPal and Apple Pay.' },
                 { q: 'What happens to my listings if I downgrade?', a: 'If you downgrade to a plan with a lower listing limit, your most recent active listings will remain active up to the new limit. The excess listings will be automatically paused until you either remove some or upgrade again.' },
                 { q: 'Do you offer refunds?', a: 'We offer a 7-day money-back guarantee on all new subscriptions if you are not completely satisfied with the service.' },
+                { q: 'Is it free to sell items on RoommateGroups?', a: 'Yes. Listing and selling items is completely free on every plan, with no listing fees or commission. Paid plans add more active listings, promote credits, and a verified seller badge.' },
+                { q: 'What are promote credits?', a: 'Promote credits let you boost an item to the top of search and category results for more visibility. Premium and Pro include monthly credits; anyone can also buy a one-off boost.' },
+                { q: 'Do I need a paid plan to buy things?', a: 'No. Browsing, chatting with sellers, and making offers are free for everyone.' },
             ].map(item => `
                             <div class="home-faq-item">
                                 <div class="home-faq-icon"><i class="fas fa-question-circle"></i></div>
@@ -466,14 +553,9 @@ export function renderPricingPage(app) {
                 </div>
                 <div class="plan-body">
                     <ul class="plan-features">
-                        ${p.features.map(f => {
-                let icon = '<i class="fa-solid fa-check"></i>';
-                if (f.included === false) icon = '<i class="fa-solid fa-xmark"></i>';
-                let text = f.value || f.name;
-                if (f.included === true && !f.value) text = f.name;
-                return `<li>${icon} <span>${text}</span></li>`;
-            }).slice(0, 8).join('')}
+                        ${p.highlights.map(text => `<li><i class="fa-solid fa-check"></i> <span>${text}</span></li>`).join('')}
                     </ul>
+                    <a class="plan-compare-link" href="#compare-plans">See full comparison ↓</a>
                     <button class="btn ${btnClass} plan-cta-btn" data-plan="${key}" style="width:100%;">${p.ctaText}</button>
                 </div>
             </div>

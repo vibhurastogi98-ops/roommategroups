@@ -46,6 +46,7 @@ CREATE TABLE users (
   saved_searches       TEXT,
   blocked_users        TEXT,
   notification_prefs   TEXT,
+  social_links         TEXT,
   password_hash        TEXT,
   role                 TEXT DEFAULT 'user',
   is_active            INTEGER DEFAULT 1,

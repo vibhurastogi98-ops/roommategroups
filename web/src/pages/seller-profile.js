@@ -3,7 +3,7 @@ import { renderFooter } from '../components/footer.js';
 import { api } from '../services/api.js';
 import { db } from '../services/db.js';
 import { getAvatarUrl, getAssetUrl } from '../services/assets.js';
-import { getVerificationBadge } from '../services/auth.js';
+import { getVerificationBadge, getTierBadge, renderSocialLinks } from '../services/auth.js';
 import { setSEO } from '../seo.js';
 
 function escHtml(str) {
@@ -118,10 +118,11 @@ export function renderSellerProfilePage(app, params) {
                 <div class="seller-shell">
                     <aside class="seller-card">
                         <img class="seller-avatar" src="${getAvatarUrl(seller.profile_photo, sellerName)}" alt="${escHtml(sellerName)}" loading="lazy">
-                        <h1>${escHtml(sellerName)} ${getVerificationBadge(seller)}</h1>
+                        <h1>${escHtml(sellerName)} ${getVerificationBadge(seller)} ${getTierBadge(seller)}</h1>
+                        ${renderSocialLinks(seller)}
                         <div class="seller-rating">${stars(seller.seller_rating_avg)}</div>
                         <p class="seller-meta">${Number(seller.seller_rating_avg || 0).toFixed(1)} (${seller.seller_rating_count || 0} reviews)</p>
-                        <p class="seller-meta">${escHtml(responseTime(seller.response_time_mins))}${seller.is_dealer ? ' • Dealer' : ''}</p>
+                        <p class="seller-meta">${escHtml(responseTime(seller.response_time_mins))}</p>
                         <p class="seller-meta">Joined ${new Date(seller.created_at).toLocaleDateString(undefined, { month:'long', year:'numeric' })}</p>
                         <a class="btn btn-primary" href="/reviews/${escHtml(seller.user_id)}" style="width:100%;margin-top:10px;">Reviews</a>
                     </aside>

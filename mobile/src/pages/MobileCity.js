@@ -7,7 +7,7 @@
  */
 
 import { db, initDB } from '../../../web/src/services/db.js';
-import { getCurrentUser, getVerificationBadge } from '../../../web/src/services/auth.js';
+import { getCurrentUser, getVerificationBadge, getTierBadge } from '../../../web/src/services/auth.js';
 import { renderMobileCard, attachMobileCardEvents } from '../components/MobileCard.js';
 import { getAssetUrl, getAvatarUrl } from '../../../web/src/services/assets.js';
 
@@ -243,7 +243,7 @@ export async function init(container, params) {
                     <div class="rm-card-price">$${r.rent || r.budgetMax}/mo</div>
                   </div>
                   <div class="rm-card-body">
-                    <div class="rm-card-name">${u.display_name} ${getVerificationBadge(u)}</div>
+                    <div class="rm-card-name">${u.display_name} ${getVerificationBadge(u)} ${getTierBadge(u)}</div>
                     <div class="rm-card-title">${r.title}</div>
                   </div>
                 </div>
