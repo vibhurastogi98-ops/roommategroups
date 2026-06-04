@@ -193,9 +193,20 @@ body, #mobile-app {
   -webkit-tap-highlight-color: transparent;
 }
 
+.mobile-header-left-action {
+  border-radius: 12px;
+  background: #f1f5f9;
+  border: none;
+  box-shadow: none;
+}
+
 .mobile-header-back:active {
   background: rgba(0, 0, 0, 0.08);
   transform: scale(0.92);
+}
+
+.mobile-header-back.mobile-header-left-action:active {
+  background: #f8fafc;
 }
 
 .mobile-header-back svg {

@@ -629,10 +629,15 @@ export async function init(container) {
     currentUser?.profile_photo || currentUser?.avatar || null,
     currentUser?.display_name || currentUser?.first_name || 'U'
   );
+  const marketplaceIcon = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#17313a" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 4.5h15l1.3 5.7c.35 1.55-.82 3.05-2.35 3.05a2.45 2.45 0 0 1-2.38-2.05 2.45 2.45 0 0 1-4.76 0 2.45 2.45 0 0 1-4.76 0 2.45 2.45 0 0 1-2.38 2.05c-1.53 0-2.7-1.5-2.35-3.05L4.5 4.5Z"/><path d="M4.7 13.2v6.3h14.6v-6.3"/><path d="M3 19.5h18"/><path d="M7.2 19.5v-5.3h3.1v5.3"/><path d="M13 14.3h4.8v3.3H13z"/><path d="M15.6 15.3l-1.5 1.5"/><path d="M17.3 15.8l-1.2 1.2"/></svg>';
   updateHeader({
     title: '',
     showBack: false,
-    leftAction: null,
+    leftAction: {
+      icon: marketplaceIcon,
+      label: 'Marketplace',
+      onClick: () => { navigate('marketplace'); },
+    },
     homeRightActions: {
       bell: {
         onClick: () => { navigate('notifications'); },

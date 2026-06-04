@@ -87,7 +87,7 @@ const ROUTE_LOADERS = {
 const ROUTE_TO_TAB = {
   home: 'home',
   search: 'search',
-  marketplace: 'search',
+  marketplace: 'home',
   listing: 'home',
   category: 'search',
   seller: 'dashboard',
@@ -468,7 +468,7 @@ export async function initMobile() {
   _appEl.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg-light);overflow:hidden;';
 
   // 3. Render header (hidden initially — shown once we know the route)
-  _headerCtrl = renderMobileHeader(_appEl, { title: 'LOGO', showBack: false });
+  _headerCtrl = renderMobileHeader(_appEl, { title: '', showBack: false });
 
   // 4. Create page area
   _pageEl = document.createElement('div');

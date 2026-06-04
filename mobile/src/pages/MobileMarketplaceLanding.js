@@ -118,6 +118,9 @@ export async function init(container) {
       .mml-step-icon .mml-step-num { position:absolute; top:-7px; right:-7px; width:20px; height:20px; border-radius:50%; background:#10b981; color:#fff; display:flex; align-items:center; justify-content:center; font-size:.62rem; border:2px solid #fff; }
       .mml-card-title { font-size:.86rem; font-weight:950; margin-bottom:3px; }
       .mml-card-text { color:#64748b; font-size:.76rem; line-height:1.45; }
+      .mml-trust-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px; }
+      .mml-trust-card { padding:15px; background:#fff; border:1px solid #e2e8f0; border-radius:16px; box-shadow:0 8px 20px rgba(15,23,42,.04); }
+      .mml-trust-icon { width:38px; height:38px; border-radius:13px; display:flex; align-items:center; justify-content:center; background:#ecfdf5; color:#0f766e; margin-bottom:10px; }
       .mml-faq-list { display:grid; gap:10px; }
       .mml-faq-item { display:flex; gap:12px; padding:16px; background:#fff; border:1px solid #e2e8f0; border-radius:16px; }
       .mml-faq-icon { width:38px; height:38px; border-radius:50%; background:#f1f5f9; color:#64748b; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
@@ -138,7 +141,7 @@ export async function init(container) {
           <h1 class="mml-title">Buy & Sell Locally, Safely</h1>
           <p class="mml-sub">Furnish your new place, declutter your old one, and trade with verified members in your city. No bots. No spam. Just real local deals.</p>
           <div class="mml-actions">
-            <button class="mml-btn mml-btn-primary" id="mml-browse"><i class="fa-solid fa-magnifying-glass"></i> Browse</button>
+            <button class="mml-btn mml-btn-primary" id="mml-browse"><i class="fa-solid fa-magnifying-glass"></i> Browse Marketplace</button>
             <button class="mml-btn mml-btn-secondary" id="mml-sell">Sell an item &rarr;</button>
           </div>
           <form class="mml-search" id="mml-search-form">
@@ -210,6 +213,17 @@ export async function init(container) {
           ${_step(1, 'fa-camera', 'List or Browse', 'Snap a few photos to post an item in minutes, or browse thousands of local listings by category.')}
           ${_step(2, 'fa-comments', 'Chat & Offer', 'Message the seller securely in-app and make an offer. Contact stays in chat so personal numbers stay private.')}
           ${_step(3, 'fa-handshake', 'Meet & Deal', 'Meet in a safe public spot, inspect the item, and complete your deal with confidence.')}
+        </div>
+      </section>
+
+      <section class="mml-section">
+        <h2 class="mml-section-title">Why RoommateGroups Marketplace</h2>
+        <p class="mml-section-sub">A local marketplace connected to real roommate communities.</p>
+        <div class="mml-trust-grid">
+          ${_trust('fa-user-check', 'Verified members', 'Trade with people connected to the RoommateGroups community.')}
+          ${_trust('fa-comments', 'Secure chat', 'Keep buyer-seller conversations inside the app until you choose otherwise.')}
+          ${_trust('fa-shield-halved', 'Safe meetup guidance', 'Use built-in reminders for public meetups and item inspection.')}
+          ${_trust('fa-tags', 'Free to list', 'Basic item listings stay free for everyday local selling.')}
         </div>
       </section>
 
@@ -380,6 +394,16 @@ function _step(num, icon, title, body) {
         <span class="mml-step-num">${num}</span>
       </div>
       <div><div class="mml-card-title">${_esc(title)}</div><div class="mml-card-text">${_esc(body)}</div></div>
+    </div>
+  `;
+}
+
+function _trust(icon, title, body) {
+  return `
+    <div class="mml-trust-card">
+      <div class="mml-trust-icon"><i class="fa-solid ${icon}"></i></div>
+      <div class="mml-card-title">${_esc(title)}</div>
+      <div class="mml-card-text">${_esc(body)}</div>
     </div>
   `;
 }

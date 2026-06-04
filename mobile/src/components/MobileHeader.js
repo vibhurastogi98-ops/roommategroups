@@ -69,18 +69,13 @@ export function renderMobileHeader(container, {
     <div class="mobile-header-inner">
       <button
         id="mobile-header-left"
-        class="mobile-header-back${showLeft ? '' : ' hidden'}"
+        class="mobile-header-back${leftAction && !showBack ? ' mobile-header-left-action' : ''}${showLeft ? '' : ' hidden'}"
         aria-label="${showBack ? 'Go back' : (leftAction ? escapeHtml(leftAction.label || 'Action') : 'Action')}"
         ${showLeft ? '' : 'tabindex="-1"'}
       >${showBack ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>' : (leftAction ? leftAction.icon : '')}</button>
 
       <h1 class="mobile-header-title" id="mobile-header-title">
-        ${title === 'LOGO' ? `
-          <div class="mobile-logo-pill" style="height:32px; box-shadow:none; border:1.5px solid #1a1a1a;">
-            <div class="mobile-logo-left" style="padding:0 8px 0 12px; font-size:0.75rem;">ROOMMATE</div>
-            <div class="mobile-logo-right" style="padding:0 12px 0 8px; font-size:0.75rem; background:#fff;">GROUPS</div>
-          </div>
-        ` : escapeHtml(title)}
+        ${title === 'LOGO' ? '' : escapeHtml(title)}
       </h1>
 
       ${rightHTML}
@@ -125,12 +120,7 @@ export function renderMobileHeader(container, {
   function setTitle(newTitle) {
     const titleEl = header.querySelector('#mobile-header-title');
     if (newTitle === 'LOGO') {
-      titleEl.innerHTML = `
-        <div class="mobile-logo-pill" style="height:32px; box-shadow:none; border:1.5px solid #1a1a1a;">
-          <div class="mobile-logo-left" style="padding:0 8px 0 12px; font-size:0.75rem;">ROOMMATE</div>
-          <div class="mobile-logo-right" style="padding:0 12px 0 8px; font-size:0.75rem; background:#fff;">GROUPS</div>
-        </div>
-      `;
+      titleEl.innerHTML = '';
     } else {
       titleEl.textContent = newTitle;
     }
@@ -141,7 +131,7 @@ export function renderMobileHeader(container, {
     if (newAction) {
       btn.innerHTML = newAction.icon || '';
       btn.setAttribute('aria-label', newAction.label || 'Action');
-      btn.className = 'mobile-header-back';
+      btn.className = 'mobile-header-back mobile-header-left-action';
       btn.removeAttribute('tabindex');
       // Replace listener
       const freshBtn = btn.cloneNode(true);
