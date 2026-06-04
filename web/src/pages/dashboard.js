@@ -10,6 +10,12 @@ import { uploadImage } from '../services/upload.js';
 let _msgPollingTimer = null;
 let _dashGlobalTimer = null;
 
+function hasSignedDashboardSession() {
+    const session = JSON.parse(localStorage.getItem('rg_session') || 'null');
+    const token = localStorage.getItem('token') || session?.token || '';
+    return String(token).split('.').length === 3;
+}
+
 export function updateSidebarBadges(app, userId) {
     if (!app || !userId) return;
     const msgBadge = app.querySelector('#dash-sidebar-msg-badge');
@@ -324,6 +330,7 @@ async function hydrateSellerListingsForDashboard(user, app, viewName) {
     const userId = user?.user_id || user?.id;
     if (!userId || app.dataset.sellerListingsHydrated === userId) return;
     app.dataset.sellerListingsHydrated = userId;
+    if (!hasSignedDashboardSession()) return;
 
     try {
         const seller = await api.getSeller(userId, true);
@@ -1657,7 +1664,9 @@ function renderArchivedChats(container, user, app) {
 async function renderProfileDashboard(container, user) {
     const freshUser = await refreshDashboardUser(user);
     let seller = null;
-    try { seller = await api.getSeller(freshUser.user_id, true); } catch (_) {}
+    if (hasSignedDashboardSession()) {
+        try { seller = await api.getSeller(freshUser.user_id, true); } catch (_) {}
+    }
     const rating = Number(seller?.seller_rating_avg || freshUser.seller_rating_avg || freshUser.rating_avg || 0);
     const ratingCount = Number(seller?.seller_rating_count || freshUser.seller_rating_count || freshUser.rating_count || 0);
     const responseTime = seller?.response_time || freshUser.response_time || freshUser.avg_response_time || 'Usually replies within a day';

@@ -212,6 +212,53 @@ function saveDB(data) {
 }
 function generateId(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
 
+function parseJwtPayload(token) {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 3) return null;
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let input = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padding = input.length % 4;
+    if (padding) input += '='.repeat(4 - padding);
+    let value = 0;
+    let bits = 0;
+    const bytes = [];
+    for (const char of input) {
+        if (char === '=') break;
+        const index = alphabet.indexOf(char);
+        if (index === -1) return null;
+        value = (value << 6) | index;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            bytes.push((value >> bits) & 0xff);
+        }
+    }
+    try {
+        return JSON.parse(new TextDecoder().decode(new Uint8Array(bytes)));
+    } catch {
+        return null;
+    }
+}
+
+function getSyncSession() {
+    const session = JSON.parse(localStorage.getItem('rg_session') || 'null');
+    const token = localStorage.getItem('token') || session?.token || '';
+    const jwt = parseJwtPayload(token);
+    if (!jwt?.uid) return { userId: '', role: '', token: '', canUseProtectedApi: false, isAdmin: false };
+    if (jwt.exp && Date.now() >= jwt.exp * 1000) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('rg_session');
+        return { userId: '', role: '', token: '', canUseProtectedApi: false, isAdmin: false };
+    }
+    return {
+        userId: jwt.uid,
+        role: jwt.role || '',
+        token,
+        canUseProtectedApi: true,
+        isAdmin: jwt.role === 'admin',
+    };
+}
+
 function isPresent(value) {
     return value !== undefined && value !== null && value !== '';
 }
@@ -420,20 +467,29 @@ export async function initDB() {
     // This is the key step: D1 is the single source of truth for
     // admin-edited content. Fetch it and overwrite localStorage.
     try {
-        const [d1Users, d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries, d1Threads, d1Messages, d1Reports, d1Notifications, d1UserQueries] = await Promise.all([
-            api.getUsers(true).catch(() => null),
+        const syncSession = getSyncSession();
+        const [d1Cities, d1Listings, d1Posts, d1FbCities, d1Categories, d1FbCountries] = await Promise.all([
             api.getCities(true).catch(() => null),
             api.getListings(true).catch(() => null),
             api.getPosts(true).catch(() => null),
             api.getFbCities(true).catch(() => null),
             api.get('/categories', true).catch(() => null),
             api.getFbCountries(true).catch(() => null),
-            api.getThreads(true).catch(() => null),
-            api.getMessages(undefined, true).catch(() => null),
-            api.get('/reports', true).catch(() => null),
-            api.get('/notifications', true).catch(() => null),
-            api.get('/user_queries', true).catch(() => null),
         ]);
+        const [d1Threads, d1Messages, d1Notifications] = syncSession.canUseProtectedApi
+            ? await Promise.all([
+                api.getThreads(true).catch(() => null),
+                api.getMessages(undefined, true).catch(() => null),
+                api.get(`/notifications?user_id=${encodeURIComponent(syncSession.userId)}`, true).catch(() => null),
+            ])
+            : [null, null, null];
+        const [d1Users, d1Reports, d1UserQueries] = syncSession.isAdmin
+            ? await Promise.all([
+                api.getUsers(true).catch(() => null),
+                api.get('/reports', true).catch(() => null),
+                api.get('/user_queries', true).catch(() => null),
+            ])
+            : [null, null, null];
         const live = getDB();
         let liveUpdated = false;
         
@@ -488,14 +544,23 @@ export async function initDB() {
  */
 export async function syncMessagesAndThreads() {
     try {
-        const [d1Users, d1Threads, d1Messages, d1Notifications, d1Reports, d1Listings] = await Promise.all([
-            api.getUsers(true).catch(() => null),
-            api.getThreads(true).catch(() => null),
-            api.getMessages(undefined, true).catch(() => null),
-            api.get('/notifications', true).catch(() => []),
-            api.get('/reports', true).catch(() => []),
+        const syncSession = getSyncSession();
+        const [d1Listings] = await Promise.all([
             api.getListings(true).catch(() => null),
         ]);
+        const [d1Threads, d1Messages, d1Notifications] = syncSession.canUseProtectedApi
+            ? await Promise.all([
+                api.getThreads(true).catch(() => null),
+                api.getMessages(undefined, true).catch(() => null),
+                api.get(`/notifications?user_id=${encodeURIComponent(syncSession.userId)}`, true).catch(() => null),
+            ])
+            : [null, null, null];
+        const [d1Users, d1Reports] = syncSession.isAdmin
+            ? await Promise.all([
+                api.getUsers(true).catch(() => null),
+                api.get('/reports', true).catch(() => null),
+            ])
+            : [null, null];
 
         const dbData = getDB();
         let changed = false;

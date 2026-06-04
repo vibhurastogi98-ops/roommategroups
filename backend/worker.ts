@@ -1864,25 +1864,29 @@ async function hasReviewPermission(c: any, listingId: string, reviewerId: string
 app.get('/sellers/:id', async (c) => {
   try {
     const id = c.req.param('id')
-    const seller = await c.env.DB.prepare(
-      `SELECT user_id, display_name, profile_photo, bio, verification_level,
-              subscription_tier, social_links,
-              seller_rating_avg, seller_rating_count, response_time_mins,
-              created_at
-       FROM users
-       WHERE user_id = ?`
-    ).bind(id).first()
+    const seller = await c.env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(id).first()
 
     if (!seller) return dbJson(c, { error: 'Seller not found' }, 404)
 
     const { results } = await c.env.DB.prepare(
       `SELECT * FROM listings
        WHERE user_id = ? AND status = 'active'
-       ORDER BY datetime(COALESCE(created_at, updated_at)) DESC`
+       ORDER BY datetime(created_at) DESC`
     ).bind(id).all()
 
+    const safeSeller = toPublicUser(seller)
     const publicSeller = {
-      ...(seller as any),
+      user_id: safeSeller.user_id,
+      display_name: safeSeller.display_name,
+      profile_photo: safeSeller.profile_photo,
+      bio: safeSeller.bio,
+      verification_level: safeSeller.verification_level,
+      subscription_tier: safeSeller.subscription_tier,
+      social_links: safeSeller.social_links || {},
+      seller_rating_avg: Number(safeSeller.seller_rating_avg || 0),
+      seller_rating_count: Number(safeSeller.seller_rating_count || 0),
+      response_time_mins: safeSeller.response_time_mins ?? null,
+      created_at: safeSeller.created_at,
       listings: (results as any[]).map(mapListingRow),
     }
 

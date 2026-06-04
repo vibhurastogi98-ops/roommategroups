@@ -182,7 +182,7 @@ function renderNearListingCard(listing, index) {
   `;
 }
 
-function renderNearNotice(title, body, icon = 'fa-location-crosshairs') {
+function renderNearNotice(title, body, icon = 'fa-location-crosshairs', actionHtml = '<a href="/search/rooms?sort=newest" class="btn btn-outline">Browse newest</a>') {
   return `
     <div class="home-near-notice">
       <i class="fa-solid ${icon}"></i>
@@ -190,7 +190,7 @@ function renderNearNotice(title, body, icon = 'fa-location-crosshairs') {
         <strong>${escHtml(title)}</strong>
         <span>${escHtml(body)}</span>
       </div>
-      <a href="/search/rooms?sort=newest" class="btn btn-outline">Browse newest</a>
+      ${actionHtml}
     </div>
   `;
 }
@@ -241,18 +241,34 @@ function hydrateNearYou(app) {
     }
   };
 
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      strip.innerHTML = renderNearNotice('Location is not available', 'Browse newest listings or search by city.', 'fa-location-dot');
+      return;
+    }
+
+    strip.innerHTML = renderNearNotice('Finding listings near you', 'Sorting rooms and items by distance.', 'fa-spinner fa-spin');
+    navigator.geolocation.getCurrentPosition(
+      pos => loadListings(pos.coords.latitude, pos.coords.longitude),
+      () => {
+        strip.innerHTML = renderNearNotice('Use location to see what is nearby', 'Rooms, furniture, vehicles, and more will sort by distance.', 'fa-location-crosshairs', '<a href="/search/rooms?sort=newest" class="btn btn-outline">Browse newest</a>');
+      },
+      { timeout: 7000, maximumAge: 300000 }
+    );
+  };
+
   if (!navigator.geolocation) {
     strip.innerHTML = renderNearNotice('Location is not available', 'Browse newest listings or search by city.', 'fa-location-dot');
     return;
   }
 
-  navigator.geolocation.getCurrentPosition(
-    pos => loadListings(pos.coords.latitude, pos.coords.longitude),
-    () => {
-      strip.innerHTML = renderNearNotice('Use location to see what is nearby', 'Rooms, furniture, vehicles, and more will sort by distance.', 'fa-location-crosshairs');
-    },
-    { timeout: 7000, maximumAge: 300000 }
+  strip.innerHTML = renderNearNotice(
+    'Use location to see what is nearby',
+    'Rooms, furniture, vehicles, and more can sort by distance after you allow location.',
+    'fa-location-crosshairs',
+    '<button type="button" class="btn btn-primary" id="home-use-location-btn">Use my location</button><a href="/search/rooms?sort=newest" class="btn btn-outline">Browse newest</a>'
   );
+  strip.querySelector('#home-use-location-btn')?.addEventListener('click', requestLocation);
 }
 
 function wireRentalViewTracking(app, extras = []) {
@@ -713,7 +729,7 @@ export function renderHomePage(app) {
           <a href="/search/rooms?sort=distance" class="section-explore-link">Open search <i class="fas fa-arrow-right"></i></a>
         </div>
         <div class="home-near-track" id="home-near-strip">
-          ${renderNearNotice('Finding listings near you', 'Allow location access to sort the marketplace by distance.', 'fa-location-crosshairs')}
+          ${renderNearNotice('Use location to see what is nearby', 'Rooms, furniture, vehicles, and more can sort by distance after you allow location.', 'fa-location-crosshairs')}
         </div>
       </div>
     </section>
