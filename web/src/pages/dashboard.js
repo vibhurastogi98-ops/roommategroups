@@ -277,6 +277,37 @@ function isSaleListing(listing) {
     return getListingKind(listing) === 'sale';
 }
 
+const RENTAL_KIND_LABELS = {
+    room: 'Room for Rent',
+    apartment: 'Apartment for Rent',
+    sublet: 'Sublet',
+    roommate_wanted: 'Roommate Wanted',
+    coliving: 'Co-living Space',
+    house: 'House for Rent',
+    student_housing: 'Student Housing',
+    room_wanted: 'Room Wanted',
+};
+
+function normalizeRentalKind(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^(cat|category)_/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+function rentalKindLabel(listing) {
+    const key = [
+        listing?.category,
+        listing?.category_name,
+        listing?.listing_type,
+        listing?.type,
+        listing?.room_type,
+    ].map(normalizeRentalKind).find(value => RENTAL_KIND_LABELS[value]);
+    return key ? RENTAL_KIND_LABELS[key] : 'Room';
+}
+
 function isSoldListing(listing) {
     return listing?.status === 'sold' || Boolean(listing?.sold_at);
 }
@@ -646,7 +677,7 @@ function renderMyListings(container, user) {
             const rawThumbSrc = !rawPhoto ? '' : (typeof rawPhoto === 'string' ? rawPhoto : (rawPhoto.thumb || rawPhoto.medium || rawPhoto.full || ''));
             const thumbSrc = rawThumbSrc ? getAssetUrl(rawThumbSrc) : '';
             const thumb = thumbSrc ? 'background-image:url(\'' + thumbSrc + '\')' : '';
-            const kindLabel = isSaleListing(l) ? 'Item' : 'Room';
+            const kindLabel = isSaleListing(l) ? 'Item' : rentalKindLabel(l);
             return [
                 '<tr data-lid="' + l.listing_id + '">',
                 '<td><div class="td-listing">',

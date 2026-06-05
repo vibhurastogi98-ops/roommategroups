@@ -1327,6 +1327,7 @@ async function _handleSubmit(container) {
 
     const listingData = {
       user_id: user.user_id || user.id,
+      kind: 'rental',
       category: wizard.category,
       title: wizard.title,
       description: wizard.description,
@@ -1337,7 +1338,7 @@ async function _handleSubmit(container) {
       city: wizard.city,
       neighborhood: wizard.neighborhood,
       address: wizard.address,
-      room_type: wizard.roomType,
+      room_type: isRoommate ? null : (wizard.roomType || null),
       available_from: wizard.availableFrom,
       min_stay: wizard.minStay,
       utilities_included: wizard.utilitiesIncluded,

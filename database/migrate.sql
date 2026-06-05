@@ -170,6 +170,7 @@ CREATE TABLE listings (
   utilities_included INTEGER DEFAULT 0,
   furnished         TEXT,
   country           TEXT,
+  category          TEXT,
   roommate_prefs    TEXT,
   created_at        TEXT DEFAULT (datetime('now')),
   updated_at        TEXT DEFAULT (datetime('now')),

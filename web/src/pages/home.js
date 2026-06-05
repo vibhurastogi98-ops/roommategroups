@@ -98,6 +98,53 @@ function humanize(value, fallback = '') {
   return String(value).replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+const RENTAL_CATEGORY_LABELS = {
+  room: 'Room for Rent',
+  apartment: 'Apartment for Rent',
+  sublet: 'Sublet',
+  roommate_wanted: 'Roommate Wanted',
+  coliving: 'Co-living Space',
+  house: 'House for Rent',
+  student_housing: 'Student Housing',
+  room_wanted: 'Room Wanted',
+};
+
+function normalizeRentalCategoryKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(cat|category)_/, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function hasRoommateProfileFields(listing) {
+  const roomType = normalizeRentalCategoryKey(listing?.room_type);
+  return [
+    listing?.budgetMax,
+    listing?.budget_max,
+    listing?.preferredArea,
+    listing?.preferred_area,
+    listing?.moveInTimeline,
+    listing?.move_in_timeline,
+  ].some(value => value !== undefined && value !== null && value !== '') &&
+    !['private_room', 'shared_room'].includes(roomType);
+}
+
+function rentalCategoryLabel(listing) {
+  const category = [
+    listing?.category,
+    listing?.category_name,
+    listing?.listing_type,
+    listing?.type,
+    listing?.room_type,
+  ].map(normalizeRentalCategoryKey).find(key => RENTAL_CATEGORY_LABELS[key]);
+  if (category) return RENTAL_CATEGORY_LABELS[category];
+  if (listing?.category_name) return listing.category_name;
+  if (hasRoommateProfileFields(listing)) return RENTAL_CATEGORY_LABELS.roommate_wanted;
+  return listing?.room_type || humanize(listing?.category || listing?.property_type, 'Rental');
+}
+
 function marketplaceCategoryLabel(listing) {
   const categoryId = listing?.category_id || listing?.category;
   if (listing?.category_name) return listing.category_name;
@@ -163,7 +210,7 @@ function renderNearListingCard(listing, index) {
   const photo = getListingPhoto(listing);
   const kind = getListingKind(listing);
   const badge = kind === 'rental'
-    ? (listing.room_type || listing.category || 'Rental')
+    ? rentalCategoryLabel(listing)
     : marketplaceCategoryLabel(listing);
   const fallback = ['#0f172a', '#115e59', '#4338ca', '#7f1d1d'][index % 4];
 
@@ -291,13 +338,13 @@ function renderListingCard(listing, index) {
   let photo = _imgs[0] || '';
   if (typeof photo === 'object' && photo !== null) photo = photo.medium || photo.thumb || photo.full || '';
   if (photo) photo = getAssetUrl(photo);
-  const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
+  const categoryBadge = rentalCategoryLabel(listing);
 
   return `
     <div class="listing-card">
       <div class="listing-card-image" style="background: ${photo ? `url('${photo}') center/cover` : gradient}">
         ${!photo ? `<div class="listing-card-image-icon"><i class="fas fa-home"></i></div>` : ''}
-        <div class="listing-type-badge">${isRoommate ? 'Looking for Room' : listing.room_type || 'Private Room'}</div>
+        <div class="listing-type-badge">${escHtml(categoryBadge)}</div>
       </div>
       <div class="listing-card-body">
         <div class="listing-price">$${listing.rent ?? listing.price ?? '?'}<span>/mo</span></div>

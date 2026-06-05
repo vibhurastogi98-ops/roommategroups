@@ -43,6 +43,28 @@ export async function init(container) {
       || ((l?.price !== undefined && l?.price !== null && l?.price !== '') && (l?.rent === undefined || l?.rent === null || l?.rent === ''))
     );
   };
+  const _rentalLabels = {
+    room: 'Room for Rent',
+    apartment: 'Apartment for Rent',
+    sublet: 'Sublet',
+    roommate_wanted: 'Roommate Wanted',
+    coliving: 'Co-living Space',
+    house: 'House for Rent',
+    student_housing: 'Student Housing',
+    room_wanted: 'Room Wanted',
+  };
+  const _normalizeRentalKey = (value) => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(cat|category)_/, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const _rentalLabel = (l) => {
+    const key = [l?.category, l?.category_name, l?.listing_type, l?.type, l?.room_type]
+      .map(_normalizeRentalKey)
+      .find(value => _rentalLabels[value]);
+    return key ? _rentalLabels[key] : 'Room';
+  };
   const _formatPrice = (l) => {
     const val = _isSale(l) ? l.price : (l.rent ?? l.price);
     if (val === undefined || val === null || val === '') return _isSale(l) ? 'Ask seller' : 'Price TBC';
@@ -148,7 +170,7 @@ export async function init(container) {
             </div>
             <div style="flex:1; min-width:0;">
                 <div style="font-size:1rem; font-weight:800; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px;">${l.title || 'Untitled'}</div>
-                <div style="font-size:0.82rem;font-weight:900;color:#0f172a;margin-bottom:6px;">${_formatPrice(l)} <span style="font-size:0.64rem;color:#64748b;background:#f1f5f9;border-radius:20px;padding:2px 8px;text-transform:uppercase;">${_isSale(l) ? 'Item' : 'Room'}</span></div>
+                <div style="font-size:0.82rem;font-weight:900;color:#0f172a;margin-bottom:6px;">${_formatPrice(l)} <span style="font-size:0.64rem;color:#64748b;background:#f1f5f9;border-radius:20px;padding:2px 8px;text-transform:uppercase;">${_isSale(l) ? 'Item' : _rentalLabel(l)}</span></div>
                 <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
                     ${modStatus === 'approved' ? `
                         <span style="font-size:0.65rem; font-weight:800; color:${isSold ? '#047857' : isActive ? '#10b981' : '#64748b'}; background:${isSold ? 'rgba(4,120,87,0.1)' : isActive ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.1)'}; padding:2px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.02em;">${isSold ? 'Sold' : isActive ? 'Active' : 'Paused'}</span>

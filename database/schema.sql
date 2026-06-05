@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS listings (
   utilities_included INTEGER DEFAULT 0,
   furnished        TEXT,
   country          TEXT,
+  category         TEXT,
   roommate_prefs   TEXT,           -- JSON: {gender, ageMin, ageMax, tags}
   created_at       TEXT DEFAULT (datetime('now')),
   updated_at       TEXT DEFAULT (datetime('now')),

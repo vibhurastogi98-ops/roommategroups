@@ -48,6 +48,85 @@ function cityName(cityId) {
     return city?.name || String(cityId || '').replace('city_', '').replace(/_/g, ' ');
 }
 
+function normalizeCityKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^city_/, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function normalizeFilterKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^(cat|category)_/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+function isPresent(value) {
+    return value !== undefined && value !== null && value !== '';
+}
+
+function hasRoommateProfileFields(listing) {
+    const roomType = normalizeFilterKey(listing?.room_type);
+    const hasProfileFields = [
+        listing?.budgetMax,
+        listing?.budget_max,
+        listing?.preferredArea,
+        listing?.preferred_area,
+        listing?.moveInTimeline,
+        listing?.move_in_timeline,
+    ].some(isPresent);
+
+    return hasProfileFields && !['private_room', 'shared_room'].includes(roomType);
+}
+
+function isLiveListing(listing) {
+    const status = String(listing?.status || 'active').toLowerCase();
+    const moderation = String(listing?.moderation_status || 'approved').toLowerCase();
+    return listing?.is_active !== false &&
+        !['deleted', 'removed', 'sold', 'expired', 'inactive', 'rejected'].includes(status) &&
+        moderation !== 'rejected';
+}
+
+function isRentalListing(listing) {
+    return String(listing?.kind || 'rental').toLowerCase() === 'rental';
+}
+
+function mergeListings(...groups) {
+    const byId = new Map();
+    groups.flat().forEach(listing => {
+        const id = listing?.listing_id || listing?.id;
+        if (!id || byId.has(id)) return;
+        byId.set(id, listing);
+    });
+    return Array.from(byId.values());
+}
+
+function listingMatchesCity(listing, city) {
+    const cityValues = new Set([
+        city?.city_id,
+        city?.id,
+        city?.slug,
+        city?.name,
+    ].map(normalizeCityKey).filter(Boolean));
+    return [
+        listing.city,
+        listing.city_id,
+        listing.city_name,
+        listing.location_city,
+        listing.city_slug,
+        listing.location,
+    ].some(value => {
+        const listingCity = normalizeCityKey(value);
+        return cityValues.has(listingCity) ||
+            Array.from(cityValues).some(cityValue => listingCity.startsWith(`${cityValue}-`));
+    });
+}
+
 function isRentalLocalFilterActive(state) {
     return state.kind === 'rental' && (
         state.country !== 'all' ||
@@ -64,19 +143,33 @@ function applyRentalClientFilters(rows, state, cities) {
     let results = rows;
 
     if (state.city !== 'all') {
-        const cityObj = db.cities.findOne(c => c.slug === state.city);
-        results = cityObj ? results.filter(l => l.city === cityObj.city_id) : [];
+        const stateCityKey = normalizeCityKey(state.city);
+        const cityObj = db.cities.findOne(c => [
+            c.slug,
+            c.city_id,
+            c.id,
+            c.name,
+        ].map(normalizeCityKey).includes(stateCityKey));
+        results = cityObj ? results.filter(l => listingMatchesCity(l, cityObj)) : [];
     } else if (state.country !== 'all') {
-        const countryCityIds = cities.filter(c => c.country === state.country).map(c => c.city_id);
-        results = results.filter(l => countryCityIds.includes(l.city));
+        const countryCities = cities.filter(c => c.country === state.country);
+        results = results.filter(l => countryCities.some(city => listingMatchesCity(l, city)));
     }
 
     if (state.type !== 'all') {
+        const LEGACY_CAT_ALIASES = { room: ['room_rental'] };
         results = results.filter(l => {
-            const category = String(l.category || '').toLowerCase();
-            const roomType = String(l.room_type || '').toLowerCase();
-            if (state.type === 'room') return category === 'room' || category === 'room_rental' || roomType.includes('private');
-            return category === state.type || roomType === state.type || roomType.includes(state.type);
+            const wantedType = normalizeFilterKey(state.type);
+            const cat = normalizeFilterKey(l.category || l.category_name);
+            const roomType = normalizeFilterKey(l.room_type || l.listing_type || l.type);
+            if (cat === wantedType) return true;
+            if (roomType === wantedType || roomType.includes(wantedType)) return true;
+            if (LEGACY_CAT_ALIASES[wantedType]?.includes(cat)) return true;
+            // Fallback for existing rows that predate the category column
+            if (!cat && (wantedType === 'roommate_wanted' || wantedType === 'room_wanted')) {
+                return hasRoommateProfileFields(l);
+            }
+            return false;
         });
     }
 
@@ -524,7 +617,7 @@ export function renderSearchPage(app) {
         }
 
         countSpan.textContent = isRentalLocalFilterActive(state)
-            ? `Showing ${visibleCount} of ${total} server matches`
+            ? `Showing ${visibleCount} result${visibleCount === 1 ? '' : 's'}${total !== visibleCount ? ` (${total} server matches)` : ''}`
             : `Showing ${total} result${total === 1 ? '' : 's'}`;
     }
 
@@ -601,8 +694,11 @@ export function renderSearchPage(app) {
             const total = Number(response?.total || 0);
             const page = Number(response?.page || state.page || 1);
             const limit = Number(response?.limit || state.limit || 24);
-            let results = Array.isArray(response?.results) ? response.results : [];
-            results = applyRentalClientFilters(results, state, cities);
+            const serverResults = applyRentalClientFilters(Array.isArray(response?.results) ? response.results : [], state, cities);
+            const localResults = state.kind === 'rental' && isRentalLocalFilterActive(state)
+                ? applyRentalClientFilters(db.listings.findAll().filter(l => isRentalListing(l) && isLiveListing(l)), state, cities)
+                : [];
+            const results = mergeListings(serverResults, localResults);
             currentResults = results;
 
             grid.innerHTML = results.length

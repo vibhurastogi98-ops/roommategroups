@@ -285,11 +285,35 @@ function hasMarketplaceShape(listing = {}) {
     );
 }
 
+const RENTAL_CATEGORY_KEYS = new Set([
+    'room',
+    'apartment',
+    'sublet',
+    'roommate_wanted',
+    'coliving',
+    'house',
+    'student_housing',
+    'room_wanted',
+]);
+
+function normalizeCategoryKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^(cat|category)_/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
 function normalizeListingRecord(listing) {
     if (!listing || typeof listing !== 'object') return listing;
     const normalized = { ...listing };
     const shouldBeSale = normalized.kind === 'sale' || (!normalized.kind && hasMarketplaceShape(normalized));
     normalized.kind = shouldBeSale ? 'sale' : (normalized.kind || 'rental');
+    if (normalized.kind === 'rental' && !isPresent(normalized.category)) {
+        const roomTypeCategory = normalizeCategoryKey(normalized.room_type);
+        if (RENTAL_CATEGORY_KEYS.has(roomTypeCategory)) normalized.category = roomTypeCategory;
+    }
     if (normalized.kind === 'sale' && !isPresent(normalized.price) && isPresent(normalized.rent)) {
         normalized.price = normalized.rent;
     }
@@ -451,6 +475,10 @@ export async function initDB() {
     if (!raw.fb_countries) { raw.fb_countries = SEED_DATA.fb_countries; updated = true; }
     if (!raw.user_queries)  { raw.user_queries = [];                      updated = true; }
     if (!raw.categories)    { raw.categories   = SEED_DATA.categories;    updated = true; }
+    if (!Array.isArray(raw.neighborhoods) || raw.neighborhoods.length === 0) {
+        raw.neighborhoods = SEED_DATA.neighborhoods;
+        updated = true;
+    }
     if (!raw.posts)         { raw.posts        = SEED_DATA.posts;         updated = true; }
     if (!raw.fb_cities)     { raw.fb_cities    = SEED_DATA.fb_cities;     updated = true; }
     if (Array.isArray(raw.users)) {

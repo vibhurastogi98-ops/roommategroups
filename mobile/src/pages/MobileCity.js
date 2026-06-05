@@ -20,6 +20,110 @@ function _isRentalListing(listing) {
   return String(listing?.kind || 'rental').toLowerCase() === 'rental';
 }
 
+function _normalizeKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^city_/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function _normalizeCategoryKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(cat|category)_/, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function _isPresent(value) {
+  return value !== undefined && value !== null && value !== '';
+}
+
+function _listingMatchesCity(listing, city) {
+  const cityValues = new Set([
+    city.city_id,
+    city.id,
+    city.slug,
+    city.name,
+  ].map(_normalizeKey).filter(Boolean));
+
+  return [
+    listing.city,
+    listing.city_id,
+    listing.city_name,
+    listing.location_city,
+    listing.city_slug,
+    listing.location,
+  ].some(value => {
+    const listingCity = _normalizeKey(value);
+    return cityValues.has(listingCity) ||
+      Array.from(cityValues).some(cityValue => listingCity.startsWith(`${cityValue}-`));
+  });
+}
+
+function _isLiveListing(listing) {
+  return listing?.status === 'active';
+}
+
+function _isRoommateProfileListing(listing) {
+  const roommateCategories = new Set(['roommate_wanted', 'room_wanted']);
+  const cat = _normalizeCategoryKey(listing?.category || listing?.category_name);
+  if (roommateCategories.has(cat)) return true;
+
+  // Fallback for listings that predate the category column
+  if (!cat) {
+    const hasProfileFields = [
+      listing?.budgetMax, listing?.budget_max,
+      listing?.preferredArea, listing?.preferred_area,
+      listing?.moveInTimeline, listing?.move_in_timeline,
+    ].some(_isPresent);
+    const roomType = _normalizeCategoryKey(listing?.room_type);
+    return hasProfileFields && !['private_room', 'shared_room'].includes(roomType);
+  }
+
+  return false;
+}
+
+function _cityNeighborhoods(city, cityListings) {
+  const savedNeighborhoods = db.neighborhoods
+    ? db.neighborhoods.find(n => _listingMatchesCity({ city: n.city, city_id: n.city_id }, city))
+    : [];
+  if (savedNeighborhoods.length) return savedNeighborhoods.slice(0, 8);
+
+  const byName = new Map();
+  cityListings.forEach(listing => {
+    const raw = listing.neighborhood || listing.neighborhood_id || listing.area;
+    if (!raw) return;
+    const key = _normalizeKey(raw);
+    if (!key) return;
+    const label = String(raw)
+      .replace(/^(nh|nb)_/, '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+    const current = byName.get(key) || {
+      neighborhood_id: raw,
+      name: label,
+      slug: key,
+      city: city.city_id,
+      avg_rent: 0,
+      listing_count: 0,
+      rent_total: 0,
+    };
+    const rent = Number(listing.rent ?? listing.price ?? listing.budgetMax ?? 0);
+    current.listing_count += 1;
+    if (Number.isFinite(rent) && rent > 0) current.rent_total += rent;
+    byName.set(key, current);
+  });
+
+  return Array.from(byName.values()).slice(0, 8).map(n => ({
+    ...n,
+    avg_rent: n.avg_rent || (n.rent_total ? Math.round(n.rent_total / n.listing_count) : 0),
+  }));
+}
+
 export async function init(container, params) {
   container.innerHTML = _skeletonHTML();
   await initDB().catch(() => { });
@@ -40,18 +144,18 @@ export async function init(container, params) {
   });
 
   // Data Fetching
-  const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active' && _isRentalListing(l));
+  const allCityListings = db.listings.find(l => _listingMatchesCity(l, city) && _isLiveListing(l));
+  const SEEKER_CATEGORIES = new Set(['roommate_wanted', 'room_wanted']);
+  const cityListings = allCityListings.filter(l =>
+    _isRentalListing(l) && !SEEKER_CATEGORIES.has(_normalizeCategoryKey(l.category))
+  );
   const citySaleListings = db.listings.find(l =>
-    l.city === city.city_id &&
-    l.status === 'active' &&
+    _listingMatchesCity(l, city) &&
+    _isLiveListing(l) &&
     String(l.kind || '').toLowerCase() === 'sale'
   ).slice(0, 8);
-  const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
-  const roommateProfiles = db.listings.find(l => 
-    l.city === city.city_id && 
-    (l.category === 'roommate_wanted' || l.category === 'room_wanted') &&
-    l.status === 'active'
-  ).map(r => ({
+  const cityNeighborhoods = _cityNeighborhoods(city, cityListings);
+  const roommateProfiles = allCityListings.filter(_isRoommateProfileListing).map(r => ({
     ...r,
     user_details: db.users.findById(r.user_id)
   }));
@@ -214,7 +318,7 @@ export async function init(container, params) {
                   <h3>${n.name}</h3>
                 </div>
                 <div class="nh-card-body">
-                  <div class="nh-card-rent">Avg. Rent <strong>$${n.avg_rent}/mo</strong></div>
+                  <div class="nh-card-rent">Avg. Rent <strong>${Number(n.avg_rent) > 0 ? `$${n.avg_rent}/mo` : '—'}</strong></div>
                   <div style="display:inline-flex; align-items:center; gap:4px; background:#f1f5f9; padding:4px 8px; border-radius:6px; font-size:0.65rem; font-weight:800; color:#64748b;">
                     ${n.listing_count} Listings
                   </div>

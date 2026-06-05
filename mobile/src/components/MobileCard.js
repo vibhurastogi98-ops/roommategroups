@@ -31,6 +31,55 @@ function _getCityName(cityId) {
   return cityId.replace('city_', '').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+const RENTAL_CATEGORY_LABELS = {
+  room: 'Room for Rent',
+  apartment: 'Apartment for Rent',
+  sublet: 'Sublet',
+  roommate_wanted: 'Roommate Wanted',
+  coliving: 'Co-living Space',
+  house: 'House for Rent',
+  student_housing: 'Student Housing',
+  room_wanted: 'Room Wanted',
+};
+
+function _normalizeRentalCategoryKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(cat|category)_/, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function _hasRoommateProfileFields(listing) {
+  const roomType = _normalizeRentalCategoryKey(listing?.room_type);
+  return [
+    listing?.budgetMax,
+    listing?.budget_max,
+    listing?.preferredArea,
+    listing?.preferred_area,
+    listing?.moveInTimeline,
+    listing?.move_in_timeline,
+  ].some(value => value !== undefined && value !== null && value !== '') &&
+    !['private_room', 'shared_room'].includes(roomType);
+}
+
+function _rentalCategoryLabel(listing) {
+  const category = [
+    listing?.category,
+    listing?.category_name,
+    listing?.listing_type,
+    listing?.type,
+    listing?.room_type,
+  ].map(_normalizeRentalCategoryKey).find(key => RENTAL_CATEGORY_LABELS[key]);
+  if (category) return RENTAL_CATEGORY_LABELS[category];
+  if (listing?.category_name) return listing.category_name;
+  if (_hasRoommateProfileFields(listing)) return RENTAL_CATEGORY_LABELS.roommate_wanted;
+  const type = listing?.room_type || listing?.property_type || listing?.type || listing?.category;
+  if (!type) return 'Room';
+  return type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 function _getPropertyType(listing) {
   const kind = String(listing?.kind || '').toLowerCase();
   const isSale = kind === 'sale';
@@ -46,11 +95,7 @@ function _getPropertyType(listing) {
     return 'Item';
   }
 
-  const type = listing.room_type || listing.category || listing.property_type || listing.type;
-  if (!type) return 'Room'; // Default fallback
-
-  // Clean up and format
-  return type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return _rentalCategoryLabel(listing);
 }
 
 function _genderColor(pref) {

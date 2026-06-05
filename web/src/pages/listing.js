@@ -233,6 +233,54 @@ function humanize(value, fallback = '') {
         .replace(/\b\w/g, c => c.toUpperCase());
 }
 
+const RENTAL_CATEGORY_DISPLAY = {
+    room: { label: 'Room for Rent', icon: 'fa-bed' },
+    apartment: { label: 'Apartment for Rent', icon: 'fa-building' },
+    sublet: { label: 'Sublet', icon: 'fa-calendar-days' },
+    roommate_wanted: { label: 'Roommate Wanted', icon: 'fa-users' },
+    coliving: { label: 'Co-living Space', icon: 'fa-house-chimney-user' },
+    house: { label: 'House for Rent', icon: 'fa-house' },
+    student_housing: { label: 'Student Housing', icon: 'fa-graduation-cap' },
+    room_wanted: { label: 'Room Wanted', icon: 'fa-magnifying-glass' },
+};
+
+function normalizeRentalCategoryKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^(cat|category)_/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+function hasRoommateProfileFields(listing) {
+    const roomType = normalizeRentalCategoryKey(listing?.room_type);
+    return [
+        listing?.budgetMax,
+        listing?.budget_max,
+        listing?.preferredArea,
+        listing?.preferred_area,
+        listing?.moveInTimeline,
+        listing?.move_in_timeline,
+    ].some(value => value !== undefined && value !== null && value !== '') &&
+        !['private_room', 'shared_room'].includes(roomType);
+}
+
+function getRentalCategoryDisplay(listing) {
+    const category = [
+        listing?.category,
+        listing?.category_name,
+        listing?.listing_type,
+        listing?.type,
+        listing?.room_type,
+    ].map(normalizeRentalCategoryKey).find(key => RENTAL_CATEGORY_DISPLAY[key]);
+    if (category) return RENTAL_CATEGORY_DISPLAY[category];
+    if (listing?.category_name) return { label: listing.category_name, icon: 'fa-tag' };
+    if (hasRoommateProfileFields(listing)) return RENTAL_CATEGORY_DISPLAY.roommate_wanted;
+    if (listing?.room_type) return { label: humanize(listing.room_type), icon: 'fa-bed' };
+    return { label: humanize(listing?.category || listing?.property_type, 'Rental'), icon: 'fa-bed' };
+}
+
 function isAffirmative(value) {
     return value === true || value === 1 || value === '1' || value === 'true' || value === 'yes';
 }
@@ -453,7 +501,7 @@ export function renderListingDetailPage(app, params) {
     const conditionLabel = humanize(listing.condition);
     const categoryLabel = humanize(listing.category_name || listing.category || listing.category_id || listingKind);
     const isNegotiable = isAffirmative(listing.negotiable);
-    const isRoommate = listing.category === 'roommate_wanted' || listing.category === 'room_wanted';
+    const rentalCategoryDisplay = getRentalCategoryDisplay(listing);
     // images can be a JSON string (from D1) or an array (from localStorage)
     let _imgs = listing.images || listing.photos || [];
     if (typeof _imgs === 'string') { try { _imgs = JSON.parse(_imgs); } catch(e) { _imgs = []; } }
@@ -654,7 +702,7 @@ export function renderListingDetailPage(app, params) {
                         ${isNegotiable ? `<div class="ld-badge" style="background:#ecfdf5;color:#047857;"><i class="fa-solid fa-handshake"></i> Negotiable</div>` : ''}
                         ${listing.brand ? `<div class="ld-badge"><i class="fa-solid fa-bookmark"></i> ${escHtml(listing.brand)}</div>` : ''}
                         ` : `
-                        <div class="ld-badge"><i class="fa-solid fa-bed"></i> ${isRoommate ? 'Looking for Room' : (listing.room_type || 'Private Room')}</div>
+                        <div class="ld-badge"><i class="fa-solid ${rentalCategoryDisplay.icon}"></i> ${escHtml(rentalCategoryDisplay.label)}</div>
                         ${listing.furnished === 'yes' ? `<div class="ld-badge" style="background:#f5f5f5;color:#333333;"><i class="fa-solid fa-couch"></i> Furnished</div>` : ''}
                         ${listing.private_bathroom ? `<div class="ld-badge" style="background:#f5f5f5;color:#1a1a1a;"><i class="fa-solid fa-bath"></i> Private Bath</div>` : ''}
                         `}

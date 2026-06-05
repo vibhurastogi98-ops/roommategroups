@@ -64,6 +64,53 @@ function _humanize(value, fallback = '') {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
+const RENTAL_CATEGORY_LABELS = {
+  room: 'Room for Rent',
+  apartment: 'Apartment for Rent',
+  sublet: 'Sublet',
+  roommate_wanted: 'Roommate Wanted',
+  coliving: 'Co-living Space',
+  house: 'House for Rent',
+  student_housing: 'Student Housing',
+  room_wanted: 'Room Wanted',
+};
+
+function _normalizeRentalCategoryKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(cat|category)_/, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function _hasRoommateProfileFields(listing) {
+  const roomType = _normalizeRentalCategoryKey(listing?.room_type);
+  return [
+    listing?.budgetMax,
+    listing?.budget_max,
+    listing?.preferredArea,
+    listing?.preferred_area,
+    listing?.moveInTimeline,
+    listing?.move_in_timeline,
+  ].some(value => value !== undefined && value !== null && value !== '') &&
+    !['private_room', 'shared_room'].includes(roomType);
+}
+
+function _rentalCategoryLabel(listing) {
+  const category = [
+    listing?.category,
+    listing?.category_name,
+    listing?.listing_type,
+    listing?.type,
+    listing?.room_type,
+  ].map(_normalizeRentalCategoryKey).find(key => RENTAL_CATEGORY_LABELS[key]);
+  if (category) return RENTAL_CATEGORY_LABELS[category];
+  if (listing?.category_name) return listing.category_name;
+  if (_hasRoommateProfileFields(listing)) return RENTAL_CATEGORY_LABELS.roommate_wanted;
+  return _humanize(listing?.room_type || listing?.property_type || listing?.type || listing?.category, 'Room');
+}
+
 function _isAffirmative(value) {
   return value === true || value === 1 || value === '1' || value === 'true' || value === 'yes';
 }
@@ -236,9 +283,7 @@ export async function init(container, params = {}) {
   const ago = _timeAgo(listing.created_at);
 
   // Normalize Property Type
-  const rawType = listing.room_type || listing.category || listing.property_type || listing.type;
-  const propType = rawType ? rawType.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Room';
-  const displayType = isMarketplace ? categoryLabel : propType;
+  const displayType = isMarketplace ? categoryLabel : _rentalCategoryLabel(listing);
   const marketplaceFacts = [
     ['Price', price],
     ['Condition', conditionLabel || 'Not specified'],

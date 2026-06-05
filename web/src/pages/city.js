@@ -12,6 +12,111 @@ function isRentalListing(listing) {
     return String(listing?.kind || 'rental').toLowerCase() === 'rental';
 }
 
+function normalizeKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^city_/, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function normalizeCategoryKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^(cat|category)_/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+function isPresent(value) {
+    return value !== undefined && value !== null && value !== '';
+}
+
+function listingMatchesCity(listing, city) {
+    const cityValues = new Set([
+        city.city_id,
+        city.id,
+        city.slug,
+        city.name,
+    ].map(normalizeKey).filter(Boolean));
+
+    return [
+        listing.city,
+        listing.city_id,
+        listing.city_name,
+        listing.location_city,
+        listing.city_slug,
+        listing.location,
+    ].some(value => {
+        const listingCity = normalizeKey(value);
+        return cityValues.has(listingCity) ||
+            Array.from(cityValues).some(cityValue => listingCity.startsWith(`${cityValue}-`));
+    });
+}
+
+function isLiveListing(listing) {
+    return listing?.status === 'active';
+}
+
+function isRoommateProfileListing(listing) {
+    const roommateCategories = new Set(['roommate_wanted', 'room_wanted']);
+    const cat = normalizeCategoryKey(listing?.category || listing?.category_name);
+    if (roommateCategories.has(cat)) return true;
+
+    // Fallback for listings that predate the category column
+    if (!cat) {
+        const hasProfileFields = [
+            listing?.budgetMax, listing?.budget_max,
+            listing?.preferredArea, listing?.preferred_area,
+            listing?.moveInTimeline, listing?.move_in_timeline,
+        ].some(isPresent);
+        const roomType = normalizeCategoryKey(listing?.room_type);
+        return hasProfileFields && !['private_room', 'shared_room'].includes(roomType);
+    }
+
+    return false;
+}
+
+function getCityNeighborhoods(city, cityListings) {
+    const savedNeighborhoods = db.neighborhoods
+        ? db.neighborhoods.find(n => listingMatchesCity({ city: n.city, city_id: n.city_id }, city))
+        : [];
+    if (savedNeighborhoods.length) return savedNeighborhoods.slice(0, 8);
+
+    const byName = new Map();
+    cityListings.forEach(listing => {
+        const raw = listing.neighborhood || listing.neighborhood_id || listing.area;
+        if (!raw) return;
+        const key = normalizeKey(raw);
+        if (!key) return;
+        const label = String(raw)
+            .replace(/^(nh|nb)_/, '')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+        const current = byName.get(key) || {
+            neighborhood_id: raw,
+            name: label,
+            slug: key,
+            city: city.city_id,
+            avg_rent: 0,
+            description: `Browse rooms and roommate matches around ${label}.`,
+            listing_count: 0,
+            rent_total: 0,
+        };
+        const rent = Number(listing.rent ?? listing.price ?? listing.budgetMax ?? 0);
+        current.listing_count += 1;
+        if (Number.isFinite(rent) && rent > 0) current.rent_total += rent;
+        byName.set(key, current);
+    });
+
+    return Array.from(byName.values()).slice(0, 8).map(n => ({
+        ...n,
+        avg_rent: n.avg_rent || (n.rent_total ? Math.round(n.rent_total / n.listing_count) : 0),
+    }));
+}
+
 export function renderCityPage(app, params) {
     try {
         const citySlug = (params.slug || '').toLowerCase();
@@ -29,22 +134,22 @@ export function renderCityPage(app, params) {
         }
 
         const heroImage = city.hero_image ? getAssetUrl(city.hero_image) : FALLBACK_HERO;
-        const cityListings = db.listings.find(l => l.city === city.city_id && l.status === 'active' && isRentalListing(l));
+        const allCityListings = db.listings.find(l => listingMatchesCity(l, city) && isLiveListing(l));
+        const SEEKER_CATEGORIES = new Set(['roommate_wanted', 'room_wanted']);
+        const cityListings = allCityListings.filter(l =>
+            isRentalListing(l) && !SEEKER_CATEGORIES.has(normalizeCategoryKey(l.category))
+        );
         const citySaleListings = db.listings.find(l =>
-            l.city === city.city_id &&
-            l.status === 'active' &&
+            listingMatchesCity(l, city) &&
+            isLiveListing(l) &&
             String(l.kind || '').toLowerCase() === 'sale'
         ).slice(0, 8);
         const cityMarketplaceUrl = city.marketplace_enabled
             ? `/marketplace/${city.slug}`
             : `/search/rooms?kind=sale&city=${city.slug}`;
         const sellItemUrl = `/post-listing?kind=sale&city=${city.slug}`;
-        const cityNeighborhoods = (db.neighborhoods ? db.neighborhoods.find(n => n.city === city.city_id) : []).slice(0, 8);
-        const roommateProfiles = db.listings.find(l => 
-            l.city === city.city_id && 
-            (l.category === 'roommate_wanted' || l.category === 'room_wanted') &&
-            l.status === 'active'
-        ).map(r => ({
+        const cityNeighborhoods = getCityNeighborhoods(city, cityListings);
+        const roommateProfiles = allCityListings.filter(isRoommateProfileListing).map(r => ({
             ...r,
             user_details: db.users.findById(r.user_id)
         }));
@@ -292,7 +397,7 @@ export function renderCityPage(app, params) {
                             <h2 style="font-size: 1.8rem; font-weight: 800;">Roommates Looking in ${city.name}</h2>
                             <p style="color: #64748b; margin-top: 8px;">Connect with people actively searching for a home right now.</p>
                         </div>
-                        <a href="/search/roommates?city=${city.slug}" class="gd-section-link">
+                        <a href="/search/rooms?kind=rental&city=${city.slug}&type=roommate_wanted" class="gd-section-link">
                             See all profiles <i class="fa-solid fa-arrow-right"></i>
                         </a>
                     </div>
@@ -627,7 +732,7 @@ function renderNeighborhoodCard(n, index, city) {
             <div class="neighborhood-card-body">
                 <div class="nh-rent">
                     <span class="nh-rent-label">Avg. Rent</span>
-                    <span class="nh-rent-value">$${n.avg_rent}<em>/mo</em></span>
+                    <span class="nh-rent-value">${Number(n.avg_rent) > 0 ? `$${n.avg_rent}<em>/mo</em>` : '—'}</span>
                 </div>
                 <p class="nh-description">${n.description}</p>
                 <a href="/search/rooms?kind=rental&city=${city.slug}&neighborhood=${n.neighborhood_id}" class="nh-link">
@@ -641,7 +746,11 @@ function renderNeighborhoodCard(n, index, city) {
 /* ─── Helper: Roommate Card ─── */
 function renderRoommateCard(r) {
     const user = r.user_details || { display_name: 'Roommate', profile_photo: 'https://i.pravatar.cc/150?u=unknown' };
-    const tags = r.roommate_prefs?.tags || r.lifestyle_tags || [];
+    const prefs = typeof r.roommate_prefs === 'string'
+        ? (() => { try { return JSON.parse(r.roommate_prefs); } catch { return {}; } })()
+        : (r.roommate_prefs || {});
+    const tags = prefs.tags || r.lifestyle_tags || [];
+    const moveIn = r.move_in_date || r.moveInTimeline || r.move_in_timeline || r.available_from || 'Flexible';
     return `
         <div class="roommate-card">
             <div class="roommate-card-img" style="background-image:url('${getAvatarUrl(user.profile_photo, user.display_name || 'Roommate')}')">
@@ -654,7 +763,7 @@ function renderRoommateCard(r) {
                     ${tags.slice(0, 3).map(t => `<span class="roommate-tag">${t.replace('tag_', '')}</span>`).join('')}
                 </div>
                 <div class="roommate-move-in">
-                    <i class="fa-regular fa-calendar"></i> Moving: ${r.move_in_date}
+                    <i class="fa-regular fa-calendar"></i> Moving: ${moveIn}
                 </div>
             </div>
         </div>

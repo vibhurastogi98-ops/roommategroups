@@ -1504,11 +1504,13 @@ async function handlePublish() {
         return;
     }
 
+    const isRoommateCategory = draft.category === 'roommate_wanted' || draft.category === 'room_wanted';
+    const persistedRoomType = isRoommateCategory ? null : (draft.roomType || null);
     const listingData = {
-        user_id: user.id, category: draft.category, title: draft.title, description: draft.description,
-        rent: (draft.category === 'roommate_wanted' || draft.category === 'room_wanted') ? (draft.budgetMax || 0) : (draft.price || 0), 
+        user_id: user.id, kind: 'rental', category: draft.category, title: draft.title, description: draft.description,
+        rent: isRoommateCategory ? (draft.budgetMax || 0) : (draft.price || 0),
         currency: draft.currency, country: draft.country, city: draft.city, neighborhood: draft.neighborhood,
-        address: draft.address, room_type: draft.roomType, available_from: draft.availableFrom,
+        address: draft.address, room_type: persistedRoomType, available_from: draft.availableFrom,
         lease_duration: draft.leaseDuration, furnished: draft.furnished, amenities: draft.amenities,
         images: JSON.stringify(draft.photos), roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
         status: isFree ? 'pending' : 'active', 

@@ -1457,7 +1457,7 @@ app.post('/listings', async (c) => {
       'moderation_status', 'rejection_reason', 'bedrooms', 'size_sqft', 'preferredArea',
       'moveInTimeline', 'budgetMin', 'budgetMax',
       'currency', 'deposit', 'min_stay', 'utilities_included', 'furnished', 'country', 'roommate_prefs',
-      'kind', 'category_id', 'price', 'condition', 'negotiable', 'brand', 'attributes',
+      'kind', 'category', 'category_id', 'price', 'condition', 'negotiable', 'brand', 'attributes',
       'sold_at', 'promoted_until'
     ]
     const mapped: Record<string, any> = {
@@ -1536,7 +1536,7 @@ const LISTING_COLUMNS = new Set([
   'rejection_reason', 'bedrooms', 'size_sqft', 'preferredArea',
   'moveInTimeline', 'budgetMin', 'budgetMax',
   'currency', 'deposit', 'min_stay', 'utilities_included', 'furnished', 'country', 'roommate_prefs',
-  'kind', 'category_id', 'price', 'condition', 'negotiable', 'brand', 'attributes',
+  'kind', 'category', 'category_id', 'price', 'condition', 'negotiable', 'brand', 'attributes',
   'sold_at', 'promoted_until',
 ])
 const LISTING_JSON_FIELDS = new Set(['images', 'amenities', 'tags', 'roommate_prefs', 'attributes'])
