@@ -112,11 +112,21 @@ function applyRentalClientFilters(rows, state, cities) {
   }
 
   if (state.type !== 'all') {
+    const LEGACY_CAT_ALIASES = { room: ['room_rental'] };
+    const SEEKER_TYPES = new Set(['roommate_wanted', 'room_wanted']);
     results = results.filter(l => {
-      const category = String(l.category || '').toLowerCase();
-      const roomType = String(l.room_type || '').toLowerCase();
-      if (state.type === 'room') return category === 'room' || category === 'room_rental' || roomType.includes('private');
-      return category === state.type || roomType === state.type || roomType.includes(state.type);
+      const wantedType = state.type;
+      const cat = String(l.category || l.category_name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      if (cat === wantedType) return true;
+      if (LEGACY_CAT_ALIASES[wantedType]?.includes(cat)) return true;
+      // Fallback for listings that predate the category column
+      if (!cat && SEEKER_TYPES.has(wantedType)) {
+        const hasProfileFields = [l.budgetMax, l.budget_max, l.preferredArea, l.preferred_area, l.moveInTimeline, l.move_in_timeline]
+          .some(v => v !== undefined && v !== null && v !== '');
+        const rt = String(l.room_type || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        return hasProfileFields && !['private_room', 'shared_room'].includes(rt);
+      }
+      return false;
     });
   }
 
