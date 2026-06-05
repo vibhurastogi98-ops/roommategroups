@@ -5,6 +5,7 @@ import { getTotalUnread, getUnreadCountForThread } from '../services/messaging.j
 import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 import { api } from '../services/api.js';
 import { uploadImage } from '../services/upload.js';
+import { openListingEditModal } from '../components/listing-edit-modal.js';
 
 // Module-level timers so they survive re-renders and can be cleared properly
 let _msgPollingTimer = null;
@@ -747,7 +748,9 @@ function renderMyListings(container, user) {
 
         container.querySelectorAll('.action-edit').forEach(btn => {
             btn.addEventListener('click', () => {
-                navigate('/post-listing/' + btn.dataset.id);
+                openListingEditModal(btn.dataset.id, {
+                    onSaved: rerender,
+                });
             });
         });
         container.querySelectorAll('.action-promote').forEach(btn => {

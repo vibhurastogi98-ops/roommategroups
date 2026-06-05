@@ -504,6 +504,8 @@ export async function init(container, params = {}) {
 function _showEditPopup(id, container) {
   const l = db.listings.findById(id);
   if (!l) return;
+  const isSale = _resolveListingKind(l) === 'sale';
+  const priceValue = isSale ? (l.price ?? l.rent ?? 0) : (l.rent ?? l.price ?? 0);
 
   const content = `
     <div style="padding: 0 4px;">
@@ -514,15 +516,36 @@ function _showEditPopup(id, container) {
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="mobile-form-group">
-          <label class="mobile-form-label">Price ($/mo) *</label>
-          <input class="mobile-input" id="ep-price" type="number" value="${l.rent || l.price || 0}">
+          <label class="mobile-form-label">${isSale ? 'Price ($) *' : 'Price ($/mo) *'}</label>
+          <input class="mobile-input" id="ep-price" type="number" value="${priceValue}">
         </div>
+        ${isSale ? `
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Condition</label>
+          <select class="mobile-input" id="ep-condition">
+            ${['new', 'like_new', 'good', 'fair', 'used'].map(c => `<option value="${c}" ${String(l.condition || 'good') === c ? 'selected' : ''}>${c.replace('_', ' ')}</option>`).join('')}
+          </select>
+        </div>
+        ` : `
         <div class="mobile-form-group">
           <label class="mobile-form-label">Deposit ($)</label>
           <input class="mobile-input" id="ep-deposit" type="number" value="${l.deposit || 0}">
         </div>
+        `}
       </div>
 
+      ${isSale ? `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="mobile-form-group">
+          <label class="mobile-form-label">Brand</label>
+          <input class="mobile-input" id="ep-brand" type="text" value="${_esc(l.brand || '')}">
+        </div>
+        <div class="mobile-form-group" style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:12px 16px; border-radius:12px; margin-bottom:20px;">
+          <span style="font-weight:700; font-size:0.9rem; color:#475569;">Negotiable</span>
+          <input type="checkbox" id="ep-negotiable" ${l.negotiable !== false ? 'checked' : ''} style="width:20px;height:20px;">
+        </div>
+      </div>
+      ` : `
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="mobile-form-group">
           <label class="mobile-form-label">Room Type</label>
@@ -552,6 +575,7 @@ function _showEditPopup(id, container) {
           </span>
         </label>
       </div>
+      `}
 
       <div class="mobile-form-group">
         <label class="mobile-form-label">Description</label>
@@ -571,7 +595,7 @@ function _showEditPopup(id, container) {
 
   // Wire internal events
   const sheet = document.querySelector('.mobile-sheet');
-  sheet.querySelector('#ep-utilities').addEventListener('change', (e) => {
+  sheet.querySelector('#ep-utilities')?.addEventListener('change', (e) => {
     const toggle = e.target.nextElementSibling;
     const knob = toggle.querySelector('span');
     toggle.style.backgroundColor = e.target.checked ? '#1a1a1a' : '#cbd5e1';
@@ -581,16 +605,27 @@ function _showEditPopup(id, container) {
 
 async function _handlePopupSave(id, container) {
   const sheet = document.querySelector('.mobile-sheet');
-  const updates = {
+  const existing = db.listings.findById(id);
+  const isSale = _resolveListingKind(existing) === 'sale';
+  const price = parseInt(sheet.querySelector('#ep-price').value) || 0;
+  const base = {
     title: sheet.querySelector('#ep-title').value.trim(),
-    rent: parseInt(sheet.querySelector('#ep-price').value) || 0,
-    price: parseInt(sheet.querySelector('#ep-price').value) || 0,
+    description: sheet.querySelector('#ep-desc').value.trim()
+  };
+  const updates = isSale ? {
+    ...base,
+    price,
+    condition: sheet.querySelector('#ep-condition')?.value || existing?.condition || 'good',
+    brand: sheet.querySelector('#ep-brand')?.value.trim() || '',
+    negotiable: !!sheet.querySelector('#ep-negotiable')?.checked,
+  } : {
+    ...base,
+    rent: price,
     deposit: parseInt(sheet.querySelector('#ep-deposit').value) || 0,
     room_type: sheet.querySelector('#ep-roomtype').value,
     available_from: sheet.querySelector('#ep-date').value,
     min_stay: sheet.querySelector('#ep-minstay').value,
     utilities_included: sheet.querySelector('#ep-utilities').checked,
-    description: sheet.querySelector('#ep-desc').value.trim()
   };
 
   if (!updates.title) { alert('Title is required'); return false; }

@@ -511,7 +511,7 @@ function _step3() {
       <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">The Details</h2>
       <div class="mobile-form-group">
         <label class="mobile-form-label">Listing Title *</label>
-        <input class="mobile-input" id="wp-title" type="text" placeholder="e.g. Sunny Room Near Downtown" value="${_esc(wizard.title)}">
+        <input class="mobile-input" id="wp-title" type="text" minlength="3" required placeholder="e.g. Sunny Room Near Downtown" value="${_esc(wizard.title)}">
         <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Minimum 3 characters required.</div>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -523,7 +523,7 @@ function _step3() {
               <option value="EUR" ${wizard.currency === 'EUR' ? 'selected' : ''}>€</option>
               <option value="GBP" ${wizard.currency === 'GBP' ? 'selected' : ''}>£</option>
             </select>
-            <input class="mobile-input" id="wp-price" type="number" placeholder="1200" value="${wizard.price}" style="flex:1;">
+            <input class="mobile-input" id="wp-price" type="number" min="1" required placeholder="1200" value="${wizard.price}" style="flex:1;">
           </div>
         </div>
         <div class="mobile-form-group">
@@ -596,7 +596,8 @@ function _step3() {
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">The Details</h2>
     <div class="mobile-form-group">
       <label class="mobile-form-label">Listing Title *</label>
-      <input class="mobile-input" id="wp-title" type="text" placeholder="e.g. Looking for roommate in Austin" value="${_esc(wizard.title)}">
+      <input class="mobile-input" id="wp-title" type="text" minlength="3" required placeholder="e.g. Looking for roommate in Austin" value="${_esc(wizard.title)}">
+      <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Minimum 3 characters required.</div>
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <div class="mobile-form-group" style="margin:0;">
@@ -604,8 +605,8 @@ function _step3() {
         <input class="mobile-input" id="wp-bmin" type="number" placeholder="500" value="${wizard.budgetMin}">
       </div>
       <div class="mobile-form-group" style="margin:0;">
-        <label class="mobile-form-label">Budget Max</label>
-        <input class="mobile-input" id="wp-bmax" type="number" placeholder="1,500" value="${wizard.budgetMax}">
+        <label class="mobile-form-label">Budget Max *</label>
+        <input class="mobile-input" id="wp-bmax" type="number" min="1" required placeholder="1,500" value="${wizard.budgetMax}">
       </div>
     </div>
     <div class="mobile-form-group">
@@ -630,7 +631,8 @@ function _mpDetails() {
     <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">${category ? `Posting in ${category.name}.` : 'Add the details buyers need.'}</p>
     <div class="mobile-form-group">
       <label class="mobile-form-label">Title *</label>
-      <input class="mobile-input" id="wp-title" type="text" placeholder="e.g. IKEA desk in great condition" value="${_esc(wizard.title)}">
+      <input class="mobile-input" id="wp-title" type="text" minlength="3" required placeholder="e.g. IKEA desk in great condition" value="${_esc(wizard.title)}">
+      <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Minimum 3 characters required.</div>
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
       <div class="mobile-form-group">
@@ -641,7 +643,7 @@ function _mpDetails() {
             <option value="EUR" ${wizard.currency === 'EUR' ? 'selected' : ''}>€</option>
             <option value="GBP" ${wizard.currency === 'GBP' ? 'selected' : ''}>£</option>
           </select>
-          <input class="mobile-input" id="wp-price" type="number" min="0" step="0.01" placeholder="75" value="${wizard.price}" style="flex:1;">
+          <input class="mobile-input" id="wp-price" type="number" min="1" step="0.01" required placeholder="75" value="${wizard.price}" style="flex:1;">
         </div>
       </div>
       <div class="mobile-form-group">
@@ -1121,6 +1123,7 @@ async function _wireStep(container) {
   // Navigation
   container.querySelector('#wp-back')?.addEventListener('click', () => { wizard.step--; saveDraft(); _render(container); });
   container.querySelector('#wp-next')?.addEventListener('click', () => {
+    _syncCurrentStep(container);
     if (wizard.step < _flowSteps().length) {
       if (!_validateStep(wizard.step)) return;
       wizard.step++; saveDraft(); _render(container);
@@ -1128,6 +1131,50 @@ async function _wireStep(container) {
       _handleSubmit(container);
     }
   });
+}
+
+function _syncCurrentStep(container) {
+  const value = (selector) => container.querySelector(selector)?.value ?? '';
+  const checked = (selector) => !!container.querySelector(selector)?.checked;
+
+  if (wizard.step === 2) {
+    if (container.querySelector('#wp-country')) wizard.country = value('#wp-country');
+    if (container.querySelector('#wp-city')) wizard.city = value('#wp-city');
+    wizard.neighborhood = value('#wp-neighborhood');
+    wizard.address = value('#wp-address');
+  }
+
+  if (wizard.step === 3) {
+    wizard.title = value('#wp-title').trim();
+    wizard.currency = value('#wp-currency') || wizard.currency;
+    wizard.price = value('#wp-price');
+    wizard.deposit = value('#wp-deposit');
+    wizard.availableFrom = value('#wp-date');
+    wizard.roomType = value('#wp-roomtype');
+    wizard.minStay = value('#wp-minstay') || wizard.minStay;
+    wizard.utilitiesIncluded = checked('#wp-utilities');
+    wizard.bedrooms = value('#wp-beds');
+    wizard.bathrooms = value('#wp-baths');
+    wizard.sizeSqft = value('#wp-sqft');
+    wizard.budgetMin = value('#wp-bmin');
+    wizard.budgetMax = value('#wp-bmax');
+    wizard.preferredArea = value('#wp-pref-area').trim();
+    wizard.moveInTimeline = value('#wp-timeline');
+    wizard.condition = value('#wp-condition');
+    wizard.brand = value('#wp-brand').trim();
+    wizard.negotiable = container.querySelector('#wp-negotiable') ? checked('#wp-negotiable') : wizard.negotiable;
+    const furnished = container.querySelector('input[name="wp-furnished"]:checked');
+    if (furnished) wizard.furnished = furnished.value;
+    container.querySelectorAll('.wp-attr-field').forEach(input => {
+      wizard.attributes = { ...(wizard.attributes || {}), [input.dataset.attr]: input.value };
+    });
+  }
+
+  if ((!_isMarketplace() && wizard.step === 6) || (_isMarketplace() && wizard.step === 5)) {
+    wizard.description = value('#wp-desc').trim();
+  }
+
+  saveDraft();
 }
 
 function _showPhotoSheet(container) {
@@ -1196,8 +1243,10 @@ function _validateStep(step) {
   if (step === 1 && !wizard.kind) { _toast('Please choose a listing kind', 'error'); return false; }
   if (step === 1 && !_isMarketplace() && !wizard.category) { _toast('Please select a rental category', 'error'); return false; }
   if (step === 1 && _isMarketplace() && !wizard.marketplaceCategoryId) { _toast('Please select a marketplace category', 'error'); return false; }
+  if (step === 2 && !wizard.country) { _toast('Please select a country', 'error'); return false; }
   if (step === 2 && !wizard.city) { _toast('Please select a city', 'error'); return false; }
-  if (step === 3 && wizard.title.length < 3) { _toast('Title must be at least 3 characters', 'error'); return false; }
+  if (step === 3 && !wizard.title.trim()) { _toast('Title is required', 'error'); return false; }
+  if (step === 3 && wizard.title.trim().length < 3) { _toast('Title must be at least 3 characters', 'error'); return false; }
   if (step === 3) {
     if (_isMarketplace()) {
       if (!wizard.price || Number(wizard.price) <= 0) { _toast('Price is required', 'error'); return false; }
@@ -1205,9 +1254,10 @@ function _validateStep(step) {
     }
     const isRoommate = wizard.category === 'roommate_wanted' || wizard.category === 'room_wanted';
     if (!isRoommate && (!wizard.price || Number(wizard.price) <= 0)) { _toast('Monthly rent is required', 'error'); return false; }
-    if (isRoommate && !wizard.budgetMax) { _toast('Budget max is required', 'error'); return false; }
+    if (isRoommate && (!wizard.budgetMax || Number(wizard.budgetMax) <= 0)) { _toast('Budget max is required', 'error'); return false; }
   }
-  if (((!_isMarketplace() && step === 6) || (_isMarketplace() && step === 5)) && wizard.description.length < 50) { _toast('Description must be at least 50 characters', 'error'); return false; }
+  if (((!_isMarketplace() && step === 6) || (_isMarketplace() && step === 5)) && !wizard.description.trim()) { _toast('Description is required', 'error'); return false; }
+  if (((!_isMarketplace() && step === 6) || (_isMarketplace() && step === 5)) && wizard.description.trim().length < 50) { _toast('Description must be at least 50 characters', 'error'); return false; }
   return true;
 }
 

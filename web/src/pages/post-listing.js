@@ -343,7 +343,6 @@ function renderMarketplaceCategoryPicker() {
 }
 
 function renderStep1() {
-    const canContinue = draft.kind && (isMarketplaceFlow() ? draft.marketplaceCategoryId : draft.category);
     return `
         <div class="post-listing-step" id="step-1">
             <div class="pl-step-header">
@@ -386,7 +385,7 @@ function renderStep1() {
             ` : renderMarketplaceCategoryPicker()}
             <div class="step-actions">
                 <span></span>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${canContinue ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next">
                     Next Step <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
@@ -456,7 +455,7 @@ function renderStep2() {
             </div>
             <div class="step-actions">
                 <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.city ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next">
                     Next Step <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
@@ -475,7 +474,8 @@ function renderStep3() {
             </div>
             <div class="pl-form-card">
                 <div class="form-group">
-                    <input type="text" id="pl-title" class="form-control" placeholder="e.g. Sunny Room Near Downtown" value="${draft.title || ''}" minlength="3">
+                    <label class="pl-label" for="pl-title">Title <span class="required-asterisk">*</span></label>
+                    <input type="text" id="pl-title" class="form-control" placeholder="e.g. Sunny Room Near Downtown" value="${escAttr(draft.title)}" minlength="3" required>
                     <small class="form-help">Minimum 3 characters required.</small>
                 </div>
     `;
@@ -484,14 +484,14 @@ function renderStep3() {
         html += `
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="pl-label">Monthly Rent</label>
+                        <label class="pl-label" for="pl-price">Monthly Rent <span class="required-asterisk">*</span></label>
                         <div class="pl-input-group">
                             <select id="pl-currency" class="form-control pl-currency-select">
                                 <option value="USD">$</option>
                                 <option value="EUR" ${draft.currency === 'EUR' ? 'selected' : ''}>€</option>
                                 <option value="GBP" ${draft.currency === 'GBP' ? 'selected' : ''}>£</option>
                             </select>
-                            <input type="number" id="pl-price" class="form-control" placeholder="1,200" value="${draft.price || ''}">
+                            <input type="number" id="pl-price" class="form-control" placeholder="1,200" value="${escAttr(draft.price)}" required>
                         </div>
                     </div>
                     <div class="form-group">
@@ -555,8 +555,8 @@ function renderStep3() {
                         <input type="number" id="pl-budget-min" class="form-control" placeholder="500" value="${draft.budgetMin || ''}">
                     </div>
                     <div class="form-group">
-                        <label class="pl-label">Budget Max</label>
-                        <input type="number" id="pl-budget-max" class="form-control" placeholder="1,500" value="${draft.budgetMax || ''}">
+                        <label class="pl-label" for="pl-budget-max">Budget Max <span class="required-asterisk">*</span></label>
+                        <input type="number" id="pl-budget-max" class="form-control" placeholder="1,500" value="${escAttr(draft.budgetMax)}" required>
                     </div>
                 </div>
                 <div class="form-group">
@@ -579,7 +579,7 @@ function renderStep3() {
             </div>
             <div class="step-actions">
                 <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.title && draft.title.length >= 3 ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next">
                     Next Step <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
@@ -621,7 +621,7 @@ function renderMarketplaceDetails() {
             <div class="pl-form-card">
                 <div class="form-group">
                     <label class="pl-label">Title <span class="required-asterisk">*</span></label>
-                    <input type="text" id="pl-title" class="form-control" placeholder="e.g. IKEA desk in great condition" value="${escAttr(draft.title)}" minlength="3">
+                    <input type="text" id="pl-title" class="form-control" placeholder="e.g. IKEA desk in great condition" value="${escAttr(draft.title)}" minlength="3" required>
                     <small class="form-help">Minimum 3 characters required.</small>
                 </div>
                 <div class="form-row">
@@ -633,7 +633,7 @@ function renderMarketplaceDetails() {
                                 <option value="EUR" ${draft.currency === 'EUR' ? 'selected' : ''}>€</option>
                                 <option value="GBP" ${draft.currency === 'GBP' ? 'selected' : ''}>£</option>
                             </select>
-                            <input type="number" id="pl-price" class="form-control" min="0" step="0.01" placeholder="75" value="${escAttr(draft.price)}">
+                            <input type="number" id="pl-price" class="form-control" min="0" step="0.01" placeholder="75" value="${escAttr(draft.price)}" required>
                         </div>
                     </div>
                     <div class="form-group">
@@ -666,7 +666,7 @@ function renderMarketplaceDetails() {
             </div>
             <div class="step-actions">
                 <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.title && draft.title.length >= 3 && Number(draft.price) > 0 ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next">
                     Next Step <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
@@ -805,7 +805,7 @@ function renderStep6() {
 
             <div class="step-actions">
                 <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.description.length >= 50 ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next">
                     Preview Listing <i class="fa-solid fa-eye"></i>
                 </button>
             </div>
@@ -837,7 +837,7 @@ function renderMarketplaceDescription() {
             </div>
             <div class="step-actions">
                 <button class="btn btn-outline pl-btn-back" id="btn-prev"><i class="fa-solid fa-arrow-left"></i> Back</button>
-                <button class="btn btn-primary pl-btn-next" id="btn-next" ${draft.description.length >= 50 ? '' : 'disabled'}>
+                <button class="btn btn-primary pl-btn-next" id="btn-next">
                     Preview Listing <i class="fa-solid fa-eye"></i>
                 </button>
             </div>
@@ -1084,7 +1084,6 @@ function attachEventListeners(container) {
         citySelect.addEventListener('change', (e) => {
             draft.city = e.target.value; draft.neighborhood = '';
             saveDraft();
-            if (btnNext) btnNext.disabled = !draft.city;
             renderFullPage(container);
         });
 
@@ -1142,16 +1141,10 @@ function attachEventListeners(container) {
         const title = container.querySelector('#pl-title');
         title.addEventListener('input', (e) => {
             draft.title = e.target.value;
-            if (btnNext) btnNext.disabled = isMarketplaceFlow()
-                ? !(draft.title.length >= 3 && Number(draft.price) > 0)
-                : draft.title.length < 3;
         });
         if (isMarketplaceFlow()) {
             const price = container.querySelector('#pl-price');
-            const updateDetailsReady = () => {
-                if (btnNext) btnNext.disabled = !(draft.title?.length >= 3 && Number(draft.price) > 0);
-            };
-            price?.addEventListener('input', (e) => { draft.price = e.target.value; updateDetailsReady(); });
+            price?.addEventListener('input', (e) => { draft.price = e.target.value; });
             container.querySelector('#pl-currency')?.addEventListener('change', (e) => { draft.currency = e.target.value; });
             container.querySelector('#pl-condition')?.addEventListener('change', (e) => { draft.condition = e.target.value; });
             container.querySelector('#pl-brand')?.addEventListener('input', (e) => { draft.brand = e.target.value; });
@@ -1213,7 +1206,6 @@ function attachEventListeners(container) {
             const len = e.target.value.length;
             count.textContent = `${len} / 2000`;
             draft.description = e.target.value;
-            if (btnNext) btnNext.disabled = len < 50;
         });
 
         aiBtn.addEventListener('click', async () => {
@@ -1249,7 +1241,6 @@ function attachEventListeners(container) {
                     desc.value = aiText;
                     draft.description = aiText;
                     count.textContent = `${aiText.length} / 2000`;
-                    if (btnNext) btnNext.disabled = aiText.length < 50;
                 } else {
                     showToast('AI Assist failed: ' + (data.error || 'Unknown error'), 'error');
                 }
@@ -1382,6 +1373,8 @@ function saveStepState() {
     }
 
     if (draft.step === 3) {
+        const title = container.querySelector('#pl-title');
+        if (title) draft.title = title.value;
         if (isMarketplaceFlow()) {
             const price = container.querySelector('#pl-price');
             if (price) draft.price = price.value;

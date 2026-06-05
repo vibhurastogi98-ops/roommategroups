@@ -8,6 +8,7 @@ import { navigate } from '../router.js';
 import { buildListingProductSchema, setSEO } from '../seo.js'; // SEO Update
 import { getAssetUrl, getAvatarUrl } from '../services/assets.js';
 import { api } from '../services/api.js';
+import { openListingEditModal } from '../components/listing-edit-modal.js';
 
 function escHtml(str) {
     if (!str) return '';
@@ -35,6 +36,151 @@ function showToast(message, type = 'success') {
     document.body.appendChild(toast);
     setTimeout(() => toast.classList.add('visible'), 10);
     setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 3500);
+}
+
+const REPORT_REASONS = [
+    'Misleading information',
+    'Scam or suspicious listing',
+    'Inappropriate content',
+    'Already rented or unavailable',
+    'Spam or duplicate',
+    'Other',
+];
+
+function ensureReportModalStyles() {
+    if (document.getElementById('rg-report-modal-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'rg-report-modal-styles';
+    style.textContent = `
+        .rg-report-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15, 23, 42, 0.56); backdrop-filter: blur(4px); }
+        .rg-report-modal { width: min(520px, 100%); max-height: min(720px, calc(100vh - 32px)); overflow: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 28px 90px rgba(15, 23, 42, 0.28); color: #0f172a; }
+        .rg-report-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 12px; }
+        .rg-report-kicker { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; color: #ef4444; font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+        .rg-report-title { margin: 0; color: #0f172a; font-size: 1.45rem; font-weight: 850; line-height: 1.2; }
+        .rg-report-subtitle { margin: 8px 0 0; color: #64748b; font-size: 0.94rem; line-height: 1.55; }
+        .rg-report-close { width: 40px; height: 40px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; color: #64748b; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+        .rg-report-close:hover { background: #f8fafc; color: #0f172a; }
+        .rg-report-body { padding: 12px 24px 0; }
+        .rg-report-label { display: block; margin-bottom: 8px; color: #334155; font-size: 0.88rem; font-weight: 800; }
+        .rg-report-select { width: 100%; min-height: 48px; margin-bottom: 18px; padding: 0 14px; border: 1.5px solid #dbe3ef; border-radius: 14px; background: #fff; color: #0f172a; font: inherit; font-size: 0.95rem; outline: none; }
+        .rg-report-select:focus { border-color: #111827; box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08); }
+        .rg-report-textarea { width: 100%; min-height: 118px; padding: 13px 14px; border: 1.5px solid #dbe3ef; border-radius: 14px; background: #fff; color: #0f172a; font: inherit; font-size: 0.95rem; line-height: 1.5; resize: vertical; outline: none; }
+        .rg-report-textarea:focus { border-color: #111827; box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08); }
+        .rg-report-help { margin: 8px 0 0; color: #94a3b8; font-size: 0.8rem; line-height: 1.45; }
+        .rg-report-error { min-height: 20px; margin-top: 10px; color: #dc2626; font-size: 0.84rem; font-weight: 700; }
+        .rg-report-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 18px 24px 24px; }
+        .rg-report-btn { min-height: 44px; padding: 0 18px; border: 1.5px solid #dbe3ef; border-radius: 12px; background: #fff; color: #1e293b; cursor: pointer; font: inherit; font-size: 0.94rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        .rg-report-btn:hover { background: #f8fafc; }
+        .rg-report-submit { min-width: 132px; border-color: #111827; background: #111827; color: #fff; }
+        .rg-report-submit:hover { background: #020617; }
+        .rg-report-btn:disabled { opacity: .62; cursor: not-allowed; }
+        @media (max-width: 560px) {
+            .rg-report-overlay { align-items: flex-end; padding: 12px; }
+            .rg-report-modal { border-radius: 18px; max-height: calc(100vh - 24px); }
+            .rg-report-head { padding: 20px 18px 10px; }
+            .rg-report-body { padding: 10px 18px 0; }
+            .rg-report-footer { padding: 16px 18px 20px; flex-direction: column-reverse; }
+            .rg-report-btn { width: 100%; }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function openReportListingModal(listing) {
+    ensureReportModalStyles();
+    document.getElementById('rg-report-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'rg-report-overlay';
+    overlay.className = 'rg-report-overlay';
+    overlay.innerHTML = `
+        <div class="rg-report-modal" role="dialog" aria-modal="true" aria-labelledby="rg-report-title">
+            <div class="rg-report-head">
+                <div>
+                    <p class="rg-report-kicker"><i class="fa-solid fa-flag"></i> Report listing</p>
+                    <h3 class="rg-report-title" id="rg-report-title">Tell us what is wrong</h3>
+                    <p class="rg-report-subtitle">Your report helps keep RoommateGroups safer. The listing owner will not see your name.</p>
+                </div>
+                <button type="button" class="rg-report-close" data-report-close aria-label="Close report form"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="rg-report-body">
+                <label class="rg-report-label" for="rg-report-reason">Reason</label>
+                <select class="rg-report-select" id="rg-report-reason">
+                    <option value="">Select a reason</option>
+                    ${REPORT_REASONS.map(reason => `<option value="${escHtml(reason)}">${escHtml(reason)}</option>`).join('')}
+                </select>
+                <label class="rg-report-label" for="rg-report-details">Details</label>
+                <textarea class="rg-report-textarea" id="rg-report-details" maxlength="800" placeholder="Add a short note about the problem."></textarea>
+                <p class="rg-report-help">Please avoid sharing private information. Our Trust & Safety team will review this report.</p>
+                <div class="rg-report-error" id="rg-report-error" aria-live="polite"></div>
+            </div>
+            <div class="rg-report-footer">
+                <button type="button" class="rg-report-btn" data-report-close>Cancel</button>
+                <button type="button" class="rg-report-btn rg-report-submit" id="rg-report-submit">
+                    <i class="fa-solid fa-paper-plane"></i> Submit Report
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    const reasonSelect = overlay.querySelector('#rg-report-reason');
+    const textarea = overlay.querySelector('#rg-report-details');
+    const submitBtn = overlay.querySelector('#rg-report-submit');
+    const error = overlay.querySelector('#rg-report-error');
+
+    const close = () => {
+        document.removeEventListener('keydown', onKeydown);
+        overlay.remove();
+    };
+    const onKeydown = (event) => {
+        if (event.key === 'Escape') close();
+    };
+
+    overlay.querySelectorAll('[data-report-close]').forEach(btn => btn.addEventListener('click', close));
+    overlay.addEventListener('click', event => {
+        if (event.target === overlay) close();
+    });
+    reasonSelect.addEventListener('change', () => { error.textContent = ''; });
+
+    submitBtn.addEventListener('click', async () => {
+        const selectedReason = reasonSelect.value;
+        const details = textarea.value.trim();
+        if (!selectedReason && !details) {
+            error.textContent = 'Choose a reason or add a short note.';
+            reasonSelect.focus();
+            return;
+        }
+
+        const currentUser = getCurrentUser();
+        const reporterName = currentUser?.display_name || currentUser?.email || 'Anonymous';
+        const reason = [selectedReason, details].filter(Boolean).join(': ');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting';
+        try {
+            await db.reports.create({
+                type: 'listing',
+                target_type: 'listing',
+                listing_id: listing.listing_id,
+                target_id: listing.listing_id,
+                target_name: listing.title,
+                reporter_id: getUserId(currentUser) || 'anonymous',
+                reporter_name: reporterName,
+                reason,
+                status: 'pending',
+                priority: selectedReason === 'Scam or suspicious listing' ? 'high' : 'medium'
+            });
+            close();
+            showToast('Report submitted. Thank you.');
+        } catch (err) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Report';
+            error.textContent = err.message || 'Could not submit report. Please try again.';
+        }
+    });
+
+    document.addEventListener('keydown', onKeydown);
+    setTimeout(() => reasonSelect?.focus(), 50);
 }
 
 // Accepts both legacy string photos and new { thumb, medium, full } objects.
@@ -96,6 +242,13 @@ function formatAttributeValue(value) {
     if (value && typeof value === 'object') return JSON.stringify(value);
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     return String(value);
+}
+
+function formatMinStay(listing) {
+    const value = listing.min_stay_months || listing.min_stay || listing.lease_duration || listing.lease_term || '';
+    if (!value) return 'Flexible';
+    if (Number.isFinite(Number(value))) return `${Number(value)} months`;
+    return humanize(value, 'Flexible');
 }
 
 function renderMarketplaceAttributes(attributes) {
@@ -557,14 +710,14 @@ export function renderListingDetailPage(app, params) {
                             <div class="ld-fact-icon"><i class="fa-regular fa-calendar-check"></i></div>
                             <div class="ld-fact-text">
                                 <strong>Date Available</strong>
-                                <span>${formatDate(listing.available_date)}</span>
+                                <span>${formatDate(listing.available_date || listing.available_from || listing.move_in_date)}</span>
                             </div>
                         </div>
                         <div class="ld-fact">
                             <div class="ld-fact-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
                             <div class="ld-fact-text">
                                 <strong>Min. Stay</strong>
-                                <span>${listing.min_stay_months ? listing.min_stay_months + ' months' : 'Flexible'}</span>
+                                <span>${escHtml(formatMinStay(listing))}</span>
                             </div>
                         </div>
                         <div class="ld-fact">
@@ -624,9 +777,9 @@ export function renderListingDetailPage(app, params) {
                     <div class="ld-deposit">${isMarketplace ? (marketplaceSidebarMeta || 'Marketplace listing') : `Includes utilities: ${listing.utilities_included ? 'Yes' : 'No'} • Deposit: $${listing.deposit || 0}`}</div>
                     
                     ${isOwner ? `
-                    <a href="/post-listing/${listing.listing_id}" class="ld-btn-primary" style="text-decoration:none;">
+                    <button type="button" class="ld-btn-primary" id="edit-listing-btn">
                         <i class="fa-solid fa-pen-to-square"></i> Edit Listing
-                    </a>
+                    </button>
                     <a href="/dashboard/listings" class="ld-btn-outline" style="text-decoration:none;color:#ef4444;border-color:#fecaca;">
                         <i class="fa-solid fa-eye"></i> Manage in Dashboard
                     </a>
@@ -689,6 +842,15 @@ export function renderListingDetailPage(app, params) {
 
     // Add Event Listeners dynamically
     setTimeout(() => {
+        const editBtn = app.querySelector('#edit-listing-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', () => {
+                openListingEditModal(listing.listing_id, {
+                    onSaved: () => renderListingDetailPage(app, params),
+                });
+            });
+        }
+
         // Message Button
         const msgBtn = app.querySelector('#msg-host-btn');
         if (msgBtn) {
@@ -802,19 +964,7 @@ export function renderListingDetailPage(app, params) {
         const reportBtn = app.querySelector('#report-listing-btn');
         if (reportBtn) {
             reportBtn.addEventListener('click', () => {
-                const reason = prompt('Why are you reporting this listing?');
-                if (reason) {
-                    db.reports.create({
-                        type: 'listing',
-                        target_id: listing.listing_id,
-                        target_name: listing.title,
-                        reporter_id: getUserId(getCurrentUser()) || 'anonymous',
-                        reason: reason,
-                        status: 'pending',
-                        priority: 'medium'
-                    });
-                    showToast('Report submitted. Thank you.');
-                }
+                openReportListingModal(listing);
             });
         }
 

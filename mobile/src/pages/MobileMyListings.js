@@ -360,14 +360,12 @@ export async function init(container) {
     };
     const updates = isSale ? {
       ...base,
-      kind: 'sale',
       price,
       condition: sheet.querySelector('#ep-condition')?.value || existing?.condition || 'good',
       brand: sheet.querySelector('#ep-brand')?.value.trim() || '',
       negotiable: !!sheet.querySelector('#ep-negotiable')?.checked,
     } : {
       ...base,
-      kind: 'rental',
       rent: price,
       deposit: parseInt(sheet.querySelector('#ep-deposit').value) || 0,
       room_type: sheet.querySelector('#ep-roomtype').value,
