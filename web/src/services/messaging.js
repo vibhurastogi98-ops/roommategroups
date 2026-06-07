@@ -16,6 +16,12 @@ const PAYMENT_LINK_PATTERNS = [
 
 let _pollingInterval = null;
 
+function parseParticipants(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') { try { return JSON.parse(value || '[]'); } catch (e) { return []; } }
+    return [];
+}
+
 // ── Thread Management ─────────────────────────────────────────
 
 /**
@@ -26,7 +32,7 @@ export async function getOrCreateThread(senderId, recipientId, listingId) {
 
     // Look for existing thread with same listing + same participants
     const existing = allThreads.find(t => {
-        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        const parts = parseParticipants(t.participants);
         return t.listing_id === listingId && parts.includes(senderId) && parts.includes(recipientId);
     });
 
@@ -103,7 +109,7 @@ export async function sendMessage(threadId, senderId, content, photoUrl = null) 
     }
 
     // 6. Update thread metadata (fire-and-forget D1 sync)
-    const parts = typeof thread.participants === 'string' ? JSON.parse(thread.participants || '[]') : (thread.participants || []);
+    const parts = parseParticipants(thread.participants);
     const ouId = parts.find(id => id !== senderId);
     db.threads.update(threadId, {
         last_message_at: new Date().toISOString(),
@@ -199,7 +205,7 @@ export function reportThread(threadId, reporterId, reason = 'inappropriate') {
 
 export function getThreadsForUser(userId, filter = 'all') {
     const allThreads = db.threads.find(t => {
-        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        const parts = parseParticipants(t.participants);
         return parts.includes(userId);
     });
 
@@ -224,7 +230,7 @@ export function getUnreadCountForThread(threadId, userId) {
 export function getTotalUnread(userId) {
     // 1. Get IDs of threads the user is a participant in
     const myThreads = db.threads.find(t => {
-        const parts = typeof t.participants === 'string' ? JSON.parse(t.participants || '[]') : (t.participants || []);
+        const parts = parseParticipants(t.participants);
         return parts.includes(userId);
     });
 

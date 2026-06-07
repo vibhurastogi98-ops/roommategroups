@@ -66,7 +66,7 @@ export function renderDashboardPage(app) {
     if (currentPath === '/dashboard/archived-chats' || currentPath === '/archived-chats') viewName = 'archived';
     if (currentPath === '/dashboard/saved') viewName = 'saved';
     if (currentPath === '/dashboard/searches') viewName = 'searches';
-    if (currentPath === '/profile' || currentPath === '/dashboard/profile') viewName = 'profile';
+    if (currentPath === '/dashboard/profile') viewName = 'profile';
     if (currentPath === '/dashboard/offers') viewName = 'offers';
     if (currentPath === '/dashboard/reviews') viewName = 'reviews';
     if (currentPath === '/dashboard/verification') viewName = 'verification';

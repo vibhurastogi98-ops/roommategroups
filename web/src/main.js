@@ -91,7 +91,7 @@ addRoute('/settings', renderDashboardPage, [requireAuth()]);
 addRoute('/notifications', renderDashboardPage, [requireAuth()]);
 addRoute('/blocked-users', renderDashboardPage, [requireAuth()]);
 addRoute('/archived-chats', renderDashboardPage, [requireAuth()]);
-addRoute('/profile', renderDashboardPage, [requireAuth()]);
+addRoute('/profile', renderProfilePage, [requireAuth()]);
 addRoute('/post-listing', renderPostListingPage, [requireAuth()]);
 addRoute('/post-listing/:id', renderPostListingPage, [requireAuth()]);
 addRoute('/cities/:slug', renderCityPage);

@@ -13,8 +13,8 @@ function formatProfileListingPrice(listing) {
 }
 
 export function renderProfilePage(app, params) {
-    const userId = params.id;
-    const user = db.users.findById(userId);
+    const userId = params.id || getCurrentUser()?.id;
+    const user = userId ? db.users.findById(userId) : null;
 
     if (!user) {
         app.innerHTML = `
