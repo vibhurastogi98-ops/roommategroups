@@ -153,12 +153,7 @@ function applyRentalClientFilters(rows, state, cities) {
     }
 
     if (state.type !== 'all') {
-        // Interim rule: match category column first; fall back to room_type for rows
-        // that predate the category backfill. Once backfill runs, simplify to:
-        //   normalizeFilterKey(l.category) === state.type
-        results = results.filter(l =>
-            normalizeFilterKey(l.category || l.room_type) === state.type
-        );
+        results = results.filter(l => normalizeFilterKey(l.category) === state.type);
     }
 
     if (state.dur !== 'all') results = results.filter(l => l.duration === state.dur || l.lease_term === state.dur);
