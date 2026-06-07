@@ -85,11 +85,7 @@ function hasRoommateProfileFields(listing) {
 }
 
 function isLiveListing(listing) {
-    const status = String(listing?.status || 'active').toLowerCase();
-    const moderation = String(listing?.moderation_status || 'approved').toLowerCase();
-    return listing?.is_active !== false &&
-        !['deleted', 'removed', 'sold', 'expired', 'inactive', 'rejected'].includes(status) &&
-        moderation !== 'rejected';
+    return listing?.status === 'active';
 }
 
 function isRentalListing(listing) {
@@ -157,20 +153,12 @@ function applyRentalClientFilters(rows, state, cities) {
     }
 
     if (state.type !== 'all') {
-        const LEGACY_CAT_ALIASES = { room: ['room_rental'] };
-        results = results.filter(l => {
-            const wantedType = normalizeFilterKey(state.type);
-            const cat = normalizeFilterKey(l.category || l.category_name);
-            const roomType = normalizeFilterKey(l.room_type || l.listing_type || l.type);
-            if (cat === wantedType) return true;
-            if (roomType === wantedType || roomType.includes(wantedType)) return true;
-            if (LEGACY_CAT_ALIASES[wantedType]?.includes(cat)) return true;
-            // Fallback for existing rows that predate the category column
-            if (!cat && (wantedType === 'roommate_wanted' || wantedType === 'room_wanted')) {
-                return hasRoommateProfileFields(l);
-            }
-            return false;
-        });
+        // Interim rule: match category column first; fall back to room_type for rows
+        // that predate the category backfill. Once backfill runs, simplify to:
+        //   normalizeFilterKey(l.category) === state.type
+        results = results.filter(l =>
+            normalizeFilterKey(l.category || l.room_type) === state.type
+        );
     }
 
     if (state.dur !== 'all') results = results.filter(l => l.duration === state.dur || l.lease_term === state.dur);
@@ -192,7 +180,7 @@ function buildApiParams(state) {
         limit: state.limit,
         sort: state.sort,
     };
-    params.kind = state.kind;
+    if (['rental', 'sale'].includes(state.kind)) params.kind = state.kind;
     if (state.country !== 'all') params.country = state.country;
     if (state.city !== 'all') params.city = state.city;
     if (state.kind !== 'rental' && state.category !== 'all') params.category = state.category;
@@ -694,6 +682,7 @@ export function renderSearchPage(app) {
             const total = Number(response?.total || 0);
             const page = Number(response?.page || state.page || 1);
             const limit = Number(response?.limit || state.limit || 24);
+            if (total === 0) console.debug('[Search] API returned 0 results for params:', buildApiParams(state));
             const serverResults = applyRentalClientFilters(Array.isArray(response?.results) ? response.results : [], state, cities);
             const localResults = state.kind === 'rental' && isRentalLocalFilterActive(state)
                 ? applyRentalClientFilters(db.listings.findAll().filter(l => isRentalListing(l) && isLiveListing(l)), state, cities)

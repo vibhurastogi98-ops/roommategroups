@@ -1241,11 +1241,11 @@ app.get('/listings', async (c) => {
       where.push('l.category_id IN (SELECT category_id FROM category_tree)')
     }
     if (minPrice !== null) {
-      where.push('l.price >= ?')
+      where.push('COALESCE(l.rent, l.price) >= ?')
       whereParams.push(minPrice)
     }
     if (maxPrice !== null) {
-      where.push('l.price <= ?')
+      where.push('COALESCE(l.rent, l.price) <= ?')
       whereParams.push(maxPrice)
     }
     if (condition) {
@@ -1469,7 +1469,7 @@ app.post('/listings', async (c) => {
       // Compatibility aliases where the schema still uses a different name.
       neighborhood_id: body.neighborhood_id || body.neighborhood || '',
       lease_term: body.lease_term || body.lease_duration || '',
-      room_type: body.room_type || '',
+      room_type: body.room_type || null,
       status: 'active',
       rent: rent,
       kind,

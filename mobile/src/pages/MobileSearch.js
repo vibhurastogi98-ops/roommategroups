@@ -77,11 +77,11 @@ const TYPE_OPTIONS = [
 
 function buildApiParams(state) {
   const params = {
-    kind: state.kind,
     page: state.page,
     limit: state.limit,
     sort: state.sort,
   };
+  if (['rental', 'sale'].includes(state.kind)) params.kind = state.kind;
   if (state.country !== 'all') params.country = state.country;
   if (state.city !== 'all') params.city = state.city;
   if (state.keyword) params.q = state.keyword;
@@ -112,22 +112,10 @@ function applyRentalClientFilters(rows, state, cities) {
   }
 
   if (state.type !== 'all') {
-    const LEGACY_CAT_ALIASES = { room: ['room_rental'] };
-    const SEEKER_TYPES = new Set(['roommate_wanted', 'room_wanted']);
-    results = results.filter(l => {
-      const wantedType = state.type;
-      const cat = String(l.category || l.category_name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-      if (cat === wantedType) return true;
-      if (LEGACY_CAT_ALIASES[wantedType]?.includes(cat)) return true;
-      // Fallback for listings that predate the category column
-      if (!cat && SEEKER_TYPES.has(wantedType)) {
-        const hasProfileFields = [l.budgetMax, l.budget_max, l.preferredArea, l.preferred_area, l.moveInTimeline, l.move_in_timeline]
-          .some(v => v !== undefined && v !== null && v !== '');
-        const rt = String(l.room_type || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-        return hasProfileFields && !['private_room', 'shared_room'].includes(rt);
-      }
-      return false;
-    });
+    // Interim rule: match category first; fall back to room_type for pre-backfill rows.
+    // Once category backfill runs, simplify to: normCat(l.category) === state.type
+    const normCat = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    results = results.filter(l => normCat(l.category || l.room_type) === state.type);
   }
 
   if (state.dur !== 'all') results = results.filter(l => l.duration === state.dur || l.lease_term === state.dur);
