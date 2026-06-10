@@ -256,6 +256,16 @@ const CAT_CONFIG = {
   room_wanted: { icon: 'fa-magnifying-glass', label: 'Room Wanted', desc: 'I am looking for a room to rent.' },
 };
 
+function _categoryBadgeHTML() {
+  const cfg = CAT_CONFIG[wizard.category];
+  if (!cfg) return '';
+  return `
+    <button type="button" id="wp-cat-badge" style="display:inline-flex; align-items:center; gap:6px; background:#f5f5f5; color:#1a1a1a; font-size:0.75rem; font-weight:800; padding:4px 12px; border-radius:100px; border:none; margin-bottom:12px; touch-action:manipulation;">
+      <i class="fa-solid ${cfg.icon}" style="font-size:0.7rem;"></i> ${cfg.label}
+    </button>
+  `;
+}
+
 // ── Entry ──────────────────────────────────────────────────────
 export async function init(container, params = {}) {
   const user = getCurrentUser();
@@ -469,6 +479,7 @@ function _step2() {
   }
 
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">Location Details</h2>
     <div class="mobile-form-group">
       <label class="mobile-form-label">Country *</label>
@@ -508,6 +519,7 @@ function _step3() {
 
   if (!isRoommate) {
     return `
+      ${_categoryBadgeHTML()}
       <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">The Details</h2>
       <div class="mobile-form-group">
         <label class="mobile-form-label">Listing Title *</label>
@@ -593,6 +605,7 @@ function _step3() {
 
   // Roommate branch
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">The Details</h2>
     <div class="mobile-form-group">
       <label class="mobile-form-label">Listing Title *</label>
@@ -627,6 +640,7 @@ function _mpDetails() {
   const category = _selectedMpCategory();
   const schemaFields = _schemaFields().filter(name => !['brand', 'condition'].includes(String(name).toLowerCase()));
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Item Details</h2>
     <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">${category ? `Posting in ${category.name}.` : 'Add the details buyers need.'}</p>
     <div class="mobile-form-group">
@@ -684,6 +698,7 @@ function _mpDetails() {
 function _step4() {
   const amenities = db.amenities.findAll();
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">Amenities</h2>
     <p style="font-size:0.88rem; color:#64748b; margin-bottom:16px;">Select all that apply.</p>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
@@ -702,6 +717,7 @@ function _step4() {
 // ── Step 5: Photos ────────────────────────────────────────────
 function _step5() {
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Photos</h2>
     <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Up to 10 photos. First photo is the cover image.</p>
     <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
@@ -728,6 +744,7 @@ function _step5() {
 function _step6() {
   const tags = db.tags.findAll();
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">Description &amp; Preferences</h2>
     <div class="mobile-form-group">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -792,6 +809,7 @@ function _step6() {
 
 function _mpDescription() {
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:20px;">Description</h2>
     <div class="mobile-form-group">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -813,6 +831,7 @@ function _step7() {
     const category = _selectedMpCategory();
     const coverPhoto = wizard.photos[0] ? getPhotoSrc(wizard.photos[0]) : null;
     return `
+      ${_categoryBadgeHTML()}
       <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Ready to Publish!</h2>
       <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Review your marketplace listing before it goes live.</p>
       <div style="border-radius:16px; border:1px solid #f1f5f9; overflow:hidden; margin-bottom:24px;">
@@ -859,6 +878,7 @@ function _step7() {
 
   if (isEdit) {
     return `
+      ${_categoryBadgeHTML()}
       <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Review Changes</h2>
       <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Your changes will be saved and visible immediately.</p>
       ${previewCard}
@@ -869,6 +889,7 @@ function _step7() {
   }
 
   return `
+    ${_categoryBadgeHTML()}
     <h2 style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-bottom:8px;">Ready to Publish!</h2>
     <p style="font-size:0.88rem; color:#64748b; margin-bottom:20px;">Review your listing before it goes live.</p>
     ${previewCard}
@@ -928,6 +949,13 @@ function _step7() {
 // ── Wire all step interactions ─────────────────────────────────
 async function _wireStep(container) {
   await getMobile();
+
+  // Category badge: jump back to step 1 to change category
+  container.querySelector('#wp-cat-badge')?.addEventListener('click', () => {
+    wizard.step = 1;
+    saveDraft();
+    _render(container);
+  });
 
   // Step 1: category select
   container.querySelectorAll('.wp-kind-card').forEach(card => {

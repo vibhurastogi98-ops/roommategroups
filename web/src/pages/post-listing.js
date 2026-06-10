@@ -281,6 +281,14 @@ const CAT_CONFIG = {
     room_wanted: { icon: 'fa-magnifying-glass', label: 'Room Wanted', desc: 'I am looking for a room to rent in someone\'s property.', bg: '#f5f5f5', color: '#1a1a1a' }
 };
 
+function categoryBadgeHTML() {
+    const cfg = CAT_CONFIG[draft.category];
+    if (!cfg) return '';
+    return `<button type="button" class="pl-cat-badge" id="pl-cat-badge" title="Change category">
+        <i class="fa-solid ${cfg.icon}"></i> ${cfg.label}
+    </button>`;
+}
+
 const KIND_CONFIG = {
     sale: { icon: 'fa-tag', label: 'Sell an item', desc: 'Furniture, electronics, home goods, vehicles, and other items.' },
     rental: { icon: 'fa-bed', label: 'List a room', desc: 'Use the existing room and roommate rental flow.' },
@@ -408,6 +416,7 @@ function renderStep2() {
     return `
         <div class="post-listing-step" id="step-2">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <h2>Location Details</h2>
                 <p class="step-subtitle">Where is your place located?</p>
             </div>
@@ -469,6 +478,7 @@ function renderStep3() {
     let html = `
         <div class="post-listing-step" id="step-3">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <h2>The Details</h2>
                 <p class="step-subtitle">Let's get into the specifics of what you're offering.</p>
             </div>
@@ -615,6 +625,7 @@ function renderMarketplaceDetails() {
     return `
         <div class="post-listing-step" id="step-3">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <h2>Item Details</h2>
                 <p class="step-subtitle">${category ? `Posting in ${category.name}.` : 'Add the details buyers will use to compare listings.'}</p>
             </div>
@@ -680,6 +691,7 @@ function renderStep4() {
     return `
         <div class="post-listing-step" id="step-4">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <h2>Amenities</h2>
                 <p class="step-subtitle">What does the property offer? Select all that apply.</p>
             </div>
@@ -708,6 +720,7 @@ function renderStep5() {
     return `
         <div class="post-listing-step" id="step-5">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <h2>Photos</h2>
                 <p class="step-subtitle">Upload up to 10 photos. The first photo will be used as the cover image.</p>
             </div>
@@ -747,6 +760,7 @@ function renderStep6() {
     return `
         <div class="post-listing-step" id="step-6">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <h2>Description &amp; Preferences</h2>
                 <p class="step-subtitle">Tell potential roommates about the place and who you're looking for.</p>
             </div>
@@ -817,6 +831,7 @@ function renderMarketplaceDescription() {
     return `
         <div class="post-listing-step" id="step-5">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <h2>Description</h2>
                 <p class="step-subtitle">Describe condition, pickup details, what is included, and anything buyers should know.</p>
             </div>
@@ -852,6 +867,7 @@ function renderStep7() {
         return `
             <div class="post-listing-step" id="step-6">
                 <div class="pl-step-header">
+                    ${categoryBadgeHTML()}
                     <div class="pl-publish-icon"><i class="fa-solid fa-rocket"></i></div>
                     <h2>Ready to Publish!</h2>
                     <p class="step-subtitle">Review your marketplace listing before it goes live.</p>
@@ -911,6 +927,7 @@ function renderStep7() {
     return `
         <div class="post-listing-step" id="step-7">
             <div class="pl-step-header">
+                ${categoryBadgeHTML()}
                 <div class="pl-publish-icon"><i class="fa-solid fa-rocket"></i></div>
                 <h2>Ready to Publish!</h2>
                 <p class="step-subtitle">Review your listing one last time before it goes live.</p>
@@ -995,6 +1012,16 @@ function attachEventListeners(container) {
     const btnNext = container.querySelector('#btn-next');
     const btnPrev = container.querySelector('#btn-prev');
     const btnPublish = container.querySelector('#btn-publish');
+
+    const catBadge = container.querySelector('#pl-cat-badge');
+    if (catBadge) {
+        catBadge.addEventListener('click', () => {
+            saveStepState();
+            draft.step = 1;
+            saveDraft();
+            renderFullPage(container);
+        });
+    }
 
     container.querySelectorAll('.pl-step.clickable[data-step]').forEach(stepEl => {
         const goToStep = () => {
