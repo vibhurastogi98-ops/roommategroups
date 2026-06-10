@@ -24,6 +24,8 @@ const defaultWizard = {
   city: '',
   neighborhood: '',
   address: '',
+  latitude: '',
+  longitude: '',
   title: '',
   price: '',
   currency: 'USD',
@@ -153,6 +155,8 @@ function loadListingIntoWizard(listing) {
     city: listing.city || '',
     neighborhood: listing.neighborhood || '',
     address: listing.address || '',
+    latitude: listing.latitude ?? '',
+    longitude: listing.longitude ?? '',
     title: listing.title || '',
     price: String(listing.kind && listing.kind !== 'rental' ? (listing.price ?? listing.rent ?? '') : (listing.rent ?? listing.price ?? '')),
     currency: listing.currency || 'USD',
@@ -476,8 +480,46 @@ function _mpCategoryPicker() {
   `;
 }
 
+// ── Location / Map helpers ─────────────────────────────────────
+function _cityCoords(cityId) {
+  const city = cityId ? db.cities.findById(cityId) : null;
+  if (!city || city.latitude == null || city.longitude == null) return null;
+  return { lat: Number(city.latitude), lng: Number(city.longitude) };
+}
+
+function _coordsMatch(lat, lng, coords) {
+  if (!coords) return false;
+  if (lat === '' || lat == null || lng === '' || lng == null) return false;
+  return Math.abs(Number(lat) - coords.lat) < 1e-6 && Math.abs(Number(lng) - coords.lng) < 1e-6;
+}
+
+// Defaults wizard coords to the selected city's coords unless a more precise
+// (geolocation/geocoded) value is already set.
+function _applyCityCoords(prevCityId) {
+  const cityCoords = _cityCoords(wizard.city);
+  if (!cityCoords) return;
+  const prevCoords = _cityCoords(prevCityId);
+  const hasCoords = wizard.latitude !== '' && wizard.latitude != null && wizard.longitude !== '' && wizard.longitude != null;
+  if (!hasCoords || _coordsMatch(wizard.latitude, wizard.longitude, prevCoords)) {
+    wizard.latitude = cityCoords.lat;
+    wizard.longitude = cityCoords.lng;
+  }
+}
+
+function _renderLocationMap() {
+  const lat = Number(wizard.latitude);
+  const lng = Number(wizard.longitude);
+  if (!wizard.city || wizard.latitude === '' || wizard.longitude === '' || wizard.latitude == null || wizard.longitude == null || isNaN(lat) || isNaN(lng)) {
+    return `<div class="map-placeholder"><i class="fa-solid fa-map-location-dot"></i><p>Select a city to preview the map</p></div>`;
+  }
+  const delta = 0.04;
+  const bbox = [lng - delta, lat - delta, lng + delta, lat + delta].map(n => n.toFixed(6)).join(',');
+  return `<iframe width="100%" height="100%" frameborder="0" scrolling="no" src="https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&amp;layer=mapnik&amp;marker=${lat},${lng}"></iframe>`;
+}
+
 // ── Step 2: Location ──────────────────────────────────────────
 function _step2() {
+  if (wizard.city && (wizard.latitude === '' || wizard.latitude == null)) _applyCityCoords(null);
   const allCountries = db.countries.findAll().filter(c => c.is_active);
   const cities = wizard.country
     ? db.cities.findAll().filter(c => (c.country === wizard.country || c.country_id === wizard.country) && c.is_active)
@@ -520,6 +562,11 @@ function _step2() {
         </button>
       </div>
       <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Exact address only shared with verified users.</div>
+    </div>
+    <div class="mock-map-container">
+      <div class="mock-map" id="wp-map">
+        ${_renderLocationMap()}
+      </div>
     </div>
   `;
 }
@@ -1000,21 +1047,52 @@ async function _wireStep(container) {
 
   // Step 2: location
   container.querySelector('#wp-country')?.addEventListener('change', e => {
+    const prevCoords = _cityCoords(wizard.city);
     wizard.country = e.target.value; wizard.city = ''; wizard.neighborhood = '';
+    if (_coordsMatch(wizard.latitude, wizard.longitude, prevCoords)) {
+      wizard.latitude = ''; wizard.longitude = '';
+    }
     saveDraft(); _render(container);
   });
   container.querySelector('#wp-city')?.addEventListener('change', e => {
+    const prevCity = wizard.city;
     wizard.city = e.target.value; wizard.neighborhood = '';
+    _applyCityCoords(prevCity);
     saveDraft(); _render(container);
   });
   container.querySelector('#wp-neighborhood')?.addEventListener('change', e => { wizard.neighborhood = e.target.value; saveDraft(); });
   container.querySelector('#wp-address')?.addEventListener('input', e => { wizard.address = e.target.value; saveDraft(); });
+  container.querySelector('#wp-address')?.addEventListener('blur', async e => {
+    const value = e.target.value.trim();
+    wizard.address = value;
+    saveDraft();
+    if (!value || !wizard.city) return;
+    const cityRec = db.cities.findById(wizard.city);
+    const countryRec = db.countries.findById(wizard.country);
+    try {
+      const q = encodeURIComponent([value, cityRec?.name, countryRec?.name].filter(Boolean).join(', '));
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`);
+      if (!res.ok) return;
+      const results = await res.json();
+      if (results && results[0]) {
+        wizard.latitude = parseFloat(results[0].lat);
+        wizard.longitude = parseFloat(results[0].lon);
+        saveDraft();
+        const mapEl = container.querySelector('#wp-map');
+        if (mapEl) mapEl.innerHTML = _renderLocationMap();
+      }
+    } catch (e2) {
+      console.debug('[MobilePost] Address geocode failed', e2);
+    }
+  });
   container.querySelector('#wp-use-location')?.addEventListener('click', async () => {
     const btn = container.querySelector('#wp-use-location');
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     btn.disabled = true;
     if (!navigator.geolocation) { _toast('Geolocation not supported', 'error'); btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>'; btn.disabled = false; return; }
     navigator.geolocation.getCurrentPosition(async pos => {
+      wizard.latitude = pos.coords.latitude;
+      wizard.longitude = pos.coords.longitude;
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
         if (!res.ok) throw new Error('Network response was not ok');
@@ -1026,10 +1104,12 @@ async function _wireStep(container) {
           wizard.address = addr;
           const input = container.querySelector('#wp-address');
           if (input) input.value = addr;
-          saveDraft();
           _toast('Location updated!');
         }
       } catch { _toast('Could not get address', 'error'); }
+      saveDraft();
+      const mapEl = container.querySelector('#wp-map');
+      if (mapEl) mapEl.innerHTML = _renderLocationMap();
       btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>'; btn.disabled = false;
     }, () => { _toast('Location access denied', 'error'); btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>'; btn.disabled = false; });
   });
@@ -1329,6 +1409,8 @@ async function _handleSubmit(container) {
         city: wizard.city,
         neighborhood: wizard.neighborhood,
         address: wizard.address,
+        latitude: wizard.latitude !== '' && wizard.latitude != null ? Number(wizard.latitude) : null,
+        longitude: wizard.longitude !== '' && wizard.longitude != null ? Number(wizard.longitude) : null,
         condition: wizard.condition || null,
         negotiable: wizard.negotiable ? 1 : 0,
         brand: wizard.brand || null,
@@ -1377,6 +1459,8 @@ async function _handleSubmit(container) {
       city: wizard.city,
       neighborhood: wizard.neighborhood,
       address: wizard.address,
+      latitude: wizard.latitude !== '' && wizard.latitude != null ? Number(wizard.latitude) : null,
+      longitude: wizard.longitude !== '' && wizard.longitude != null ? Number(wizard.longitude) : null,
       room_type: isRoommate ? null : (wizard.roomType || null),
       available_from: wizard.availableFrom,
       min_stay: wizard.minStay,

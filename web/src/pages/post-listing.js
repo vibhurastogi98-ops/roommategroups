@@ -12,7 +12,7 @@ const defaultDraft = {
     kind: '',
     category: '',
     marketplaceCategoryId: '',
-    country: '', city: '', neighborhood: '', address: '',
+    country: '', city: '', neighborhood: '', address: '', latitude: '', longitude: '',
     title: '', price: '', currency: 'USD', availableFrom: '', leaseDuration: '',
     roomType: '', furnished: '', bedrooms: '', bathrooms: '', sizeSqft: '',
     budgetMin: '', budgetMax: '', preferredArea: '', moveInTimeline: '',
@@ -125,6 +125,8 @@ function loadListingIntoDraft(listing) {
         city: listing.city || '',
         neighborhood: listing.neighborhood || '',
         address: listing.address || '',
+        latitude: listing.latitude ?? '',
+        longitude: listing.longitude ?? '',
         title: listing.title || '',
         price: listing.kind && listing.kind !== 'rental' ? (listing.price ?? listing.rent ?? '') : (listing.rent ?? listing.price ?? ''),
         currency: listing.currency || 'USD',
@@ -410,8 +412,46 @@ function renderStep1() {
     `;
 }
 
+// ── Location / Map helpers ──
+function getCityCoords(cityId) {
+    const city = cityId ? db.cities.findById(cityId) : null;
+    if (!city || city.latitude == null || city.longitude == null) return null;
+    return { lat: Number(city.latitude), lng: Number(city.longitude) };
+}
+
+function coordsMatch(lat, lng, coords) {
+    if (!coords) return false;
+    if (lat === '' || lat == null || lng === '' || lng == null) return false;
+    return Math.abs(Number(lat) - coords.lat) < 1e-6 && Math.abs(Number(lng) - coords.lng) < 1e-6;
+}
+
+// Defaults draft coords to the selected city's coords unless a more precise
+// (geolocation/geocoded) value is already set.
+function applyCityCoords(prevCityId) {
+    const cityCoords = getCityCoords(draft.city);
+    if (!cityCoords) return;
+    const prevCoords = getCityCoords(prevCityId);
+    const hasCoords = draft.latitude !== '' && draft.latitude != null && draft.longitude !== '' && draft.longitude != null;
+    if (!hasCoords || coordsMatch(draft.latitude, draft.longitude, prevCoords)) {
+        draft.latitude = cityCoords.lat;
+        draft.longitude = cityCoords.lng;
+    }
+}
+
+function renderLocationMap() {
+    const lat = Number(draft.latitude);
+    const lng = Number(draft.longitude);
+    if (!draft.city || draft.latitude === '' || draft.longitude === '' || draft.latitude == null || draft.longitude == null || isNaN(lat) || isNaN(lng)) {
+        return `<div class="map-placeholder"><i class="fa-solid fa-map-location-dot"></i><p>Select a city to preview the map</p></div>`;
+    }
+    const delta = 0.04;
+    const bbox = [lng - delta, lat - delta, lng + delta, lat + delta].map(n => n.toFixed(6)).join(',');
+    return `<iframe width="100%" height="100%" frameborder="0" scrolling="no" src="https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&amp;layer=mapnik&amp;marker=${lat},${lng}"></iframe>`;
+}
+
 // ── Step 2: Location ──
 function renderStep2() {
+    if (draft.city && (draft.latitude === '' || draft.latitude == null)) applyCityCoords(null);
     const allCountries = db.countries.findAll().filter(c => c.is_active);
     const cities = draft.country 
         ? db.cities.findAll().filter(c => c.country === draft.country && c.is_active)
@@ -464,11 +504,8 @@ function renderStep2() {
                 </div>
             </div>
             <div class="mock-map-container">
-                <div class="mock-map">
-                    ${draft.city
-            ? `<iframe width="100%" height="100%" frameborder="0" scrolling="no" src="https://www.openstreetmap.org/export/embed.html?bbox=-97.9,30.1,-97.5,30.4&amp;layer=mapnik"></iframe>`
-            : `<div class="map-placeholder"><i class="fa-solid fa-map-location-dot"></i><p>Select a city to preview the map</p></div>`
-        }
+                <div class="mock-map" id="pl-map">
+                    ${renderLocationMap()}
                 </div>
             </div>
             <div class="step-actions">
@@ -1110,15 +1147,22 @@ function attachEventListeners(container) {
         const address = container.querySelector('#pl-address');
 
         countrySelect.addEventListener('change', (e) => {
+            const prevCoords = getCityCoords(draft.city);
             draft.country = e.target.value;
             draft.city = '';
             draft.neighborhood = '';
+            if (coordsMatch(draft.latitude, draft.longitude, prevCoords)) {
+                draft.latitude = '';
+                draft.longitude = '';
+            }
             saveDraft();
             renderFullPage(container);
         });
 
         citySelect.addEventListener('change', (e) => {
+            const prevCity = draft.city;
             draft.city = e.target.value; draft.neighborhood = '';
+            applyCityCoords(prevCity);
             saveDraft();
             renderFullPage(container);
         });
@@ -1127,6 +1171,30 @@ function attachEventListeners(container) {
         nhSelect?.addEventListener('change', (e) => {
             draft.neighborhood = e.target.value;
             saveDraft();
+        });
+
+        address?.addEventListener('blur', async () => {
+            const value = address.value.trim();
+            draft.address = value;
+            saveDraft();
+            if (!value || !draft.city) return;
+            const cityRec = db.cities.findById(draft.city);
+            const countryRec = db.countries.findById(draft.country);
+            try {
+                const q = encodeURIComponent([value, cityRec?.name, countryRec?.name].filter(Boolean).join(', '));
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`);
+                if (!res.ok) return;
+                const results = await res.json();
+                if (results && results[0]) {
+                    draft.latitude = parseFloat(results[0].lat);
+                    draft.longitude = parseFloat(results[0].lon);
+                    saveDraft();
+                    const mapEl = container.querySelector('#pl-map');
+                    if (mapEl) mapEl.innerHTML = renderLocationMap();
+                }
+            } catch (e) {
+                console.debug('[POST] Address geocode failed', e);
+            }
         });
 
         container.querySelector('#btn-use-location').addEventListener('click', async () => {
@@ -1143,6 +1211,8 @@ function attachEventListeners(container) {
 
             navigator.geolocation.getCurrentPosition(async (position) => {
                 const { latitude, longitude } = position.coords;
+                draft.latitude = latitude;
+                draft.longitude = longitude;
                 try {
                     // Reverse geocoding using OpenStreetMap (Nominatim)
                     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
@@ -1153,7 +1223,6 @@ function attachEventListeners(container) {
                         const addr = data.address.road ? (data.address.house_number ? `${data.address.house_number} ${data.address.road}` : data.address.road) : data.display_name.split(',')[0];
                         address.value = addr;
                         draft.address = addr;
-                        saveDraft();
                         showToast('Location updated!');
                     } else {
                         showToast('Could not find address.', 'error');
@@ -1163,6 +1232,9 @@ function attachEventListeners(container) {
                     address.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
                     draft.address = address.value;
                 } finally {
+                    saveDraft();
+                    const mapEl = container.querySelector('#pl-map');
+                    if (mapEl) mapEl.innerHTML = renderLocationMap();
                     btn.innerHTML = originalIcon; btn.disabled = false;
                 }
             }, (err) => {
@@ -1501,6 +1573,8 @@ async function handlePublish() {
             city: draft.city,
             neighborhood: draft.neighborhood,
             address: draft.address,
+            latitude: draft.latitude !== '' && draft.latitude != null ? Number(draft.latitude) : null,
+            longitude: draft.longitude !== '' && draft.longitude != null ? Number(draft.longitude) : null,
             condition: draft.condition || null,
             negotiable: draft.negotiable ? 1 : 0,
             brand: draft.brand || null,
@@ -1546,7 +1620,10 @@ async function handlePublish() {
         user_id: user.id, kind: 'rental', category: draft.category, title: draft.title, description: draft.description,
         rent: isRoommateCategory ? (draft.budgetMax || 0) : (draft.price || 0),
         currency: draft.currency, country: draft.country, city: draft.city, neighborhood: draft.neighborhood,
-        address: draft.address, room_type: persistedRoomType, available_from: draft.availableFrom,
+        address: draft.address,
+        latitude: draft.latitude !== '' && draft.latitude != null ? Number(draft.latitude) : null,
+        longitude: draft.longitude !== '' && draft.longitude != null ? Number(draft.longitude) : null,
+        room_type: persistedRoomType, available_from: draft.availableFrom,
         lease_duration: draft.leaseDuration, furnished: draft.furnished, amenities: draft.amenities,
         images: JSON.stringify(draft.photos), roommate_prefs: { gender: draft.prefGender, ageMin: draft.prefAgeMin, ageMax: draft.prefAgeMax, tags: draft.lifestyleTags },
         status: isFree ? 'pending' : 'active', 
