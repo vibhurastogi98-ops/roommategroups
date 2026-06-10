@@ -794,24 +794,24 @@ export function renderHomePage(app) {
               <i class="fas fa-magnifying-glass"></i>
               <div class="step-number">1</div>
             </div>
-            <h3>Search</h3>
-            <p>Browse rooms and roommate profiles in your desired city. Filter by price, location, and preferences.</p>
+            <h3>Search &amp; Discover</h3>
+            <p>Browse verified rooms and roommate profiles in your city. Filter by budget, location, move-in date, and lifestyle to find your fit.</p>
           </div>
           <div class="step-card animate-on-scroll">
             <div class="step-icon">
               <i class="fas fa-comments"></i>
               <div class="step-number">2</div>
             </div>
-            <h3>Connect</h3>
-            <p>Message verified members directly through our secure platform. Get to know potential roommates.</p>
+            <h3>Connect Safely</h3>
+            <p>Message verified members directly through secure in-app chat. No bots, no spam — get to know potential roommates before you commit.</p>
           </div>
           <div class="step-card animate-on-scroll">
             <div class="step-icon">
               <i class="fas fa-house-circle-check"></i>
               <div class="step-number">3</div>
             </div>
-            <h3>Move In</h3>
-            <p>Find your perfect match and move in with confidence. Join thousands of happy renters worldwide.</p>
+            <h3>Move In Happy</h3>
+            <p>Found your match? Move in with confidence and join thousands of happy renters and roommates worldwide.</p>
           </div>
         </div>
       </div>

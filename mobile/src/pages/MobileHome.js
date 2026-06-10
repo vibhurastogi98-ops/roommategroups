@@ -483,6 +483,32 @@ export async function init(container) {
         </div>
 
 
+        <!-- HOW IT WORKS -->
+        <div style="padding: 32px 20px 40px; background: #F8FAFC;">
+          <h2 style="font-size: 1.55rem; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; margin: 0 0 8px;">How It Works</h2>
+          <p style="font-size: 0.9rem; color: #64748b; margin: 0 0 24px;">Find your room or roommate in 3 simple steps.</p>
+
+          ${[
+              { icon: 'fa-magnifying-glass', title: 'Search & Discover', desc: 'Browse verified rooms and roommate profiles in your city. Filter by budget, location, move-in date, and lifestyle to find your fit.' },
+              { icon: 'fa-comments', title: 'Connect Safely', desc: 'Message verified members directly through secure in-app chat. No bots, no spam — get to know potential roommates before you commit.' },
+              { icon: 'fa-house-circle-check', title: 'Move In Happy', desc: 'Found your match? Move in with confidence and join thousands of happy renters and roommates worldwide.' }
+            ].map((step, i) => `
+            <div style="display:flex; gap:16px; align-items:flex-start; padding:20px; background:#fff; border-radius:16px; border:1px solid #f1f5f9; box-shadow:0 4px 12px rgba(0,0,0,0.03); margin-bottom:${i < 2 ? '12px' : '0'};">
+              <div style="position:relative; flex-shrink:0;">
+                <div style="width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg, #1a1a1a, #333333); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.2rem;">
+                  <i class="fa-solid ${step.icon}"></i>
+                </div>
+                <div style="position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; background:#1a1a1a; color:#fff; font-size:0.65rem; font-weight:800; display:flex; align-items:center; justify-content:center; border:2px solid #fff;">${i + 1}</div>
+              </div>
+              <div>
+                <div style="font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:4px;">${step.title}</div>
+                <div style="font-size:0.8rem; color:#64748b; line-height:1.5;">${step.desc}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+
         <!-- TESTIMONIALS -->
         <div style="padding:32px 16px; background:linear-gradient(to bottom, #fff, #f8fafc);">
           <h2 style="font-size:1.1rem; font-weight:900; text-align:center; margin-bottom:24px;">What Users Say</h2>
