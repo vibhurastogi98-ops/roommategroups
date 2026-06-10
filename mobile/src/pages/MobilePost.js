@@ -257,6 +257,17 @@ const CAT_CONFIG = {
 };
 
 function _categoryBadgeHTML() {
+  if (_isMarketplace()) {
+    const cat = _selectedMpCategory();
+    if (!cat) return '';
+    const parent = cat.parent_id ? marketplaceCategories.find(c => c.category_id === cat.parent_id) : null;
+    const label = parent ? `${parent.name} · ${cat.name}` : cat.name;
+    return `
+      <button type="button" id="wp-cat-badge" style="display:inline-flex; align-items:center; gap:6px; background:#f5f5f5; color:#1a1a1a; font-size:0.75rem; font-weight:800; padding:4px 12px; border-radius:100px; border:none; margin-bottom:12px; touch-action:manipulation;">
+        <i class="fa-solid ${cat.icon || parent?.icon || 'fa-tag'}" style="font-size:0.7rem;"></i> ${label}
+      </button>
+    `;
+  }
   const cfg = CAT_CONFIG[wizard.category];
   if (!cfg) return '';
   return `

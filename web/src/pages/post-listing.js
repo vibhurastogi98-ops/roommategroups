@@ -282,6 +282,15 @@ const CAT_CONFIG = {
 };
 
 function categoryBadgeHTML() {
+    if (isMarketplaceFlow()) {
+        const cat = getSelectedMarketplaceCategory();
+        if (!cat) return '';
+        const parent = cat.parent_id ? marketplaceCategories.find(c => c.category_id === cat.parent_id) : null;
+        const label = parent ? `${parent.name} · ${cat.name}` : cat.name;
+        return `<button type="button" class="pl-cat-badge" id="pl-cat-badge" title="Change category">
+            <i class="fa-solid ${cat.icon || parent?.icon || 'fa-tag'}"></i> ${label}
+        </button>`;
+    }
     const cfg = CAT_CONFIG[draft.category];
     if (!cfg) return '';
     return `<button type="button" class="pl-cat-badge" id="pl-cat-badge" title="Change category">
