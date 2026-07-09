@@ -31,8 +31,12 @@ app.use('*', cors({
   origin: (origin) => {
     if (!origin) return null  // Reject requests with no Origin (non-browser server-to-server)
     // Allow localhost, local IP (for emulators), and capacitor origins
-    if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('10.0.2.2') || origin.startsWith('capacitor://')) return origin
-    if (origin.includes('workers.dev') || origin.includes('roommategroups')) return origin
+    if (origin.startsWith('capacitor://')) return origin
+    try {
+      const hostname = new URL(origin).hostname
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '10.0.2.2') return origin
+      if (hostname.endsWith('.workers.dev') || hostname === 'roommategroups.com' || hostname.endsWith('.roommategroups.com')) return origin
+    } catch {}
     return null
   },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -234,6 +238,7 @@ const PBKDF2_ITERATIONS = 100_000
 const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 1000
 const AUTH_RATE_LIMIT_MAX = 5
 const loginRateLimits = new Map<string, { count: number; resetAt: number }>()
+const writeRateLimits = new Map<string, { count: number; resetAt: number }>()
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
 let fcmAccessTokenCache: { token: string; expiresAt: number } | null = null
@@ -448,6 +453,33 @@ function consumeLoginRateLimit(c: any): { allowed: boolean; retryAfter: number }
 
   current.count += 1
   return { allowed: true, retryAfter: 0 }
+}
+
+// Generic per-IP rate limiter for write/AI endpoints beyond login.
+// Note: in-memory, so limits are per-isolate (best-effort, not durable across colos).
+function consumeWriteRateLimit(c: any, bucket: string, max: number, windowMs: number): { allowed: boolean; retryAfter: number } {
+  const key = `${bucket}:${getClientIp(c)}`
+  const now = Date.now()
+  const current = writeRateLimits.get(key)
+
+  if (!current || current.resetAt <= now) {
+    writeRateLimits.set(key, { count: 1, resetAt: now + windowMs })
+    return { allowed: true, retryAfter: 0 }
+  }
+
+  if (current.count >= max) {
+    return { allowed: false, retryAfter: Math.ceil((current.resetAt - now) / 1000) }
+  }
+
+  current.count += 1
+  return { allowed: true, retryAfter: 0 }
+}
+
+function rateLimitResponse(c: any, retryAfter: number) {
+  return dbJson(c, { error: 'Too many requests. Please slow down.' }, 429, {
+    'Retry-After': String(retryAfter),
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+  })
 }
 
 function isLocalRequest(c: any): boolean {
@@ -665,6 +697,8 @@ app.get('/api/ai-assist', (c) => {
 app.post('/api/ai-assist', async (c) => {
   const callerId = await requireAuth(c)
   if (!callerId) return c.res
+  const aiLimit = consumeWriteRateLimit(c, 'ai-assist', 10, 60 * 1000)
+  if (!aiLimit.allowed) return rateLimitResponse(c, aiLimit.retryAfter)
   try {
     const { category, title, amenities, lifestyleTags, draft } = await c.req.json()
     const apiKey = c.env.GEMINI_API_KEY
@@ -718,6 +752,8 @@ app.post('/api/ai-assist', async (c) => {
 
 // ── Auth: server-side registration and login ─────────────────
 app.post('/auth/register', async (c) => {
+  const registerLimit = consumeWriteRateLimit(c, 'register', AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS)
+  if (!registerLimit.allowed) return rateLimitResponse(c, registerLimit.retryAfter)
   try {
     const body = await c.req.json()
     const email = normalizeEmail(body.email)
@@ -1439,6 +1475,8 @@ function findProhibitedListingTerm(title: any, description: any): string | null 
 app.post('/listings', async (c) => {
   const callerId = await requireAuth(c)
   if (!callerId) return c.res
+  const listingLimit = consumeWriteRateLimit(c, 'listings', 20, 60 * 1000)
+  if (!listingLimit.allowed) return rateLimitResponse(c, listingLimit.retryAfter)
   try {
     const body = await c.req.json()
     const isAdmin = requestIsAdmin(c)
@@ -1967,6 +2005,8 @@ app.post('/reviews', async (c) => {
 app.post('/offers', async (c) => {
   const buyerId = await requireAuth(c)
   if (!buyerId) return c.res
+  const offerLimit = consumeWriteRateLimit(c, 'offers', 20, 60 * 1000)
+  if (!offerLimit.allowed) return rateLimitResponse(c, offerLimit.retryAfter)
 
   try {
     const body = await c.req.json()
@@ -3059,6 +3099,8 @@ app.get('/messages', async (c) => {
 app.post('/messages', async (c) => {
   const callerId = await requireAuth(c)
   if (!callerId) return c.res
+  const messageLimit = consumeWriteRateLimit(c, 'messages', 30, 60 * 1000)
+  if (!messageLimit.allowed) return rateLimitResponse(c, messageLimit.retryAfter)
   try {
     const body = await c.req.json()
     const id = body.message_id || `msg_${Date.now()}`
@@ -3155,6 +3197,8 @@ app.get('/reports', async (c) => {
 app.post('/reports', async (c) => {
   const reporterId = await requireAuth(c)
   if (!reporterId) return c.res
+  const reportLimit = consumeWriteRateLimit(c, 'reports', 10, 60 * 1000)
+  if (!reportLimit.allowed) return rateLimitResponse(c, reportLimit.retryAfter)
   try {
     const body = await c.req.json()
     const id = body.report_id || `rep_${Date.now()}`
