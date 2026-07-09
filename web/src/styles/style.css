@@ -48,7 +48,6 @@
   padding: 0;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
-  user-select: none; /* Disable text selection globally, enable only for inputs */
 }
 
 html {
