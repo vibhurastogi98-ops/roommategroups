@@ -1274,7 +1274,10 @@ app.get('/listings', async (c) => {
       whereParams.push(city, city, city)
     }
     if (category) {
-      where.push('l.category_id IN (SELECT category_id FROM category_tree)')
+      // Sale items use category_id (mp_categories tree); rental listings
+      // store the plain slug ('room', 'apartment', ...) in l.category.
+      where.push('(l.category_id IN (SELECT category_id FROM category_tree) OR l.category = ?)')
+      whereParams.push(category)
     }
     if (minPrice !== null) {
       where.push('COALESCE(l.rent, l.price) >= ?')
