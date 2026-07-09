@@ -336,7 +336,7 @@ async function verifyJwt(token: string, secret: string): Promise<JwtPayload | nu
 }
 
 function getAuthSecret(c: any): string {
-  return c.env.JWT_SECRET || c.env.GEMINI_API_KEY || ''
+  return c.env.JWT_SECRET || ''
 }
 
 function bytesToHex(bytes: Uint8Array): string {
